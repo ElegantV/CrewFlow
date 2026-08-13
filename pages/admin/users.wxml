@@ -1,0 +1,27 @@
+<navigation-bar title="用户管理" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<scroll-view class="scrollarea" scroll-y>
+  <view class="page-shell">
+    <view class="user-list">
+      <view class="user-card card" wx:for="{{users}}" wx:key="id" data-id="{{item.id}}" bindtap="edit">
+        <view class="user-head">
+          <text class="user-name">{{item.name || '待命名用户'}}</text>
+          <text class="status status--{{item.status}}">{{item.statusLabel}}</text>
+        </view>
+        <text class="meta">{{item.roleLabel}} · 工号 {{item.employeeNo || '未设置'}}</text>
+        <text class="meta">审批管理员：{{item.manager ? item.manager.name : '未配置'}}</text>
+      </view>
+    </view>
+  </view>
+</scroll-view>
+
+<view class="modal-mask" wx:if="{{editing}}" bindtap="close">
+  <view class="form-card" catchtap="noop">
+    <text class="form-title">编辑用户</text>
+    <view class="field"><text class="label">姓名</text><input class="control" value="{{form.name}}" bindinput="onNameInput" /></view>
+    <view class="field"><text class="label">工号</text><input class="control" value="{{form.employeeNo}}" bindinput="onEmployeeNoInput" /></view>
+    <view class="field"><text class="label">角色</text><picker range="{{roles}}" range-key="label" value="{{roleIndex}}" bindchange="onRoleChange"><view class="control">{{roles[roleIndex].label}}</view></picker></view>
+    <view class="field"><text class="label">状态</text><picker range="{{statuses}}" range-key="label" value="{{statusIndex}}" bindchange="onStatusChange"><view class="control">{{statuses[statusIndex].label}}</view></picker></view>
+    <view class="field"><text class="label">审批管理员</text><picker range="{{managers}}" range-key="name" value="{{managerIndex}}" bindchange="onManagerChange"><view class="control">{{managers[managerIndex].name}}</view></picker></view>
+    <view class="actions"><button class="secondary" bindtap="close">取消</button><button class="primary-button" loading="{{saving}}" bindtap="save">保存</button></view>
+  </view>
+</view>

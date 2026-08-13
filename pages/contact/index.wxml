@@ -1,0 +1,31 @@
+<navigation-bar title="通讯录" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<view class="contact-layout" wx:if="{{!loading && !error}}">
+  <scroll-view class="system-list" scroll-y enhanced show-scrollbar="{{false}}">
+    <view wx:for="{{systems}}" wx:key="*this" class="system-item {{selectedSystem === item ? 'system-item--active' : ''}}" data-system="{{item}}" bindtap="selectSystem">
+      <view class="system-indicator"></view><text>{{item}}</text>
+    </view>
+  </scroll-view>
+
+  <view class="contact-panel">
+    <view class="panel-head">
+      <view><text class="panel-title">{{selectedSystem}}</text><text class="panel-subtitle">{{filteredContacts.length}} 人</text></view>
+      <text class="panel-tip">点击左侧筛选</text>
+    </view>
+    <scroll-view class="contact-list" scroll-y enhanced show-scrollbar>
+      <view class="contact-card" wx:for="{{filteredContacts}}" wx:key="id">
+        <view class="contact-main">
+          <view class="contact-name-row"><text class="contact-name">{{item.name}}</text><text class="type-tag type-tag--{{item.personnelType}}">{{item.personnelTypeLabel}}</text></view>
+          <text class="contact-system">{{item.systemName}}</text>
+          <text class="contact-mobile">{{item.mobile || '未配置手机号'}}</text>
+        </view>
+        <view class="contact-actions">
+          <button class="icon-button {{item.mobile ? '' : 'icon-button--disabled'}}" data-mobile="{{item.mobile}}" bindtap="call" aria-label="拨打电话"><view class="icon-shell"><image class="action-icon" src="/assets/icons/phone.svg"></image></view><text>拨打</text></button>
+          <button class="icon-button" data-id="{{item.id}}" bindtap="copy" aria-label="复制信息"><view class="icon-shell"><image class="action-icon" src="/assets/icons/copy.svg"></image></view><text>复制</text></button>
+        </view>
+      </view>
+      <view class="empty" wx:if="{{!filteredContacts.length}}">该系统暂无人员</view>
+    </scroll-view>
+  </view>
+</view>
+<view class="page-state" wx:elif="{{loading}}">正在加载通讯录…</view>
+<view class="page-state page-state--error" wx:else><text>{{error}}</text><button bindtap="retry">重新加载</button></view>

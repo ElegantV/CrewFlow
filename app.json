@@ -1,0 +1,23 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/assistant/index",
+    "pages/situation/index",
+    "pages/contact/index",
+    "pages/duty/index",
+    "pages/leave/index",
+    "pages/profile/index",
+    "pages/approval/index",
+    "pages/admin/users",
+    "pages/dev/users"
+  ],
+  "window": {
+    "navigationBarTextStyle": "black",
+    "navigationStyle": "custom"
+  },
+  "style": "v2",
+  "renderer": "webview",
+  "componentFramework": "glass-easel",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

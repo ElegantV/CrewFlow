@@ -1,0 +1,72 @@
+<navigation-bar title="CrewFlow" back="{{false}}" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<!-- 使用标准滚动属性，兼容 Skyline 与 WebView。 -->
+<scroll-view class="scrollarea" scroll-y>
+  <view class="page-shell home-page">
+    <view class="hero card">
+      <text class="eyebrow">团队工作台</text>
+      <text class="hero-title">今天也要有条不紊</text>
+      <text class="hero-subtitle" wx:if="{{user && user.name}}">{{user.name}}，欢迎回来</text>
+      <text class="hero-subtitle" wx:elif="{{user && user.status === 'pending'}}">账号待管理员绑定员工信息</text>
+      <text class="hero-subtitle" wx:elif="{{apiStatus === 'unavailable'}}">后端暂时不可用，请检查 API 服务</text>
+      <text class="hero-subtitle" wx:elif="{{apiStatus === 'auth_required'}}">登录状态已失效，请重新登录</text>
+      <text class="hero-subtitle" wx:elif="{{apiConfigured}}">正在连接团队账号</text>
+      <text class="hero-subtitle" wx:else>部署后请配置 API 地址</text>
+    </view>
+
+    <view class="reminder-stack" wx:if="{{reminders.overtimeExpiring.length || reminders.dutyConflicts.length || (user && (user.role === 'admin' || user.role === 'super_admin') && reminders.pendingApprovals > 0)}}">
+      <view class="reminder-card reminder-card--orange" wx:if="{{reminders.overtimeExpiring.length}}" data-url="/pages/duty/index" bindtap="openShortcut" hover-class="tap-active" hover-stay-time="80">
+        <view class="reminder-icon">调</view>
+        <view class="reminder-body">
+          <text class="reminder-title">调休即将到期</text>
+          <text class="reminder-text">{{reminders.overtimeExpiring.length}} 笔调休额度将在 3 天内到期，请及时安排使用</text>
+        </view>
+        <text class="reminder-arrow">›</text>
+      </view>
+      <view class="reminder-card reminder-card--blue" wx:if="{{reminders.pendingApprovals > 0}}" data-url="/pages/approval/index" bindtap="openShortcut" hover-class="tap-active" hover-stay-time="80">
+        <view class="reminder-icon">审</view>
+        <view class="reminder-body">
+          <text class="reminder-title">待审批申请</text>
+          <text class="reminder-text">你有 {{reminders.pendingApprovals}} 条请假申请待处理</text>
+        </view>
+        <text class="reminder-arrow">›</text>
+      </view>
+      <view class="reminder-card reminder-card--red" wx:if="{{reminders.dutyConflicts.length}}" data-url="/pages/situation/index" bindtap="openShortcut" hover-class="tap-active" hover-stay-time="80">
+        <view class="reminder-icon">值</view>
+        <view class="reminder-body">
+          <text class="reminder-title">值班时间冲突</text>
+          <text class="reminder-text">{{reminders.dutyConflicts.length}} 天请假与已登记值班重叠，请确认安排</text>
+        </view>
+        <text class="reminder-arrow">›</text>
+      </view>
+    </view>
+
+    <view class="section-title">常用功能</view>
+    <view class="shortcut-grid">
+      <view
+        wx:for="{{shortcuts}}"
+        wx:key="key"
+        class="shortcut shortcut--{{item.accent}}"
+        data-url="{{item.url}}"
+        bindtap="openShortcut"
+        hover-class="tap-active"
+        hover-stay-time="80"
+      >
+        <view class="shortcut-card card">
+          <view class="shortcut-top">
+            <view class="shortcut-icon">{{item.icon}}</view>
+            <text class="shortcut-arrow">›</text>
+          </view>
+          <text class="shortcut-title">{{item.title}}</text>
+          <text class="shortcut-description">{{item.description}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="setup-tip" wx:if="{{!apiConfigured || apiStatus === 'unavailable'}}">
+      <text class="setup-tip__title">尚未连接后端</text>
+      <text class="setup-tip__content" wx:if="{{!apiConfigured}}">请在 config/env.js 中填写云服务器的 HTTPS API 地址。</text>
+      <text class="setup-tip__content" wx:else>请确认 API 服务已启动，并检查 config/env.js 中的地址。</text>
+      <button class="retry-button" wx:if="{{apiStatus === 'unavailable'}}" bindtap="retryConnection">重新连接</button>
+    </view>
+  </view>
+</scroll-view>

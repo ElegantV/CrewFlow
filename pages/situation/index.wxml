@@ -1,0 +1,61 @@
+<navigation-bar title="员工情况" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<scroll-view class="scrollarea" scroll-y enhanced show-scrollbar="{{false}}">
+  <view class="page-shell situation-page">
+    <view class="calendar-card card">
+      <view class="calendar-head">
+        <view class="month-copy">
+          <text class="month-title">请假加班日历</text>
+          <text class="scroll-hint">在日历内上下滚动查看月份</text>
+        </view>
+        <button class="today-button" bindtap="goToday">今天</button>
+      </view>
+      <view class="week-row">
+        <text wx:for="{{weekdays}}" wx:key="*this" class="week-label">{{item}}</text>
+      </view>
+      <scroll-view class="months-scroll" scroll-y enhanced show-scrollbar scroll-into-view="{{scrollIntoView}}">
+        <view id="{{monthItem.id}}" class="month-section" wx:for="{{months}}" wx:key="key" wx:for-item="monthItem">
+          <text class="month-section-title">{{monthItem.label}}</text>
+          <view class="month-grid">
+            <view wx:for="{{monthItem.cells}}" wx:key="key" wx:for-item="dayItem" class="calendar-cell {{dayItem.empty ? 'calendar-cell--empty' : ''}} {{dayItem.selected ? 'calendar-cell--selected' : ''}}" data-date="{{dayItem.date}}" bindtap="selectDate">
+              <block wx:if="{{!dayItem.empty}}">
+                <text class="day-number {{dayItem.isToday ? 'day-number--today' : ''}}">{{dayItem.day}}</text>
+                <view class="day-markers" wx:if="{{dayItem.hasActivity}}">
+                  <text class="day-marker day-marker--leave" wx:if="{{dayItem.leaveCount}}">假{{dayItem.leaveCount}}</text>
+                  <text class="day-marker day-marker--overtime" wx:if="{{dayItem.overtimeCount}}">班{{dayItem.overtimeCount}}</text>
+                </view>
+              </block>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
+      <view class="legend"><view class="legend-item"><view class="legend-dot legend-dot--leave"></view><text>请假</text></view><view class="legend-item"><view class="legend-dot legend-dot--overtime"></view><text>加班</text></view></view>
+    </view>
+
+    <view class="loading-state card" wx:if="{{loading}}">正在加载员工情况…</view>
+    <view class="error-state card" wx:elif="{{error}}"><text>{{error}}</text><button bindtap="retry">重新加载</button></view>
+    <view wx:else>
+      <view class="detail-title"><text>{{selectedDate}}</text><text class="detail-count">请假 {{leaves.length}} 条 · 加班 {{overtime.length}} 条</text></view>
+      <view class="empty card" wx:if="{{!leaves.length && !overtime.length}}">当天暂无请假或加班记录</view>
+
+      <view class="detail-section" wx:if="{{leaves.length}}">
+        <view class="detail-section-title"><text>请假人员</text><text class="detail-section-count">{{leaves.length}} 人</text></view>
+        <view class="person-card card" wx:for="{{leaves}}" wx:key="id">
+          <image wx:if="{{item.avatar}}" class="person-avatar" src="{{item.avatar}}" mode="aspectFill"></image>
+          <view wx:else class="person-avatar person-avatar--empty">{{item.name}}</view>
+          <view class="person-main"><text class="person-name">{{item.name}}</text><text class="person-sub">{{item.leaveTypeLabel}} · {{item.periodLabel}} · {{item.requestedHours}} 小时</text></view>
+          <text class="system-tag">{{item.systemName}}</text>
+        </view>
+      </view>
+
+      <view class="detail-section" wx:if="{{overtime.length}}">
+        <view class="detail-section-title"><text>加班人员</text><text class="detail-section-count">{{overtime.length}} 人</text></view>
+        <view class="person-card card" wx:for="{{overtime}}" wx:key="id">
+          <image wx:if="{{item.avatar}}" class="person-avatar" src="{{item.avatar}}" mode="aspectFill"></image>
+          <view wx:else class="person-avatar person-avatar--empty">{{item.name}}</view>
+          <view class="person-main"><text class="person-name">{{item.name}}</text><text class="person-sub">加班 {{item.hours}} 小时 · {{item.content}}</text></view>
+          <text class="system-tag">{{item.systemName}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+</scroll-view>

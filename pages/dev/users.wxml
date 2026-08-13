@@ -1,0 +1,31 @@
+<navigation-bar title="切换测试身份" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<scroll-view class="scrollarea" scroll-y>
+  <view class="page-shell">
+    <view class="warning">仅本地开发环境可用。生产环境中的同名接口会返回404。</view>
+    <view class="current card" wx:if="{{currentUser}}">
+      <text class="current-label">当前身份</text>
+      <text class="current-name">{{currentUser.name || '真实微信用户'}}</text>
+      <text class="current-role">{{currentUser.role}}</text>
+    </view>
+
+    <view class="user-list" wx:if="{{users.length}}">
+      <view class="user-card card" wx:for="{{users}}" wx:key="id">
+        <view class="user-info">
+          <text class="user-name">{{item.name}}</text>
+          <text class="user-meta">{{item.roleLabel}} · {{item.statusLabel}}</text>
+          <text class="user-meta" wx:if="{{item.managerName}}">审批管理员：{{item.managerName}}</text>
+        </view>
+        <button
+          class="switch-button"
+          data-id="{{item.id}}"
+          loading="{{switchingId === item.id}}"
+          disabled="{{switchingId || restoring}}"
+          bindtap="switchUser"
+        >切换</button>
+      </view>
+    </view>
+    <view class="loading" wx:elif="{{loading}}">加载中…</view>
+
+    <button class="restore-button" loading="{{restoring}}" disabled="{{switchingId}}" bindtap="restoreWechat">恢复真实微信登录</button>
+  </view>
+</scroll-view>

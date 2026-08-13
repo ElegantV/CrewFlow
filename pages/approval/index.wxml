@@ -1,0 +1,42 @@
+<navigation-bar title="请假审批" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<scroll-view class="scrollarea" scroll-y>
+  <view class="page-shell">
+    <view class="subscribe-tip" wx:if="{{subscribeEnabled}}">
+      <view class="subscribe-body">
+        <text class="subscribe-title">审批提醒</text>
+        <text class="subscribe-text">新申请提交后，通过服务通知提醒你及时处理</text>
+      </view>
+      <button class="subscribe-button" bindtap="subscribeReminder">开启提醒</button>
+    </view>
+
+    <view class="approval-list" wx:if="{{approvals.length}}">
+      <view class="approval-card card" wx:for="{{approvals}}" wx:key="id">
+        <view class="approval-head">
+          <text class="applicant">{{item.applicant.name || '未命名用户'}}</text>
+          <text class="type">{{item.leaveTypeLabel}}</text>
+        </view>
+        <text class="date">{{item.startDate}} 至 {{item.endDate}}</text>
+        <text class="meta">{{item.requestedDays}}天 / {{item.requestedHours}}小时 · 代理人 {{item.agentName || '—'}}</text>
+        <text class="reason" wx:if="{{item.reason}}">事由：{{item.reason}}</text>
+        <view class="actions">
+          <button class="reject-button" data-id="{{item.id}}" bindtap="reject">驳回</button>
+          <button class="approve-button" data-id="{{item.id}}" bindtap="approve">通过</button>
+        </view>
+      </view>
+    </view>
+    <view class="empty card" wx:elif="{{!loading}}">暂无待审批申请</view>
+    <view class="loading" wx:else>加载中…</view>
+
+    <view class="section-title" wx:if="{{history.length}}">最近通过</view>
+    <view class="approval-list history-list" wx:if="{{history.length}}">
+      <view class="approval-card card" wx:for="{{history}}" wx:key="id">
+        <view class="approval-head">
+          <text class="applicant">{{item.applicantName || '未命名用户'}}</text>
+          <text class="type type--approved">已通过 · {{item.leaveTypeLabel}}</text>
+        </view>
+        <text class="date">{{item.startDate}} 至 {{item.endDate}}</text>
+        <text class="meta">{{item.requestedDays}}天 / {{item.requestedHours}}小时</text>
+      </view>
+    </view>
+  </view>
+</scroll-view>

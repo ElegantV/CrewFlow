@@ -1,0 +1,126 @@
+<navigation-bar title="请假" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<scroll-view class="scrollarea" scroll-y>
+  <view class="page-shell">
+    <view class="agent-tip" wx:if="{{profile && profile.personnelType !== 'bank' && profile.agent}}">
+      <text class="agent-dot">代</text><text class="agent-text">工作代理人：{{profile.agent.name || '未命名用户'}}</text>
+      <text class="agent-link" bindtap="openProfile">修改</text>
+    </view>
+    <view class="agent-tip" wx:elif="{{profile && profile.personnelType === 'bank'}}">
+      行员请假无需配置工作代理人
+    </view>
+    <view class="agent-tip agent-tip--warning" wx:else>
+      尚未维护工作代理人，请先在个人信息中完成。
+    </view>
+
+    <view class="section-head">
+      <text class="section-title">申请记录</text>
+      <text class="section-count">{{requests.length}} 条</text>
+    </view>
+
+    <view class="request-list" wx:if="{{requests.length}}">
+      <view class="request-card card" wx:for="{{requests}}" wx:key="id">
+        <view class="request-head">
+          <text class="request-type">{{item.leaveTypeLabel}}</text>
+          <text class="status status--{{item.status}}">{{item.statusLabel}}</text>
+        </view>
+        <text class="request-date">{{item.startDate}} 至 {{item.endDate}}</text>
+        <text class="request-meta">{{item.requestedDays}}天 / {{item.requestedHours}}小时 · 代理人 {{item.agentName || '—'}}</text>
+        <text class="request-comment" wx:if="{{item.approval && item.approval.comment}}">审批意见：{{item.approval.comment}}</text>
+        <view class="request-actions" wx:if="{{item.canCancel || item.canViewResult}}">
+          <button wx:if="{{item.canViewResult}}" class="result-button" data-id="{{item.id}}" bindtap="openApprovalResult">审批结果</button>
+          <button wx:if="{{item.canCancel}}" class="text-button" data-id="{{item.id}}" loading="{{cancellingId === item.id}}" disabled="{{cancellingId === item.id}}" bindtap="cancel">撤销申请</button>
+        </view>
+      </view>
+    </view>
+    <view class="empty card" wx:elif="{{!loading}}">
+      <text class="empty-title">暂无请假申请</text>
+      <text class="muted">提交后可在这里查看审批进度。</text>
+    </view>
+    <view class="loading" wx:else>加载中…</view>
+
+  </view>
+</scroll-view>
+
+<view class="action-bar">
+  <button class="primary-button action-button" bindtap="openForm">我要请假</button>
+</view>
+
+<view class="modal-mask" wx:if="{{showForm}}" bindtap="closeForm">
+  <view class="form-card" catchtap="noop">
+    <scroll-view class="form-scroll" scroll-y>
+      <view class="form-content">
+        <view class="sheet-handle"></view>
+        <view class="sheet-head"><text class="form-title">请假申请</text><text class="sheet-close" bindtap="closeForm">关闭</text></view>
+    <view class="field">
+      <text class="field-label">请假类型</text>
+      <picker range="{{types}}" range-key="label" value="{{typeIndex}}" bindchange="onTypeChange">
+        <view class="field-control">{{currentType && currentType.label}}</view>
+      </picker>
+      <text class="field-help" wx:if="{{currentType && currentType.fixedWorkdays}}">一次性休完{{currentType.fixedWorkdays}}个工作日，结束日期自动计算。</text>
+      <text class="field-help" wx:else>最小{{currentType.minimumHours}}小时，按{{currentType.incrementHours}}小时递增。</text>
+    </view>
+    <view class="field">
+      <text class="field-label">开始日期</text>
+      <picker mode="date" value="{{form.startDate}}" bindchange="onStartDateChange">
+        <view class="field-control">{{form.startDate}}</view>
+      </picker>
+    </view>
+    <view class="field" wx:if="{{!currentType.fixedWorkdays}}">
+      <text class="field-label">结束日期</text>
+      <picker mode="date" value="{{form.endDate}}" start="{{form.startDate}}" bindchange="onEndDateChange">
+        <view class="field-control">{{form.endDate}}</view>
+      </picker>
+    </view>
+    <view class="period-grid" wx:if="{{!currentType.fixedWorkdays}}">
+      <view class="field">
+        <text class="field-label">开始时段</text>
+        <picker range="{{periods}}" range-key="label" value="{{startPeriodIndex}}" bindchange="onStartPeriodChange">
+          <view class="field-control">{{periods[startPeriodIndex].label}}</view>
+        </picker>
+      </view>
+      <view class="field">
+        <text class="field-label">结束时段</text>
+        <picker range="{{periods}}" range-key="label" value="{{endPeriodIndex}}" bindchange="onEndPeriodChange">
+          <view class="field-control">{{periods[endPeriodIndex].label}}</view>
+        </picker>
+      </view>
+    </view>
+    <view class="field" wx:if="{{profile && profile.personnelType !== 'bank'}}">
+      <text class="field-label">工作代理人</text>
+      <view class="field-control">{{profile && profile.agent && (profile.agent.name || '未命名用户')}}</view>
+    </view>
+    <view class="field">
+      <text class="field-label">事由</text>
+      <textarea class="field-textarea" maxlength="500" value="{{form.reason}}" placeholder="请填写请假事由" bindinput="onReasonInput"></textarea>
+    </view>
+    <view class="proof-notice" wx:if="{{currentType.proofNotice}}">
+      {{currentType.proofNotice}}。当前版本仅作提示，无需在小程序上传。
+    </view>
+        <view class="form-actions">
+          <button class="secondary-button" bindtap="closeForm">取消</button>
+          <button class="primary-button" loading="{{submitting}}" bindtap="submit">提交申请</button>
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+</view>
+
+<view class="modal-mask result-mask" wx:if="{{showResult}}" bindtap="closeResult">
+  <view class="result-card" catchtap="noop">
+    <view class="result-head">
+      <text class="form-title result-title">审批结果</text>
+      <text class="result-close" bindtap="closeResult">关闭</text>
+    </view>
+    <view class="loading" wx:if="{{resultLoading}}">正在生成审批内容…</view>
+    <view class="result-body" wx:elif="{{approvalResult}}">
+      <text class="result-hint">以下请假信息可直接复制使用</text>
+      <scroll-view class="result-scroll" scroll-y>
+        <text class="result-text" user-select>{{approvalResult.text}}</text>
+      </scroll-view>
+    </view>
+    <view class="result-actions" wx:if="{{approvalResult}}">
+      <button class="secondary-button" bindtap="copyApprovalResult">一键复制</button>
+      <button class="primary-button" loading="{{downloading}}" bindtap="downloadApprovalPdf">下载 PDF</button>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,136 @@
+<navigation-bar title="个人信息" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<scroll-view class="profile-scroll" scroll-y>
+  <view class="page-shell profile-page" wx:if="{{form}}">
+    <view class="identity-card card">
+      <button class="avatar-button" open-type="chooseAvatar" bindchooseavatar="chooseAvatar" loading="{{savingAvatar}}">
+        <image wx:if="{{form.avatar}}" class="avatar" src="{{form.avatar}}" mode="aspectFill"></image>
+        <view wx:else class="avatar avatar--empty">头像</view>
+      </button>
+      <view class="identity-copy">
+        <text class="identity-name">{{form.name || '未填写姓名'}}</text>
+        <text class="identity-meta">{{personnelTypes[personnelTypeIndex].label}} · {{profile.manager ? '审批人 ' + profile.manager.name : '未配置审批人'}}</text>
+        <text class="avatar-help">点击头像可更换</text>
+      </view>
+    </view>
+
+    <view class="section-card card">
+      <view class="section-head"><text class="section-title">账户信息</text><text class="section-tag">基础资料</text></view>
+      <view class="field">
+        <text class="field-label">中文姓名 <text class="required">*</text></text>
+        <input class="field-control" value="{{form.name}}" data-field="name" bindinput="onInput" maxlength="80" placeholder="请输入中文姓名" />
+      </view>
+      <view class="field">
+        <text class="field-label">账号</text>
+        <input class="field-control" value="{{form.accountName}}" data-field="accountName" bindinput="onInput" maxlength="64" placeholder="请输入登录或内部账号" />
+      </view>
+      <view class="field">
+        <text class="field-label">内网 OA 账号</text>
+        <input class="field-control" value="{{form.oaAccount}}" data-field="oaAccount" bindinput="onInput" maxlength="64" placeholder="请输入内网 OA 账号" />
+      </view>
+      <view class="field">
+        <text class="field-label">身份证</text>
+        <input class="field-control" type="idcard" value="{{form.idCardNo}}" data-field="idCardNo" bindinput="onInput" maxlength="18" placeholder="请输入身份证号" />
+        <text class="field-help field-help--privacy">敏感信息，仅用于内部人员资料管理。</text>
+      </view>
+    </view>
+
+    <view class="section-card card">
+      <view class="section-head"><text class="section-title">行内管理信息</text><text class="section-tag">组织与权限</text></view>
+      <view class="field">
+        <text class="field-label">人员类型 <text class="required">*</text></text>
+        <picker range="{{personnelTypes}}" range-key="label" value="{{personnelTypeIndex}}" bindchange="onPersonnelTypeChange">
+          <view class="field-control field-picker">{{personnelTypes[personnelTypeIndex].label}}<text class="picker-arrow">›</text></view>
+        </picker>
+      </view>
+      <view class="field" wx:if="{{form.personnelType === 'digital'}}">
+        <text class="field-label">数科员工号</text>
+        <input class="field-control" value="{{form.digitalEmployeeNo}}" data-field="digitalEmployeeNo" bindinput="onInput" maxlength="64" placeholder="请输入数科员工号" />
+      </view>
+      <view class="field">
+        <text class="field-label">行内处室</text>
+        <input class="field-control" value="{{form.department}}" data-field="department" bindinput="onInput" maxlength="120" placeholder="请输入行内处室" />
+      </view>
+      <view class="field">
+        <text class="field-label">对应行内项目</text>
+        <input class="field-control" value="{{form.bankProject}}" data-field="bankProject" bindinput="onInput" maxlength="160" placeholder="请输入对应项目" />
+      </view>
+      <view class="field">
+        <text class="field-label">对应审批人（管理员）</text>
+        <view class="field-control field-control--readonly">{{profile.manager ? profile.manager.name : '由超级管理员配置'}}</view>
+        <text class="field-help">审批关系由超级管理员维护，个人不可自行更改。</text>
+      </view>
+      <view class="field" wx:if="{{form.personnelType !== 'bank'}}">
+        <text class="field-label">工作代理人（非行员） <text class="required">*</text></text>
+        <picker range="{{people}}" range-key="name" value="{{selectedAgentIndex}}" bindchange="onAgentChange">
+          <view class="field-control field-picker">{{selectedAgentIndex >= 0 ? people[selectedAgentIndex].name : '请选择非行员代理人'}}<text class="picker-arrow">›</text></view>
+        </picker>
+      </view>
+      <view class="field">
+        <text class="field-label">打卡地点</text>
+        <input class="field-control" value="{{form.attendanceLocation}}" data-field="attendanceLocation" bindinput="onInput" maxlength="160" placeholder="请输入常用打卡地点" />
+      </view>
+      <view class="field">
+        <text class="field-label">行内级别</text>
+        <input class="field-control" value="{{form.bankLevel}}" data-field="bankLevel" bindinput="onInput" maxlength="80" placeholder="请输入行内级别" />
+      </view>
+      <view class="field">
+        <text class="field-label">ITL 开通情况</text>
+        <picker range="{{itlOptions}}" range-key="label" value="{{itlIndex}}" bindchange="onItlChange">
+          <view class="field-control field-picker">{{itlOptions[itlIndex].label}}<text class="picker-arrow">›</text></view>
+        </picker>
+      </view>
+      <view class="field">
+        <text class="field-label">社保 / 工作开始时间</text>
+        <picker mode="date" value="{{form.workStartDate}}" end="{{maxWorkStartDate}}" bindchange="onWorkStartDateChange">
+          <view class="field-control field-picker {{form.workStartDate ? '' : 'field-placeholder'}}">{{form.workStartDate || '请选择开始日期'}}<text class="picker-arrow">›</text></view>
+        </picker>
+        <view class="annual-leave-tip">
+          <text class="annual-leave-title">年假天数：{{annualLeave.annualLeaveDays}} 天</text>
+          <text class="annual-leave-copy">只保留整数位，不满一天不计入；当前工作已满 {{annualLeave.workYears}} 年。</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card card">
+      <view class="section-head"><text class="section-title">联系信息</text><text class="section-tag">日常联系</text></view>
+      <view class="field">
+        <text class="field-label">常用手机号</text>
+        <input class="field-control" type="number" value="{{form.mobile}}" data-field="mobile" bindinput="onInput" maxlength="30" placeholder="请输入常用手机号" />
+      </view>
+      <view class="field">
+        <text class="field-label">住址</text>
+        <textarea class="field-control field-textarea" value="{{form.address}}" data-field="address" bindinput="onInput" maxlength="300" placeholder="请输入常住地址"></textarea>
+      </view>
+    </view>
+
+    <view class="section-card card">
+      <view class="section-head"><text class="section-title">紧急联系人</text><text class="section-tag">应急使用</text></view>
+      <view class="field">
+        <text class="field-label">姓名</text>
+        <input class="field-control" value="{{form.emergencyContactName}}" data-field="emergencyContactName" bindinput="onInput" maxlength="80" placeholder="请输入紧急联系人姓名" />
+      </view>
+      <view class="field">
+        <text class="field-label">电话</text>
+        <input class="field-control" type="number" value="{{form.emergencyContactPhone}}" data-field="emergencyContactPhone" bindinput="onInput" maxlength="30" placeholder="请输入紧急联系人电话" />
+      </view>
+    </view>
+
+    <view class="section-card card" wx:if="{{isManager}}">
+      <view class="section-head">
+        <text class="section-title">审批签名</text>
+        <text class="signature-state {{profile.signatureConfigured ? 'signature-state--saved' : ''}}">{{profile.signatureConfigured ? '已保存' : '未设置'}}</text>
+      </view>
+      <text class="field-help">通过申请时保存当次签名快照，并用于申请人下载的 PDF。</text>
+      <canvas class="signature-canvas" canvas-id="signatureCanvas" disable-scroll="true" catchtouchstart="onSignatureStart" catchtouchmove="onSignatureMove" catchtouchend="onSignatureEnd" catchtouchcancel="onSignatureEnd"></canvas>
+      <view class="signature-actions">
+        <button class="secondary-button" bindtap="clearSignature">清空重写</button>
+        <button class="primary-button" loading="{{savingSignature}}" bindtap="saveSignature">保存签名</button>
+      </view>
+    </view>
+  </view>
+  <view class="loading-state" wx:else>正在加载个人信息…</view>
+</scroll-view>
+
+<view class="save-bar" wx:if="{{form}}">
+  <button class="primary-button save-button" loading="{{saving}}" bindtap="saveProfile">保存个人信息</button>
+</view>
