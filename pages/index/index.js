@@ -14,7 +14,7 @@ Page({
     shortcuts: [
       {
         key: 'assistant',
-        icon: 'AI',
+        icon: '/assets/icons/ai.png',
         title: 'AI 助手',
         description: '说出任务，自动判断并执行',
         url: '/pages/assistant/index',
@@ -22,7 +22,7 @@ Page({
       },
       {
         key: 'duty',
-        icon: '值',
+        icon: '/assets/icons/duty.png',
         title: '值班',
         description: '登记值班并查看可用调休',
         url: '/pages/duty/index',
@@ -30,7 +30,7 @@ Page({
       },
       {
         key: 'leave',
-        icon: '假',
+        icon: '/assets/icons/leave.png',
         title: '请假',
         description: '提交申请并查看审批进度',
         url: '/pages/leave/index',
@@ -38,7 +38,7 @@ Page({
       },
       {
         key: 'situation',
-        icon: '况',
+        icon: '/assets/icons/situation.png',
         title: '员工情况',
         description: '按日期查看请假与加班人员',
         url: '/pages/situation/index',
@@ -46,7 +46,7 @@ Page({
       },
       {
         key: 'contact',
-        icon: '联',
+        icon: '/assets/icons/contact.png',
         title: '通讯录',
         description: '按系统查找人员并快速联系',
         url: '/pages/contact/index',
@@ -54,7 +54,7 @@ Page({
       },
       {
         key: 'profile',
-        icon: '我',
+        icon: '/assets/icons/profile.png',
         title: '个人信息',
         description: '维护账户、行内与联系信息',
         url: '/pages/profile/index',
@@ -72,19 +72,19 @@ Page({
     const shortcuts = this.data.shortcuts.filter(item => !['approval', 'admin', 'dev'].includes(item.key))
     if (user && (user.role === 'admin' || user.role === 'super_admin')) {
       shortcuts.push({
-        key: 'approval', icon: '审', title: '请假审批',
+        key: 'approval', icon: '/assets/icons/approval.png', title: '请假审批',
         description: '处理普通用户的一级审批', url: '/pages/approval/index', accent: 'orange'
       })
     }
     if (user && user.role === 'super_admin') {
       shortcuts.push({
-        key: 'admin', icon: '管', title: '用户管理',
+        key: 'admin', icon: '/assets/icons/admin.png', title: '用户管理',
         description: '配置角色、状态与审批管理员', url: '/pages/admin/users', accent: 'red'
       })
     }
     if (isDevelopment()) {
       shortcuts.push({
-        key: 'dev', icon: '测', title: '切换测试身份',
+        key: 'dev', icon: '/assets/icons/dev.png', title: '切换测试身份',
         description: '仅开发版可用，不影响真实微信账号', url: '/pages/dev/users', accent: 'slate'
       })
     }
@@ -94,7 +94,27 @@ Page({
       user,
       shortcuts
     })
-    this.loadReminders(user)
+    if (user) {
+      await this.refreshUser(user)
+    }
+    this.loadReminders(this.data.user || user)
+  },
+
+  // 从服务端刷新当前用户状态/姓名，避免会话缓存与数据库不一致。
+  async refreshUser(user) {
+    try {
+      const profile = await me.get()
+      const refreshed = Object.assign({}, user, {
+        name: profile.name || user.name,
+        role: profile.role || user.role,
+        status: profile.status || user.status
+      })
+      getApp().globalData.user = refreshed
+      this.setData({ user: refreshed })
+    } catch (error) {
+      // 待激活账号由请求层统一跳转注册页，这里无需处理。
+      if (error.code === 'ACCOUNT_PENDING') return
+    }
   },
 
   async loadReminders(user) {
@@ -117,6 +137,10 @@ Page({
 
   openShortcut(event) {
     wx.navigateTo({ url: event.currentTarget.dataset.url })
+  },
+
+  openRegister() {
+    wx.navigateTo({ url: '/pages/register/index' })
   },
 
   async retryConnection() {

@@ -32,6 +32,17 @@ function clearAuthenticatedUser(markApiUnavailable = false) {
   }
 }
 
+function redirectToRegister() {
+  try {
+    const pages = getCurrentPages()
+    const current = pages.length ? pages[pages.length - 1].route : ''
+    if (current === 'pages/register/index') return
+    wx.reLaunch({ url: '/pages/register/index' })
+  } catch (error) {
+    // 非小程序环境或路由异常时忽略。
+  }
+}
+
 function waitForAppReady(options) {
   if (options.skipAuth) return Promise.resolve()
   const app = getAppSafely()
@@ -92,6 +103,21 @@ function request(options = {}) {
             }
 
             if (response.statusCode === 401) clearAuthenticatedUser()
+            if (response.statusCode === 403 && response.data && response.data.code === 'ACCOUNT_PENDING') {
+              redirectToRegister()
+            }
+            if (response.statusCode === 403 && response.data && response.data.code === 'ACCOUNT_DISABLED' && !requestOptions.skipAuth) {
+              // 会话指向的账号不存在或已停用：清除过期会话并重新登录，避免永久卡在旧会话。
+              // skipAuth 的登录请求自身返回该码时（账号确已停用）不再触发，防止循环。
+              clearAuthenticatedUser()
+              const app = getAppSafely()
+              if (app && typeof app.bootstrap === 'function' && app.globalData.apiConfigured) {
+                app.ready = app.bootstrap()
+                app.ready.then(() => {
+                  wx.reLaunch({ url: '/pages/index/index' })
+                }).catch(() => {})
+              }
+            }
 
             const body = response.data && typeof response.data === 'object' ? response.data : {}
             reject(Object.assign({

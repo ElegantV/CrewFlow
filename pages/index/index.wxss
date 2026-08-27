@@ -44,6 +44,22 @@ page {
   font-size: 26rpx;
 }
 
+.hero-button {
+  align-self: flex-start;
+  height: 64rpx;
+  margin: 24rpx 0 0;
+  padding: 0 32rpx;
+  border-radius: 14rpx;
+  color: #fff;
+  background: #1677ff;
+  font-size: 25rpx;
+  line-height: 64rpx;
+}
+
+.hero-button::after {
+  border: 0;
+}
+
 .section-title {
   margin: 40rpx 4rpx 20rpx;
   font-size: 28rpx;
@@ -89,8 +105,11 @@ page {
   height: 64rpx;
   border-radius: 18rpx;
   color: #fff;
-  font-size: 27rpx;
-  font-weight: 700;
+}
+
+.shortcut-icon-img {
+  width: 38rpx;
+  height: 38rpx;
 }
 
 .shortcut--blue .shortcut-icon {

@@ -21,5 +21,8 @@ module.exports = {
   },
   dashboard() {
     return request({ url: '/api/v1/me/dashboard' })
+  },
+  ledger(month) {
+    return request({ url: `/api/v1/me/ledger?month=${encodeURIComponent(month)}` })
   }
 }

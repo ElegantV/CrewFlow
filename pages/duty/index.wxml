@@ -10,6 +10,15 @@
 
     <view class="rule-tip"><text class="rule-tag">规则</text><text class="rule-text">每次可登记2至6个整小时，发生后7天内可补录，额度自加班日起三个月有效。</text></view>
 
+    <view class="ledger-entry card" bindtap="openLedger">
+      <view class="ledger-entry-icon">记</view>
+      <view class="ledger-entry-body">
+        <text class="ledger-entry-title">月度记录</text>
+        <text class="ledger-entry-sub">按月查看请假与加班明细</text>
+      </view>
+      <text class="ledger-entry-arrow">›</text>
+    </view>
+
     <view class="section-head">
       <text class="section-title">加班记录</text>
       <text class="section-count">{{records.length}} 条</text>
@@ -52,7 +61,7 @@
     </view>
     <view class="field">
       <text class="field-label">加班时长（小时）</text>
-      <input class="field-control" type="number" value="{{form.hours}}" maxlength="1" placeholder="请输入2至6" bindinput="onHoursInput" />
+      <input class="field-control field-input" type="number" value="{{form.hours}}" maxlength="1" placeholder="请输入2至6" bindinput="onHoursInput" />
       <text class="field-help">仅填写整小时，最少2小时，最多6小时。</text>
     </view>
     <view class="field">

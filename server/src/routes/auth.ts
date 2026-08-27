@@ -11,6 +11,16 @@ const devLoginSchema = z.object({
   userId: z.string().uuid(),
 });
 
+const registerSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  mobile: z.string().trim().min(1).max(30),
+});
+
+const bindSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  mobile: z.string().trim().min(1).max(30),
+});
+
 const wechatResponseSchema = z.object({
   openid: z.string().min(1).optional(),
   unionid: z.string().min(1).optional(),
@@ -99,6 +109,112 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         role: user.role,
         status: user.status,
       },
+    };
+  });
+
+  // 首次登录（待激活账号）注册：填写姓名、手机号，等待管理员激活。
+  app.post("/register", { onRequest: [app.authenticate] }, async (request, reply) => {
+    const parsed = registerSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ code: "INVALID_REGISTER", message: "请完整填写姓名和手机号" });
+    }
+    const current = await db.query<{ id: string; openid: string; status: string }>(
+      "SELECT id, openid, status FROM users WHERE id = $1",
+      [request.user.sub],
+    );
+    const user = current.rows[0];
+    if (!user) {
+      return reply.code(404).send({ code: "USER_NOT_FOUND", message: "用户不存在" });
+    }
+    if (user.status !== "pending") {
+      return reply.code(409).send({ code: "ACCOUNT_NOT_PENDING", message: "该账号已激活，无需注册" });
+    }
+    const duplicate = await db.query(
+      "SELECT 1 FROM users WHERE name = $1 AND mobile = $2 AND id <> $3",
+      [parsed.data.name, parsed.data.mobile, user.id],
+    );
+    if (duplicate.rowCount) {
+      return reply.code(409).send({
+        code: "ACCOUNT_ALREADY_EXISTS",
+        message: "该姓名和手机号已有账号，请使用“绑定已有用户”",
+      });
+    }
+    await db.query(
+      "UPDATE users SET name = $1, mobile = $2, updated_at = now() WHERE id = $3",
+      [parsed.data.name, parsed.data.mobile, user.id],
+    );
+    return { success: true, status: "pending" };
+  });
+
+  // 首次登录绑定已有用户：按 姓名+手机号 匹配，把当前 openid 挂到匹配账号上。
+  app.post("/bind", { onRequest: [app.authenticate] }, async (request, reply) => {
+    const parsed = bindSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ code: "INVALID_BIND", message: "请完整填写姓名和手机号" });
+    }
+    const current = await db.query<{ id: string; openid: string; status: string }>(
+      "SELECT id, openid, status FROM users WHERE id = $1",
+      [request.user.sub],
+    );
+    const user = current.rows[0];
+    if (!user) {
+      return reply.code(404).send({ code: "USER_NOT_FOUND", message: "用户不存在" });
+    }
+    if (user.status === "active") {
+      return { success: true, alreadyBound: true };
+    }
+    const match = await db.query<{
+      id: string;
+      role: "user" | "admin" | "super_admin";
+      status: "pending" | "active" | "disabled";
+      name: string | null;
+      employee_no: string | null;
+    }>(
+      `SELECT id, role, status, name, employee_no
+       FROM users
+       WHERE name = $1 AND mobile = $2 AND id <> $3
+       ORDER BY created_at
+       LIMIT 1`,
+      [parsed.data.name, parsed.data.mobile, user.id],
+    );
+    const target = match.rows[0];
+    if (!target) {
+      return reply.code(404).send({
+        code: "BIND_NOT_FOUND",
+        message: "未找到匹配的用户，请确认姓名和手机号，或选择注册",
+      });
+    }
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("DELETE FROM users WHERE id = $1", [user.id]);
+      await client.query(
+        "UPDATE users SET openid = $1, updated_at = now() WHERE id = $2",
+        [user.openid, target.id],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    const token = await reply.jwtSign(
+      { sub: target.id, role: target.role, status: target.status },
+      { sign: { expiresIn: "8h" } },
+    );
+    return {
+      token,
+      expiresIn: 28_800,
+      user: {
+        id: target.id,
+        name: target.name,
+        employeeNo: target.employee_no,
+        role: target.role,
+        status: target.status,
+      },
+      bound: true,
     };
   });
 

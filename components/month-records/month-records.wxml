@@ -1,0 +1,41 @@
+<view class="month-records">
+  <view class="records-head">
+    <view class="records-nav" bindtap="prevMonth">‹</view>
+    <text class="records-title">{{title}}</text>
+    <view class="records-nav" bindtap="nextMonth">›</view>
+  </view>
+
+  <view class="records-loading" wx:if="{{loading}}">加载中…</view>
+
+  <view wx:elif="{{!leaves.length && !overtime.length}}" class="records-empty">本月暂无请假或加班记录</view>
+
+  <block wx:else>
+    <view class="records-group" wx:if="{{leaves.length}}">
+      <view class="records-group-title">请假 {{leaves.length}} 条</view>
+      <view class="record-item" wx:for="{{leaves}}" wx:key="id">
+        <view class="record-left">
+          <text class="record-tag record-tag--leave">{{item.leaveTypeLabel}}</text>
+          <view class="record-main">
+            <text class="record-date">{{item.dateLabel}}</text>
+            <text class="record-sub">{{item.requestedDays}}天 / {{item.requestedHours}}小时 · {{item.leaveType === 'comp_time' ? '调休' : item.leaveTypeLabel}}</text>
+          </view>
+        </view>
+        <text class="record-status status--{{item.status}}">{{item.statusLabel}}</text>
+      </view>
+    </view>
+
+    <view class="records-group" wx:if="{{overtime.length}}">
+      <view class="records-group-title">加班 {{overtime.length}} 条</view>
+      <view class="record-item" wx:for="{{overtime}}" wx:key="id">
+        <view class="record-left">
+          <text class="record-tag record-tag--overtime">加班</text>
+          <view class="record-main">
+            <text class="record-date">{{item.date}}</text>
+            <text class="record-sub">{{item.hours}} 小时 · {{item.content}}</text>
+          </view>
+        </view>
+        <text class="record-status status--{{item.status}}">{{item.statusLabel}}</text>
+      </view>
+    </view>
+  </block>
+</view>

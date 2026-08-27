@@ -52,10 +52,21 @@ async function restoreWechatLogin() {
   return login()
 }
 
+function register(data) {
+  return request({ url: '/api/v1/auth/register', method: 'POST', data })
+}
+
+async function bind(data) {
+  const result = await request({ url: '/api/v1/auth/bind', method: 'POST', data })
+  return session.saveSession(result)
+}
+
 module.exports = {
+  bind,
   devLogin,
   login,
   listDevUsers,
+  register,
   restoreOrLogin,
   restoreWechatLogin
 }

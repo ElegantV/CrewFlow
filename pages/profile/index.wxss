@@ -1,15 +1,17 @@
 page { height: 100vh; display: flex; flex-direction: column; background: #f5f7fa; }
 .profile-scroll { flex: 1; width: 100%; height: 0; }
 .profile-page { padding-bottom: 28rpx; }
-.identity-card { display: flex; align-items: center; padding: 28rpx; background: linear-gradient(135deg, #eef6ff 0%, #fff 65%); }
-.avatar-button { flex-shrink: 0; width: 112rpx; height: 112rpx; margin: 0; padding: 0; border-radius: 32rpx; background: transparent; line-height: normal; }
+.identity-card { display: flex; align-items: center; padding: 18rpx 28rpx; background: linear-gradient(135deg, #eef6ff 0%, #fff 65%); }
+.avatar-button { position: relative; overflow: hidden; flex: 0 0 28%; min-width: 0; margin: 0; padding: 0; border-radius: 24rpx; background: transparent; line-height: normal; }
+.avatar-button::before { content: ''; display: block; padding-top: 100%; }
 .avatar-button::after { border: 0; }
-.avatar { display: flex; align-items: center; justify-content: center; width: 112rpx; height: 112rpx; border-radius: 32rpx; }
-.avatar--empty { color: #fff; background: linear-gradient(145deg, #4f8cff, #2563eb); font-size: 25rpx; font-weight: 700; }
-.identity-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; margin-left: 24rpx; }
-.identity-name { color: #172033; font-size: 36rpx; font-weight: 700; }
-.identity-meta { margin-top: 9rpx; color: #526173; font-size: 24rpx; }
-.avatar-help { margin-top: 8rpx; color: #8a96a6; font-size: 21rpx; }
+.avatar-button--disabled { opacity: .6; }
+.avatar { position: absolute; top: 0; left: 0; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border-radius: 24rpx; box-sizing: border-box; }
+.avatar--empty { color: #fff; background: linear-gradient(145deg, #4f8cff, #2563eb); font-size: 40rpx; font-weight: 700; }
+.identity-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; margin-left: 100rpx; }
+.identity-name { color: #172033; font-size: 34rpx; font-weight: 700; line-height: 1.3; }
+.identity-meta { margin-top: 6rpx; color: #526173; font-size: 23rpx; line-height: 1.4; }
+.avatar-help { margin-top: 5rpx; color: #8a96a6; font-size: 20rpx; }
 .section-card { margin-top: 22rpx; padding: 28rpx; }
 .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4rpx; }
 .section-title { color: #172033; font-size: 30rpx; font-weight: 700; }
@@ -27,6 +29,15 @@ page { height: 100vh; display: flex; flex-direction: column; background: #f5f7fa
 .field-help--privacy { color: #9a6b25; }
 .annual-leave-tip { display: flex; flex-direction: column; margin-top: 13rpx; padding: 18rpx 20rpx; border: 1rpx solid #cdebdc; border-radius: 14rpx; background: #f0fbf6; }
 .annual-leave-title { color: #147a55; font-size: 25rpx; font-weight: 700; }
+.wxpusher-bound { margin-top: 18rpx; }
+.wxpusher-uid { color: #2f6f4f; font-size: 24rpx; }
+.wxpusher-actions { display: flex; align-items: center; margin-top: 18rpx; }
+.wxpusher-actions button + button { margin-left: 18rpx; }
+.text-button-danger { margin: 0; padding: 0 12rpx; color: #dc2626; background: transparent; font-size: 24rpx; }
+.text-button-danger::after { border: 0; }
+.wxpusher-bind { display: flex; flex-direction: column; align-items: center; margin-top: 20rpx; }
+.wxpusher-tip { margin-top: 14rpx; color: #8a96a6; font-size: 22rpx; line-height: 1.6; }
+.wxpusher-bind .primary-button { width: 100%; margin-top: 22rpx; }
 .annual-leave-copy { margin-top: 7rpx; color: #4c7b68; font-size: 21rpx; line-height: 1.5; }
 .signature-state { padding: 6rpx 14rpx; border-radius: 999rpx; color: #92400e; background: #fffbeb; font-size: 21rpx; }
 .signature-state--saved { color: #047857; background: #ecfdf5; }

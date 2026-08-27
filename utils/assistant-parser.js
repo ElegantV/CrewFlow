@@ -205,7 +205,7 @@ function toLeaveRequest(draft) {
     endDate: draft.endDate || draft.startDate,
     startPeriod: draft.period || 'day',
     endPeriod: draft.period || 'day',
-    reason: draft.reason || '由 CrewFlow AI 助手提交'
+    reason: draft.reason || '由简序日程 AI 助手提交'
   }
 }
 

@@ -105,6 +105,10 @@ Page({
     }
   },
 
+  openLedger() {
+    wx.navigateTo({ url: '/pages/ledger/index' })
+  },
+
   revoke(event) {
     const id = event.currentTarget.dataset.id
     wx.showModal({

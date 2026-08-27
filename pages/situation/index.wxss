@@ -38,7 +38,9 @@ page { height: 100vh; display: flex; flex-direction: column; }
 .person-avatar { flex-shrink: 0; width: 76rpx; height: 76rpx; border-radius: 22rpx; }
 .person-avatar--empty { display: flex; align-items: center; justify-content: center; color: #fff; background: #7c9cf5; font-size: 20rpx; }
 .person-main { display: flex; flex: 1; min-width: 0; flex-direction: column; margin-left: 18rpx; }
+.person-name-row { display: flex; align-items: center; }
 .person-name { color: #172033; font-size: 27rpx; font-weight: 700; }
+.pending-tag { margin-left: 12rpx; padding: 3rpx 10rpx; border-radius: 8rpx; color: #92400e; background: #fef3c7; font-size: 18rpx; }
 .person-sub { overflow: hidden; margin-top: 8rpx; color: #7b8797; font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; }
 .system-tag { max-width: 170rpx; margin-left: 12rpx; padding: 7rpx 10rpx; overflow: hidden; border-radius: 9rpx; color: #2563eb; background: #eff6ff; font-size: 19rpx; text-overflow: ellipsis; white-space: nowrap; }
 .empty, .loading-state { padding: 72rpx 24rpx; color: #718096; text-align: center; }

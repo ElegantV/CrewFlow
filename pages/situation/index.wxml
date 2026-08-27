@@ -42,7 +42,7 @@
         <view class="person-card card" wx:for="{{leaves}}" wx:key="id">
           <image wx:if="{{item.avatar}}" class="person-avatar" src="{{item.avatar}}" mode="aspectFill"></image>
           <view wx:else class="person-avatar person-avatar--empty">{{item.name}}</view>
-          <view class="person-main"><text class="person-name">{{item.name}}</text><text class="person-sub">{{item.leaveTypeLabel}} · {{item.periodLabel}} · {{item.requestedHours}} 小时</text></view>
+          <view class="person-main"><view class="person-name-row"><text class="person-name">{{item.name}}</text><text wx:if="{{item.status === 'pending'}}" class="pending-tag">待审批</text></view><text class="person-sub">{{item.leaveTypeLabel}} · {{item.periodLabel}} · {{item.requestedHours}} 小时</text></view>
           <text class="system-tag">{{item.systemName}}</text>
         </view>
       </view>

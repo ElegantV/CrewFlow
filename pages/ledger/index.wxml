@@ -1,0 +1,6 @@
+<navigation-bar title="月度记录" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<view class="page-shell ledger-page">
+  <view class="ledger-card card">
+    <month-records></month-records>
+  </view>
+</view>

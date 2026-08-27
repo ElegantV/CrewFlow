@@ -3,6 +3,7 @@ import { z } from "zod";
 import { allowRoles, loadActiveActor } from "../authz.js";
 import { buildApprovalResult, type ApprovalResultSnapshot } from "../business/approval-result.js";
 import { leavePolicies, type LeaveType } from "../business/leave-policy.js";
+import { notifyApplicantDecision } from "../business/notify.js";
 import { releaseTimeoff } from "../business/timeoff.js";
 import { db } from "../db.js";
 
@@ -226,6 +227,8 @@ export const approvalRoutes: FastifyPluginAsync = async (app) => {
       );
       await client.query("COMMIT");
       // 审批结果仅固化到记录中，由申请人查看、复制和下载。
+      // 事务提交后异步通知申请人审批结果，不阻塞本次响应。
+      void notifyApplicantDecision(approval.leave_request_id, nextStatus === "approved" ? "approved" : "rejected");
       return { success: true, status: nextStatus };
     } catch (error) {
       await client.query("ROLLBACK");

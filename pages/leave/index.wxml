@@ -12,6 +12,15 @@
       尚未维护工作代理人，请先在个人信息中完成。
     </view>
 
+    <view class="ledger-entry card" bindtap="openLedger">
+      <view class="ledger-entry-icon">记</view>
+      <view class="ledger-entry-body">
+        <text class="ledger-entry-title">月度记录</text>
+        <text class="ledger-entry-sub">按月查看请假与加班明细</text>
+      </view>
+      <text class="ledger-entry-arrow">›</text>
+    </view>
+
     <view class="section-head">
       <text class="section-title">申请记录</text>
       <text class="section-count">{{requests.length}} 条</text>
@@ -60,18 +69,47 @@
       <text class="field-help" wx:else>最小{{currentType.minimumHours}}小时，按{{currentType.incrementHours}}小时递增。</text>
     </view>
     <view class="field">
-      <text class="field-label">开始日期</text>
-      <picker mode="date" value="{{form.startDate}}" bindchange="onStartDateChange">
-        <view class="field-control">{{form.startDate}}</view>
-      </picker>
+      <text class="field-label">请假日期</text>
+      <text class="field-hint" wx:if="{{!currentType.fixedWorkdays}}">点击选择开始日期，再次点击确定结束日期</text>
+      <view class="calendar card">
+        <view class="calendar-head">
+          <view class="calendar-nav" bindtap="prevMonth">‹</view>
+          <text class="calendar-title">{{calTitle}}</text>
+          <view class="calendar-nav" bindtap="nextMonth">›</view>
+        </view>
+        <view class="calendar-week">
+          <text wx:for="{{weekdays}}" wx:key="*this" class="calendar-week-label">{{item}}</text>
+        </view>
+        <view class="calendar-grid">
+          <view
+            wx:for="{{calCells}}"
+            wx:key="key"
+            class="calendar-cell {{item.empty ? 'calendar-cell--empty' : ''}} {{item.rangeStart ? 'calendar-cell--start' : ''}} {{item.rangeEnd ? 'calendar-cell--end' : ''}} {{item.inRange ? 'calendar-cell--inrange' : ''}} {{item.isToday ? 'calendar-cell--today' : ''}}"
+            data-date="{{item.date}}"
+            bindtap="onCalendarTap"
+          >
+            <text wx:if="{{!item.empty}}" class="calendar-day {{item.isHoliday ? 'calendar-day--holiday' : ''}}">{{item.day}}</text>
+          </view>
+        </view>
+        <view class="calendar-hint">
+          <text wx:if="{{rangeStart && rangeEnd}}">{{rangeStart === rangeEnd ? '单日请假，请选择下方时长' : '已选择 ' + rangeStart + ' 至 ' + rangeEnd}}</text>
+          <text wx:elif="{{rangeStart}}">已选择开始日期 {{rangeStart}}，请再次点击结束日期</text>
+        </view>
+      </view>
     </view>
-    <view class="field" wx:if="{{!currentType.fixedWorkdays}}">
-      <text class="field-label">结束日期</text>
-      <picker mode="date" value="{{form.endDate}}" start="{{form.startDate}}" bindchange="onEndDateChange">
-        <view class="field-control">{{form.endDate}}</view>
-      </picker>
+    <view class="field" wx:if="{{rangeStart && (rangeEnd || currentType.fixedWorkdays)}}">
+      <text class="field-label">请假天数</text>
+      <view class="field-control field-control--readonly">{{currentType.fixedWorkdays ? currentType.fixedWorkdays + ' 天工作日（一次性休完）' : rangeWorkdays + ' 天工作日' + (rangeStart !== rangeEnd ? '（已扣除周末和节假日）' : '')}}</view>
     </view>
-    <view class="period-grid" wx:if="{{!currentType.fixedWorkdays}}">
+    <view class="field" wx:if="{{rangeStart && rangeStart === rangeEnd && !currentType.fixedWorkdays}}">
+      <text class="field-label">请假时长</text>
+      <view class="period-seg">
+        <view class="period-seg__item {{sameDayPeriod === 'day' ? 'period-seg__item--active' : ''}}" data-value="day" bindtap="onSameDayPeriod">请一天</view>
+        <view class="period-seg__item {{sameDayPeriod === 'morning' ? 'period-seg__item--active' : ''}}" data-value="morning" bindtap="onSameDayPeriod">上午</view>
+        <view class="period-seg__item {{sameDayPeriod === 'afternoon' ? 'period-seg__item--active' : ''}}" data-value="afternoon" bindtap="onSameDayPeriod">下午</view>
+      </view>
+    </view>
+    <view class="period-grid" wx:if="{{rangeStart && rangeEnd && rangeStart !== rangeEnd && !currentType.fixedWorkdays}}">
       <view class="field">
         <text class="field-label">开始时段</text>
         <picker range="{{periods}}" range-key="label" value="{{startPeriodIndex}}" bindchange="onStartPeriodChange">

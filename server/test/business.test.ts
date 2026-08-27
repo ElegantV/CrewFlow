@@ -480,7 +480,8 @@ test("overtime, FIFO timeoff, duplicate leave, cancellation and permissions", as
   assert.equal(forbiddenAdminPdf.statusCode, 404);
 
   // --- 值日协同预警 + 首页提醒数据 ---
-  const conflictDate = nextWeekday(today, 14);
+  // 基于 compApprovalDate 向后推算，避免与其它测试日期按星期几撞车。
+  const conflictDate = nextWeekday(compApprovalDate, 4);
   await db.query(
     `INSERT INTO duty_records
        (user_id, duty_date, start_time, end_time, hours, remaining_hours, content, expires_at)
@@ -533,6 +534,16 @@ test("overtime, FIFO timeoff, duplicate leave, cancellation and permissions", as
   });
   assert.equal(adminDashboard.statusCode, 200, adminDashboard.body);
   assert.ok(Number(adminDashboard.json().pendingApprovals) >= 1, adminDashboard.body);
+});
+
+test("calculateWorkingHours 扣除法定节假日与调休上班日", () => {
+  // 2026-10-01(周四)~10-07(周三) 国庆放假，10-10(周六) 调休上班。
+  // 9/28-30 三天 + 10/8、10/9 两天 + 10/10 调休上班 = 6 个工作日。
+  assert.equal(calculateWorkingHours("2026-09-28", "2026-10-11", "day", "day"), 48);
+  // 2026-09-25(周五)~09-27(周日) 中秋放假。
+  assert.equal(calculateWorkingHours("2026-09-24", "2026-09-28", "day", "day"), 16);
+  // 2026-01-04(周日) 元旦调休上班，计入工作日。
+  assert.equal(calculateWorkingHours("2026-01-04", "2026-01-04", "day", "day"), 8);
 });
 
 test("calculateWorkingHours 多天半天语义与单天一致", () => {

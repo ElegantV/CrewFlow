@@ -45,6 +45,7 @@ const profileSchema = z.object({
 
 const avatarSchema = z.object({ imageData: z.string().max(1_000_000) });
 
+// 年假规则：满一年可休；工龄未满 5 年按 5 天；超过 5 年每多一年加一天，上限 15 天。
 function annualLeaveDays(workStartDate: string | null) {
   if (!workStartDate) return { workYears: 0, annualLeaveDays: 0 };
   const [year = 0, month = 1, day = 1] = workStartDate.split("-").map(Number);
@@ -52,7 +53,10 @@ function annualLeaveDays(workStartDate: string | null) {
   let workYears = now.getFullYear() - year;
   if (now.getMonth() + 1 < month || (now.getMonth() + 1 === month && now.getDate() < day)) workYears -= 1;
   workYears = Math.max(0, workYears);
-  const annualLeaveDays = workYears >= 20 ? 15 : workYears >= 10 ? 10 : workYears >= 1 ? 5 : 0;
+  let annualLeaveDays = 0;
+  if (workYears >= 1) {
+    annualLeaveDays = workYears < 5 ? 5 : Math.min(workYears, 15);
+  }
   return { workYears, annualLeaveDays: Math.floor(annualLeaveDays) };
 }
 
@@ -242,6 +246,89 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     if (!data.length || data.length > 700_000) return reply.code(400).send({ code: "INVALID_AVATAR", message: "头像文件不能超过 700KB" });
     await db.query("UPDATE users SET avatar_data = $1, avatar_mime_type = $2, updated_at = now() WHERE id = $3", [data, match[1], request.actor!.id]);
     return { success: true };
+  });
+
+  // 月度记录：返回某个月份内当前用户的请假与加班流水，支持月份切换。
+  app.get("/ledger", protectedHooks, async (request, reply) => {
+    const parsed = z.object({
+      month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
+    }).safeParse(request.query);
+    if (!parsed.success) {
+      return reply.code(400).send({ code: "INVALID_MONTH", message: "月份格式无效" });
+    }
+    const now = new Date();
+    const month = parsed.data.month ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const [year = 0, value = 0] = month.split("-").map(Number);
+    const lastDay = new Date(Date.UTC(year, value, 0)).getUTCDate();
+    const rangeStart = `${month}-01`;
+    const rangeEnd = `${month}-${String(lastDay).padStart(2, "0")}`;
+
+    const actor = request.actor!;
+    const [leaveResult, overtimeResult] = await Promise.all([
+      db.query<{
+        id: string;
+        leave_type: LeaveType;
+        start_date: string;
+        end_date: string;
+        start_period: string;
+        end_period: string;
+        requested_days: string;
+        requested_hours: string;
+        status: string;
+        submitted_at: string;
+      }>(
+        `SELECT id, leave_type, start_date::text, end_date::text,
+                start_period, end_period,
+                requested_days::text, requested_hours::text, status, submitted_at::text
+         FROM leave_requests
+         WHERE applicant_id = $1
+           AND start_date <= $3 AND end_date >= $2
+         ORDER BY start_date DESC, submitted_at DESC`,
+        [actor.id, rangeStart, rangeEnd],
+      ),
+      db.query<{
+        id: string;
+        duty_date: string;
+        hours: string;
+        remaining_hours: string;
+        content: string;
+        status: string;
+        expires_at: string;
+      }>(
+        `SELECT id, duty_date::text, hours::text, remaining_hours::text,
+                content, status, expires_at::text
+         FROM duty_records
+         WHERE user_id = $1 AND duty_date >= $2 AND duty_date <= $3
+         ORDER BY duty_date DESC`,
+        [actor.id, rangeStart, rangeEnd],
+      ),
+    ]);
+
+    return {
+      month,
+      leaves: leaveResult.rows.map((item) => ({
+        id: item.id,
+        leaveType: item.leave_type,
+        leaveTypeLabel: leavePolicies[item.leave_type].label,
+        startDate: item.start_date,
+        endDate: item.end_date,
+        startPeriod: item.start_period,
+        endPeriod: item.end_period,
+        requestedDays: Number(item.requested_days),
+        requestedHours: Number(item.requested_hours),
+        status: item.status,
+        submittedAt: item.submitted_at,
+      })),
+      overtime: overtimeResult.rows.map((item) => ({
+        id: item.id,
+        date: item.duty_date,
+        hours: Number(item.hours),
+        remainingHours: Number(item.remaining_hours),
+        content: item.content,
+        status: item.status,
+        expiresAt: item.expires_at,
+      })),
+    };
   });
 
   app.get("/dashboard", protectedHooks, async (request, reply) => {

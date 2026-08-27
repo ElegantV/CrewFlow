@@ -15,7 +15,8 @@ function getSession() {
   const user = getUser()
   const expiresAt = Number(wx.getStorageSync(EXPIRES_AT_KEY) || 0)
 
-  if (!token || !user || expiresAt <= Date.now() + 60 * 1000) {
+  // user 必须是含 id 的对象；损坏的会话视为无效，触发重新登录。
+  if (!token || !user || typeof user !== 'object' || !user.id || expiresAt <= Date.now() + 60 * 1000) {
     return null
   }
 

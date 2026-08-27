@@ -1,50 +1,14 @@
 const approval = require('../../services/approval')
-const notification = require('../../services/notification')
 
 Page({
   data: {
     loading: true,
     approvals: [],
-    history: [],
-    subscribeEnabled: false,
-    subscribeTemplateId: ''
+    history: []
   },
 
   onShow() {
     this.loadData()
-    this.loadSubscribeConfig()
-  },
-
-  async loadSubscribeConfig() {
-    try {
-      const result = await notification.config()
-      this.setData({
-        subscribeEnabled: result.enabled,
-        subscribeTemplateId: result.templateId || ''
-      })
-    } catch (error) {
-      this.setData({ subscribeEnabled: false, subscribeTemplateId: '' })
-    }
-  },
-
-  subscribeReminder() {
-    if (!this.data.subscribeTemplateId) {
-      wx.showToast({ title: '订阅提醒未配置，请联系管理员', icon: 'none' })
-      return
-    }
-    wx.requestSubscribeMessage({
-      tmplIds: [this.data.subscribeTemplateId],
-      success: result => {
-        if (result[this.data.subscribeTemplateId] === 'accept') {
-          notification.subscribe(this.data.subscribeTemplateId)
-            .then(() => wx.showToast({ title: '已开启审批提醒', icon: 'success' }))
-            .catch(() => wx.showToast({ title: '开启失败，请重试', icon: 'none' }))
-        } else if (result[this.data.subscribeTemplateId] === 'reject') {
-          wx.showToast({ title: '已拒绝订阅', icon: 'none' })
-        }
-      },
-      fail: () => wx.showToast({ title: '订阅失败，请重试', icon: 'none' })
-    })
   },
 
   async loadData() {

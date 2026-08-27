@@ -18,7 +18,11 @@
   "libVersion": "2.29.2",
   "simulatorPluginLibVersion": {},
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      { "type": "folder", "value": "server" },
+      { "type": "folder", "value": "test" },
+      { "type": "folder", "value": "docs" }
+    ],
     "include": []
   },
   "appid": "wx9bc0177a7fc91d6a",

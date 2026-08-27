@@ -75,7 +75,7 @@ export async function renderLeavePdf(data: LeavePdfData) {
   const doc = new PDFDocument({
     autoFirstPage: false,
     compress: true,
-    info: { Title: `${data.applicantName}请假单`, Author: "CrewFlow" },
+    info: { Title: `${data.applicantName}请假单`, Author: "简序日程" },
   });
   const chunks: Buffer[] = [];
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));

@@ -15,26 +15,82 @@ const fallbackTypes = [
   { value: 'maternity', label: '产假' }, { value: 'paternity', label: '陪产假' }
 ]
 
+// 语音识别：使用微信「同声传译」插件，未配置时降级为不可用。
+let recognitionManager = null
+let voiceReady = false
+function setupRecognition() {
+  if (voiceReady) return true
+  try {
+    const plugin = requirePlugin('WechatSI')
+    recognitionManager = plugin.getRecordRecognitionManager()
+    voiceReady = true
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
 Page({
   data: {
     input: '',
     running: false,
+    recording: false,
     types: fallbackTypes,
     pending: null,
     messages: [
-      { id: 1, role: 'assistant', text: '你好，我是 CrewFlow 助手。可以帮你办理请假与加班，也能查询员工情况、通讯录、个人记录，或处理权限范围内的审批和用户管理任务。' }
+      { id: 1, role: 'assistant', text: '你好，我是简序日程助手。可以帮你办理请假与加班，也能查询员工情况、通讯录、个人记录，或处理权限范围内的审批和用户管理任务。' }
     ],
     examples: ['8月13号请一天调休假', '今天登记加班2小时，内容：生产发布', '查询张三的电话', '张三今天是否请假']
   },
 
   async onLoad() {
     this.inputDraft = ''
+    this.setupVoice()
     try {
       const result = await leave.types()
       if (result.types && result.types.length) this.setData({ types: result.types })
     } catch (error) {
       // 离线时仍允许体验指令判断，真正执行时由请求层展示失败原因。
     }
+  },
+
+  onUnload() {
+    if (this.data.recording && recognitionManager) recognitionManager.stop()
+  },
+
+  setupVoice() {
+    if (!setupRecognition()) return
+    recognitionManager.onRecognize = res => {
+      if (res && res.result) {
+        this.inputDraft = res.result
+        this.setData({ input: res.result })
+      }
+    }
+    recognitionManager.onStop = res => {
+      const text = String(res && res.result || '').trim()
+      this.setData({ recording: false, input: text })
+      this.inputDraft = text
+      if (text) wx.showToast({ title: '识别完成，可确认后发送', icon: 'none' })
+    }
+    recognitionManager.onError = res => {
+      this.setData({ recording: false })
+      wx.showToast({ title: (res && res.msg) || '语音识别失败，请重试', icon: 'none' })
+    }
+  },
+
+  toggleVoice() {
+    if (this.data.running) return
+    if (!voiceReady) {
+      wx.showToast({ title: '语音输入未配置，请在公众平台添加「微信同声传译」插件', icon: 'none' })
+      return
+    }
+    if (this.data.recording) {
+      recognitionManager.stop()
+      return
+    }
+    this.inputDraft = ''
+    this.setData({ recording: true, input: '' })
+    recognitionManager.start({ lang: 'zh_CN', duration: 60000 })
   },
 
   onInput(event) {
@@ -58,8 +114,47 @@ Page({
       this.handleResult(result)
       return
     }
-    const result = command.parseCommand(text) || parser.parsePrompt(text, { availableTypes: this.data.types })
-    this.handleResult(result)
+    const results = command.splitTasks(text)
+      .map(part => command.parseCommand(part) || parser.parsePrompt(part, { availableTypes: this.data.types }))
+      .filter(result => result && result.status !== 'invalid')
+    if (results.length === 0) {
+      const result = command.parseCommand(text) || parser.parsePrompt(text, { availableTypes: this.data.types })
+      this.handleResult(result)
+      return
+    }
+    if (results.length === 1) {
+      this.handleResult(results[0])
+      return
+    }
+    this.runMultiple(results)
+  },
+
+  // 多任务：列出全部子任务，确认后顺序执行。
+  runMultiple(results) {
+    const readyTasks = results.filter(result => result.status === 'ready')
+    const clarifyTasks = results.filter(result => result.status === 'clarify')
+    const lines = readyTasks.map((task, index) => `${index + 1}. ${task.summary || task.intent || '请假'}`)
+    if (clarifyTasks.length) lines.push(`（另有 ${clarifyTasks.length} 个任务缺少关键信息，请单独处理）`)
+    this.appendMessage('assistant', `检测到 ${results.length} 个任务：\n${lines.join('\n')}\n确认后我将按顺序执行。`, 'clarify')
+    wx.showModal({
+      title: `确认执行 ${readyTasks.length} 个任务？`,
+      content: lines.join('\n'),
+      confirmText: '全部执行',
+      cancelText: '取消',
+      success: async res => {
+        if (!res.confirm) {
+          this.appendMessage('assistant', '已取消执行。', 'error')
+          return
+        }
+        for (const task of readyTasks) {
+          if (task.intent) await this.executeCommand(task)
+          else await this.executeLeave(task)
+        }
+        if (clarifyTasks.length) {
+          this.appendMessage('assistant', `有 ${clarifyTasks.length} 个任务缺少关键信息，请单独输入后再试。`, 'clarify')
+        }
+      }
+    })
   },
 
   choose(event) {

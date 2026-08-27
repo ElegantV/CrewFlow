@@ -11,7 +11,7 @@ import { meRoutes } from "./routes/me.js";
 import { overtimeRoutes } from "./routes/overtime.js";
 import { situationRoutes } from "./routes/situation.js";
 import { contactRoutes } from "./routes/contacts.js";
-import { notificationRoutes } from "./routes/notifications.js";
+import { wxpusherRoutes } from "./routes/wxpusher.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -78,7 +78,7 @@ export async function buildApp() {
   await app.register(leaveRoutes, { prefix: "/api/v1/leaves" });
   await app.register(approvalRoutes, { prefix: "/api/v1/approvals" });
   await app.register(adminRoutes, { prefix: "/api/v1/admin" });
-  await app.register(notificationRoutes, { prefix: "/api/v1/notifications" });
+  await app.register(wxpusherRoutes, { prefix: "/api/v1/wxpusher" });
 
   app.addHook("onClose", async () => {
     await db.end();

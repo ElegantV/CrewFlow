@@ -1,5 +1,8 @@
 const me = require('../../services/me')
+const wxpusher = require('../../services/wxpusher')
+const { getApiBaseUrl } = require('../../config/env')
 
+// 年假规则：满一年可休；工龄未满 5 年按 5 天；超过 5 年每多一年加一天，上限 15 天。
 function calculateAnnualLeave(workStartDate) {
   if (!workStartDate) return { workYears: 0, annualLeaveDays: 0 }
   const parts = workStartDate.split('-').map(Number)
@@ -7,7 +10,10 @@ function calculateAnnualLeave(workStartDate) {
   let workYears = now.getFullYear() - parts[0]
   if (now.getMonth() + 1 < parts[1] || (now.getMonth() + 1 === parts[1] && now.getDate() < parts[2])) workYears -= 1
   workYears = Math.max(0, workYears)
-  const annualLeaveDays = workYears >= 20 ? 15 : workYears >= 10 ? 10 : workYears >= 1 ? 5 : 0
+  let annualLeaveDays = 0
+  if (workYears >= 1) {
+    annualLeaveDays = workYears < 5 ? 5 : Math.min(workYears, 15)
+  }
   return { workYears, annualLeaveDays: Math.floor(annualLeaveDays) }
 }
 
@@ -38,13 +44,111 @@ Page({
     maxWorkStartDate: today(),
     saving: false,
     savingAvatar: false,
+    avatarPicking: false,
     isManager: false,
     signatureDirty: false,
-    savingSignature: false
+    savingSignature: false,
+    wxpusherEnabled: false,
+    wxpusherBound: false,
+    wxpusherUid: '',
+    wxpusherLoading: false
   },
 
   onShow() {
     this.loadData()
+    this.loadWxPusher()
+  },
+
+  onUnload() {
+    if (this.bindPollTimer) clearTimeout(this.bindPollTimer)
+    this.bindPollCount = 0
+  },
+
+  async loadWxPusher() {
+    try {
+      const result = await wxpusher.status()
+      this.setData({
+        wxpusherEnabled: result.enabled,
+        wxpusherBound: result.bound,
+        wxpusherUid: result.uid || ''
+      })
+    } catch (error) {
+      this.setData({ wxpusherEnabled: false, wxpusherBound: false })
+    }
+  },
+
+  async getBindQr() {
+    if (this.data.wxpusherLoading) return
+    this.setData({ wxpusherLoading: true })
+    try {
+      const result = await wxpusher.getQr()
+      const baseUrl = getApiBaseUrl()
+      const qrUrl = result.qrToken && baseUrl ? `${baseUrl}/api/v1/wxpusher/qr/${result.qrToken}` : ''
+      if (!qrUrl) {
+        wx.showToast({ title: '获取二维码失败', icon: 'none' })
+        return
+      }
+      wx.previewImage({ urls: [qrUrl], current: qrUrl, fail: () => wx.showToast({ title: '二维码加载失败', icon: 'none' }) })
+      this.bindPollCount = 0
+      this.pollBind()
+    } catch (error) {
+      wx.showToast({ title: error.message || '获取二维码失败', icon: 'none' })
+    } finally {
+      this.setData({ wxpusherLoading: false })
+    }
+  },
+
+  pollBind() {
+    if (this.bindPollTimer) clearTimeout(this.bindPollTimer)
+    if (!this.bindPollCount) this.bindPollCount = 0
+    this.bindPollCount += 1
+    // wxpusher 要求轮询间隔不小于 10 秒；最多约 90 秒后提示重新生成二维码。
+    if (this.bindPollCount > 9) {
+      this.bindPollCount = 0
+      this.setData({ wxpusherQrUrl: '' })
+      wx.showToast({ title: '绑定超时，请重新扫码', icon: 'none' })
+      return
+    }
+    this.bindPollTimer = setTimeout(async () => {
+      try {
+        const result = await wxpusher.check()
+        if (result.bound) {
+          this.bindPollCount = 0
+          this.setData({ wxpusherBound: true, wxpusherUid: result.uid || '', wxpusherQrUrl: '' })
+          wx.showToast({ title: '绑定成功', icon: 'success' })
+          return
+        }
+        this.pollBind()
+      } catch (error) {
+        this.pollBind()
+      }
+    }, 10000)
+  },
+
+  async testPush() {
+    try {
+      await wxpusher.test()
+      wx.showToast({ title: '已发送测试消息', icon: 'success' })
+    } catch (error) {
+      wx.showToast({ title: error.message || '发送失败', icon: 'none' })
+    }
+  },
+
+  unbindPush() {
+    wx.showModal({
+      title: '解绑微信推送',
+      content: '解绑后将收不到审批提醒消息，是否继续？',
+      success: async result => {
+        if (!result.confirm) return
+        try {
+          await wxpusher.unbind()
+          this.setData({ wxpusherBound: false, wxpusherUid: '' })
+          wx.showToast({ title: '已解绑', icon: 'success' })
+        } catch (error) {
+          wx.showToast({ title: error.message || '解绑失败', icon: 'none' })
+        }
+      }
+    })
   },
 
   async loadData() {
@@ -118,32 +222,46 @@ Page({
     this.setData({ 'form.workStartDate': workStartDate, annualLeave: calculateAnnualLeave(workStartDate) })
   },
 
-  chooseAvatar(event) {
-    const tempPath = event.detail.avatarUrl
-    if (!tempPath || this.data.savingAvatar) return
-    this.setData({ savingAvatar: true })
-    const upload = filePath => {
-      wx.getFileSystemManager().readFile({
-        filePath,
-        encoding: 'base64',
-        success: async file => {
-          try {
-            const imageData = `data:image/jpeg;base64,${file.data}`
-            await me.setAvatar(imageData)
-            this.setData({ savingAvatar: false, 'form.avatar': imageData })
-            wx.showToast({ title: '头像已更新', icon: 'success' })
-          } catch (error) {
-            this.setData({ savingAvatar: false })
-            wx.showToast({ title: error.message || '头像上传失败', icon: 'none' })
-          }
-        },
-        fail: () => {
-          this.setData({ savingAvatar: false })
-          wx.showToast({ title: '头像读取失败', icon: 'none' })
+  chooseAvatar() {
+    // 防止重复触发（连点）打开多个选择器。
+    if (this.data.savingAvatar || this.data.avatarPicking) return
+    this.setData({ avatarPicking: true })
+    wx.chooseMedia({
+      count: 1,
+      mediaType: ['image'],
+      sizeType: ['compressed'],
+      sourceType: ['album', 'camera'],
+      success: result => {
+        this.setData({ avatarPicking: false })
+        const tempPath = result.tempFiles && result.tempFiles[0] && result.tempFiles[0].tempFilePath
+        if (!tempPath) return
+        this.setData({ savingAvatar: true })
+        const upload = filePath => {
+          wx.getFileSystemManager().readFile({
+            filePath,
+            encoding: 'base64',
+            success: async file => {
+              try {
+                const imageData = `data:image/jpeg;base64,${file.data}`
+                await me.setAvatar(imageData)
+                this.setData({ savingAvatar: false, 'form.avatar': imageData })
+                wx.showToast({ title: '头像已更新', icon: 'success' })
+              } catch (error) {
+                this.setData({ savingAvatar: false })
+                wx.showToast({ title: error.message || '头像上传失败', icon: 'none' })
+              }
+            },
+            fail: () => {
+              this.setData({ savingAvatar: false })
+              wx.showToast({ title: '头像读取失败', icon: 'none' })
+            }
+          })
         }
-      })
-    }
-    wx.compressImage({ src: tempPath, quality: 60, success: result => upload(result.tempFilePath), fail: () => upload(tempPath) })
+        wx.compressImage({ src: tempPath, quality: 60, success: r => upload(r.tempFilePath), fail: () => upload(tempPath) })
+      },
+      fail: () => this.setData({ avatarPicking: false }),
+      complete: () => this.setData({ avatarPicking: false })
+    })
   },
 
   async saveProfile() {

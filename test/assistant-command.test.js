@@ -106,3 +106,22 @@ test('支持解析用户状态与角色管理', () => {
   assert.equal(role.slots.name, '李四')
   assert.equal(role.slots.role, 'admin')
 })
+
+test('splitTasks 拆分多任务并保留单任务整体', () => {
+  // 多任务：加班+请假
+  const multi = command.splitTasks('帮我登记今天加班2小时，然后请明天一天调休')
+  assert.equal(multi.length, 2)
+  assert.match(multi[0], /加班/)
+  assert.match(multi[1], /请假|调休/)
+  // 单任务带内容续接，保持整句
+  const single = command.splitTasks('登记加班2小时，内容：生产发布')
+  assert.equal(single.length, 1)
+  assert.match(single[0], /内容：生产发布/)
+  // 查询类多任务
+  const query = command.splitTasks('查询张三电话，顺便看看李四今天是否请假')
+  assert.equal(query.length, 2)
+  // 无任务分隔符的整句保持单条
+  assert.equal(command.splitTasks('明天请一天年假').length, 1)
+  // 空输入
+  assert.deepEqual(command.splitTasks(''), [])
+})

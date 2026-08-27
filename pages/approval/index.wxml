@@ -1,14 +1,6 @@
 <navigation-bar title="请假审批" color="#1F2329" background="#F7F8FA"></navigation-bar>
 <scroll-view class="scrollarea" scroll-y>
   <view class="page-shell">
-    <view class="subscribe-tip" wx:if="{{subscribeEnabled}}">
-      <view class="subscribe-body">
-        <text class="subscribe-title">审批提醒</text>
-        <text class="subscribe-text">新申请提交后，通过服务通知提醒你及时处理</text>
-      </view>
-      <button class="subscribe-button" bindtap="subscribeReminder">开启提醒</button>
-    </view>
-
     <view class="approval-list" wx:if="{{approvals.length}}">
       <view class="approval-card card" wx:for="{{approvals}}" wx:key="id">
         <view class="approval-head">

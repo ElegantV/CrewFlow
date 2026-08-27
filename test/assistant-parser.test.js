@@ -17,7 +17,7 @@ test('明确指令可直接转换成请假任务', () => {
     endDate: '2026-08-13',
     startPeriod: 'day',
     endPeriod: 'day',
-    reason: '由 CrewFlow AI 助手提交'
+    reason: '由简序日程 AI 助手提交'
   })
 })
 

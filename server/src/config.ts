@@ -11,6 +11,7 @@ const schema = z.object({
   WECHAT_APP_SECRET: z.string().min(1),
   WECHAT_SUBSCRIBE_TEMPLATE_ID: z.string().default(""),
   WECHAT_SUBSCRIBE_STATE: z.enum(["developer", "trial", "formal"]).default("formal"),
+  WXPUSHER_APP_TOKEN: z.string().default(""),
   BOOTSTRAP_SUPER_ADMIN_OPENID: z.string().default(""),
   CORS_ORIGINS: z.string().default(""),
   PDF_COMPANY_NAME: z.string().default("华银数字科技（北京）有限公司"),

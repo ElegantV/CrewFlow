@@ -3,7 +3,7 @@ const environments = {
     // 开发者工具运行在电脑上，可以访问回环地址。
     apiBaseUrl: 'http://127.0.0.1:3000',
     // 真机必须访问开发电脑的局域网地址；网络变化后更新此处。
-    deviceApiBaseUrl: 'http://172.20.10.8:3000'
+    deviceApiBaseUrl: 'http://192.168.1.14:3000'
   },
   trial: {
     apiBaseUrl: ''

@@ -145,4 +145,37 @@ function applyChoice(result, value, label, options = {}) {
 
 function monthOf(date) { return String(date || '').slice(0, 7) || `${new Date().getFullYear()}-${pad(new Date().getMonth() + 1)}` }
 
-module.exports = { parseCommand, applyChoice, parseDate, monthOf }
+const LEAVE_RE = /请假|调休|年假|病假|事假|公出|产假|婚假|丧假|育儿假|陪产假|产检假|哺乳假/
+const OVERTIME_RE = /加班|值班/
+
+function hasMultipleIntents(text) {
+  let count = 0
+  if (LEAVE_RE.test(text)) count += 1
+  if (OVERTIME_RE.test(text)) count += 1
+  if (/查询|查一下|查看|电话|手机号|通讯录|联系方式|员工情况/.test(text)) count += 1
+  if (/审批|通过|驳回|待审批/.test(text)) count += 1
+  if (/余额|额度|记录/.test(text)) count += 1
+  return count >= 2
+}
+
+// 把一句话中的多个任务拆分为独立片段，供逐个解析执行。
+// 单任务保持整句（如"登记加班2小时，内容：发布"），多任务时按分隔符/逗号拆分。
+function splitTasks(text) {
+  const source = String(text || '').trim()
+  if (!source) return []
+  const hardSep = /[。；]|然后|顺便|同时|还要|以及|另外|接着|接下来/
+  let parts = source.split(hardSep)
+  if (hasMultipleIntents(source)) {
+    parts = parts.flatMap(part => part.split('，'))
+  }
+  const trimmed = parts.map(part => part.trim()).filter(Boolean)
+  const merged = []
+  for (const part of trimmed) {
+    const continuation = merged.length && /^(?:内容|事由|原因)(?:是|为|[:：])?/.test(part)
+    if (continuation) merged[merged.length - 1] = `${merged[merged.length - 1]}，${part}`
+    else merged.push(part)
+  }
+  return merged
+}
+
+module.exports = { parseCommand, applyChoice, parseDate, monthOf, splitTasks }

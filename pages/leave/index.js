@@ -1,9 +1,16 @@
 const leave = require('../../services/leave')
 const me = require('../../services/me')
+const holidays = require('../../config/holidays')
 
+function pad(value) { return String(value).padStart(2, '0') }
 function today() {
   const date = new Date()
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+function monthKey(date) { return `${date.getFullYear()}-${pad(date.getMonth() + 1)}` }
+function shiftMonth(month, offset) {
+  const [year, value] = month.split('-').map(Number)
+  return monthKey(new Date(year, value - 1 + offset, 1))
 }
 
 const statusLabels = {
@@ -56,12 +63,27 @@ Page({
       startPeriod: 'day',
       endPeriod: 'day',
       reason: ''
-    }
+    },
+    calMonth: '',
+    calTitle: '',
+    calCells: [],
+    weekdays: ['一', '二', '三', '四', '五', '六', '日'],
+    rangeStart: '',
+    rangeEnd: '',
+    sameDayPeriod: 'day',
+    rangeWorkdays: 0
   },
 
   onLoad() {
     const date = today()
-    this.setData({ 'form.startDate': date, 'form.endDate': date })
+    const currentMonth = monthKey(new Date())
+    this.setData({
+      'form.startDate': date,
+      'form.endDate': date,
+      calMonth: currentMonth,
+      calTitle: this.monthTitle(currentMonth)
+    })
+    this.buildCalendar(currentMonth)
   },
 
   onShow() {
@@ -119,14 +141,141 @@ Page({
       return
     }
     this.setData({ showForm: true })
+    this.buildCalendar(this.data.calMonth || monthKey(new Date()))
   },
 
   openProfile() {
     wx.navigateTo({ url: '/pages/profile/index' })
   },
 
+  openLedger() {
+    wx.navigateTo({ url: '/pages/ledger/index' })
+  },
+
   closeForm() {
     if (!this.data.submitting) this.setData({ showForm: false })
+  },
+
+  monthTitle(month) {
+    const [year, value] = month.split('-').map(Number)
+    return `${year}年${value}月`
+  },
+
+  buildCalendar(month) {
+    const [year, value] = month.split('-').map(Number)
+    const first = new Date(year, value - 1, 1)
+    const offset = (first.getDay() + 6) % 7
+    const daysInMonth = new Date(year, value, 0).getDate()
+    const cells = []
+    for (let index = 0; index < offset; index += 1) {
+      cells.push({ key: `${month}-empty-${index}`, empty: true })
+    }
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const date = `${month}-${pad(day)}`
+      cells.push({
+        key: date,
+        date,
+        day,
+        empty: false,
+        isToday: date === this.data.today,
+        isHoliday: !holidays.isWorkday(date),
+        rangeStart: date === this.data.rangeStart,
+        rangeEnd: date === this.data.rangeEnd,
+        inRange: this.inRange(date)
+      })
+    }
+    while (cells.length % 7 !== 0) {
+      cells.push({ key: `${month}-empty-end-${cells.length}`, empty: true })
+    }
+    this.setData({ calCells: cells, calMonth: month, calTitle: this.monthTitle(month) })
+  },
+
+  inRange(date) {
+    const { rangeStart, rangeEnd } = this.data
+    if (!rangeStart || !rangeEnd) return false
+    const min = rangeStart < rangeEnd ? rangeStart : rangeEnd
+    const max = rangeStart < rangeEnd ? rangeEnd : rangeStart
+    return date > min && date < max
+  },
+
+  onCalendarTap(event) {
+    const date = event.currentTarget.dataset.date
+    if (!date) return
+    const fixed = this.data.currentType && this.data.currentType.fixedWorkdays
+    let rangeStart, rangeEnd, startDate, endDate
+    if (fixed) {
+      rangeStart = date
+      rangeEnd = ''
+      startDate = date
+      endDate = date
+    } else {
+      const { rangeStart: rs, rangeEnd: re } = this.data
+      if (!rs) {
+        rangeStart = date
+        rangeEnd = ''
+        startDate = date
+        endDate = date
+      } else if (!re) {
+        rangeStart = date < rs ? date : rs
+        rangeEnd = date < rs ? rs : date
+        startDate = rangeStart
+        endDate = rangeEnd
+      } else {
+        rangeStart = date
+        rangeEnd = ''
+        startDate = date
+        endDate = date
+      }
+    }
+    this.setData({
+      rangeStart,
+      rangeEnd,
+      'form.startDate': startDate,
+      'form.endDate': endDate
+    })
+    this.refreshRange()
+  },
+
+  refreshRange() {
+    const { rangeStart, rangeEnd } = this.data
+    let rangeWorkdays = 0
+    if (rangeStart && rangeEnd) {
+      const sameDay = rangeStart === rangeEnd
+      rangeWorkdays = sameDay ? 1 : holidays.countWorkdays(rangeStart, rangeEnd)
+      if (sameDay && this.data.sameDayPeriod) {
+        this.setData({
+          'form.startPeriod': this.data.sameDayPeriod,
+          'form.endPeriod': this.data.sameDayPeriod
+        })
+      } else if (!sameDay) {
+        // 多天默认全天，避免残留单日的上/下午时段导致小时数计算错误。
+        this.setData({
+          'form.startPeriod': 'day',
+          'form.endPeriod': 'day',
+          startPeriodIndex: 0,
+          endPeriodIndex: 0
+        })
+      }
+    }
+    this.setData({ rangeWorkdays })
+    this.buildCalendar(this.data.calMonth)
+  },
+
+  prevMonth() {
+    this.buildCalendar(shiftMonth(this.data.calMonth, -1))
+  },
+
+  nextMonth() {
+    this.buildCalendar(shiftMonth(this.data.calMonth, 1))
+  },
+
+  onSameDayPeriod(event) {
+    const value = event.currentTarget.dataset.value
+    this.setData({
+      sameDayPeriod: value,
+      'form.startPeriod': value,
+      'form.endPeriod': value
+    })
   },
 
   onTypeChange(event) {
@@ -137,17 +286,10 @@ Page({
       currentType,
       'form.leaveType': currentType.value
     })
-  },
-
-  onStartDateChange(event) {
-    const value = event.detail.value
-    const updates = { 'form.startDate': value }
-    if (this.data.form.endDate < value) updates['form.endDate'] = value
-    this.setData(updates)
-  },
-
-  onEndDateChange(event) {
-    this.setData({ 'form.endDate': event.detail.value })
+    if (currentType.fixedWorkdays) {
+      this.setData({ rangeEnd: '' })
+      this.buildCalendar(this.data.calMonth)
+    }
   },
 
   onStartPeriodChange(event) {

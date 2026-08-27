@@ -12,7 +12,7 @@ import {
   validatePeriodRange,
   type LeaveType,
 } from "../business/leave-policy.js";
-import { notifyApproverPending } from "../business/subscribe-notify.js";
+import { notifyApproverPending } from "../business/notify.js";
 import { allocateTimeoff, releaseTimeoff } from "../business/timeoff.js";
 import { db } from "../db.js";
 

@@ -66,16 +66,18 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
         start_period: string;
         end_period: string;
         requested_hours: string;
+        status: string;
       }>(
         `SELECT leave.id, day::date::text AS date, person.name,
                 person.avatar_data, person.avatar_mime_type,
                 person.bank_project AS system_name, person.department,
                 leave.leave_type, leave.start_date::text, leave.end_date::text,
-                leave.start_period, leave.end_period, leave.requested_hours::text
+                leave.start_period, leave.end_period, leave.requested_hours::text,
+                leave.status
          FROM leave_requests leave
          JOIN users person ON person.id = leave.applicant_id
          CROSS JOIN LATERAL generate_series(leave.start_date, leave.end_date, interval '1 day') AS dates(day)
-         WHERE leave.status = 'approved'
+         WHERE leave.status IN ('pending', 'approved')
            AND day >= $1::date AND day < ($2::date + interval '1 month')
            AND EXTRACT(ISODOW FROM day) < 6
          ORDER BY day, person.name NULLS LAST`,
@@ -116,6 +118,7 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
       leaveTypeLabel: leavePolicies[item.leave_type].label,
       periodLabel: leavePeriodLabel(item),
       requestedHours: Number(item.requested_hours),
+      status: item.status,
     }));
     const overtime = overtimeResult.rows.map(item => ({
       id: item.id,
