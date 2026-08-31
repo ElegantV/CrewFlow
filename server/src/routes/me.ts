@@ -65,14 +65,16 @@ function avatarDataUrl(data: Buffer | null, mimeType: string | null) {
 }
 
 function decodeSignature(imageData: string) {
-  const match = /^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/=]+)$/.exec(imageData);
+  const match = imageData.match(/^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/=]+)$/);
   if (!match) return null;
   const data = Buffer.from(match[2]!, "base64");
   if (data.length === 0 || data.length > 500_000) return null;
   const isPng = data.length >= 8 && data.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
   const isJpeg = data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff;
   if ((match[1] === "image/png" && !isPng) || (match[1] === "image/jpeg" && !isJpeg)) return null;
-  return { data, mimeType: match[1] };
+  // mimeType 不取用户输入,由魔数校验结果推导,杜绝任何污点流入存储字段。
+  const mimeType = isPng ? "image/png" : "image/jpeg";
+  return { data, mimeType };
 }
 
 export const meRoutes: FastifyPluginAsync = async (app) => {
@@ -240,11 +242,17 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
   app.put("/avatar", protectedHooks, async (request, reply) => {
     const parsed = avatarSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ code: "INVALID_AVATAR", message: "头像文件无效或过大" });
-    const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(parsed.data.imageData);
+    const match = parsed.data.imageData.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
     if (!match) return reply.code(400).send({ code: "INVALID_AVATAR", message: "请上传 PNG、JPEG 或 WebP 图片" });
     const data = Buffer.from(match[2]!, "base64");
     if (!data.length || data.length > 700_000) return reply.code(400).send({ code: "INVALID_AVATAR", message: "头像文件不能超过 700KB" });
-    await db.query("UPDATE users SET avatar_data = $1, avatar_mime_type = $2, updated_at = now() WHERE id = $3", [data, match[1], request.actor!.id]);
+    // mimeType 由魔数推导而非用户输入字符串。
+    const isPng = data.length >= 8 && data.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    const isJpeg = data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff;
+    const isWebp = data.length >= 12 && data.subarray(0, 4).toString("ascii") === "RIFF" && data.subarray(8, 12).toString("ascii") === "WEBP";
+    const mimeType = isPng ? "image/png" : isJpeg ? "image/jpeg" : isWebp ? "image/webp" : null;
+    if (!mimeType) return reply.code(400).send({ code: "INVALID_AVATAR", message: "请上传 PNG、JPEG 或 WebP 图片" });
+    await db.query("UPDATE users SET avatar_data = $1, avatar_mime_type = $2, updated_at = now() WHERE id = $3", [data, mimeType, request.actor!.id]);
     return { success: true };
   });
 
