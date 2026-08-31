@@ -33,7 +33,9 @@ Page({
     this.setData({ submitting: true })
     try {
       await auth.register({ name, mobile })
-      this.setData({ submitting: false, registered: true })
+      // 注册即激活,直接进入首页。
+      wx.showToast({ title: '注册成功', icon: 'success' })
+      wx.reLaunch({ url: '/pages/index/index' })
     } catch (error) {
       this.setData({ submitting: false })
       if (error.code === 'ACCOUNT_ALREADY_EXISTS') {

@@ -2,7 +2,7 @@
 <view class="page-shell register-page">
   <view class="register-head">
     <text class="register-title">欢迎使用简序日程</text>
-    <text class="register-sub">首次登录需完善账号信息，由管理员激活后使用</text>
+    <text class="register-sub">首次登录需完善账号信息，提交后即可使用</text>
   </view>
 
   <view class="tabs" wx:if="{{!registered}}">
@@ -20,7 +20,7 @@
       <input class="field-input" type="number" value="{{form.mobile}}" placeholder="请输入手机号" maxlength="30" data-field="mobile" bindinput="onInput" />
     </view>
     <button class="primary-button submit-button" loading="{{submitting}}" bindtap="submitRegister">提交注册</button>
-    <text class="form-tip">提交后等待管理员激活，激活后即可正常使用</text>
+    <text class="form-tip">提交后即可正常使用</text>
   </view>
 
   <view class="form card" wx:if="{{!registered && mode === 'bind'}}">
@@ -38,6 +38,6 @@
 
   <view class="result card" wx:if="{{registered}}">
     <text class="result-title">已提交</text>
-    <text class="result-text">账号信息已提交，等待管理员激活。请稍后重新打开小程序查看是否已激活。</text>
+    <text class="result-text">账号信息已提交，请退出后重新打开小程序登录。</text>
   </view>
 </view>

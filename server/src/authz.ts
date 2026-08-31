@@ -21,7 +21,7 @@ export async function loadActiveActor(request: FastifyRequest, reply: FastifyRep
   if (!user || user.status !== "active") {
     await reply.code(403).send({
       code: user?.status === "pending" ? "ACCOUNT_PENDING" : "ACCOUNT_DISABLED",
-      message: user?.status === "pending" ? "账号等待超级管理员激活" : "账号不可用",
+      message: user?.status === "pending" ? "请先完善姓名和手机号" : "账号不可用",
     });
     return;
   }

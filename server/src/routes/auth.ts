@@ -112,7 +112,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
-  // 首次登录（待激活账号）注册：填写姓名、手机号，等待管理员激活。
+  // 首次登录（未完善资料账号）注册：填写姓名、手机号，提交即激活，无需管理员操作。
   app.post("/register", { onRequest: [app.authenticate] }, async (request, reply) => {
     const parsed = registerSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -127,7 +127,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ code: "USER_NOT_FOUND", message: "用户不存在" });
     }
     if (user.status !== "pending") {
-      return reply.code(409).send({ code: "ACCOUNT_NOT_PENDING", message: "该账号已激活，无需注册" });
+      return reply.code(409).send({ code: "ACCOUNT_NOT_PENDING", message: "该账号已完善资料，无需重复注册" });
     }
     const duplicate = await db.query(
       "SELECT 1 FROM users WHERE name = $1 AND mobile = $2 AND id <> $3",
@@ -140,10 +140,10 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       });
     }
     await db.query(
-      "UPDATE users SET name = $1, mobile = $2, updated_at = now() WHERE id = $3",
+      "UPDATE users SET name = $1, mobile = $2, status = 'active', updated_at = now() WHERE id = $3",
       [parsed.data.name, parsed.data.mobile, user.id],
     );
-    return { success: true, status: "pending" };
+    return { success: true, status: "active" };
   });
 
   // 首次登录绑定已有用户：按 姓名+手机号 匹配，把当前 openid 挂到匹配账号上。
