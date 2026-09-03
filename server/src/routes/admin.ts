@@ -124,7 +124,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
                 leave.leave_type, leave.start_date::text, leave.end_date::text,
                 leave.start_period::text, leave.end_period::text,
                 leave.requested_days::text, leave.status, leave.reason,
-                approver.name AS approver_name, leave.created_at::text
+                approver.name AS approver_name, leave.submitted_at::text AS created_at
          FROM leave_requests leave
          JOIN users applicant ON applicant.id = leave.applicant_id
          LEFT JOIN approval_records approval ON approval.leave_request_id = leave.id AND approval.step_no = 1
