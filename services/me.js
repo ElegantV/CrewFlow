@@ -24,5 +24,8 @@ module.exports = {
   },
   ledger(month) {
     return request({ url: `/api/v1/me/ledger?month=${encodeURIComponent(month)}` })
+  },
+  saveHomeMenu(items) {
+    return request({ url: '/api/v1/me/home-menu', method: 'PUT', data: { items } })
   }
 }

@@ -249,3 +249,20 @@ page {
   font-size: 34rpx;
   line-height: 1;
 }
+.section-title--row { display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
+.menu-edit-link { color: #2f6fed; font-size: 24rpx; }
+.menu-editor { width: 100%; padding: 36rpx 32rpx; padding-bottom: calc(36rpx + env(safe-area-inset-bottom)); border-radius: 32rpx 32rpx 0 0; background: #fff; box-sizing: border-box; }
+.menu-editor__title { display: block; font-size: 36rpx; font-weight: 700; }
+.menu-editor__hint { display: block; margin-top: 8rpx; margin-bottom: 16rpx; color: #64748b; font-size: 24rpx; }
+.menu-editor__list { max-height: 60vh; overflow-y: auto; }
+.menu-editor__item { display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 18rpx 0; border-bottom: 1rpx solid #eef2f7; }
+.menu-editor__item--hidden .menu-editor__name { color: #94a3b8; text-decoration: line-through; }
+.menu-editor__name { font-size: 28rpx; color: #1f2329; }
+.menu-editor__actions { display: flex; flex-direction: row; align-items: center; transform: scale(0.8); }
+.menu-editor__switch { transform: scale(0.8); }
+.menu-editor__move { width: 56rpx; height: 56rpx; margin-left: 10rpx; border: 1rpx solid #d9e1ea; border-radius: 12rpx; color: #475569; font-size: 28rpx; text-align: center; line-height: 52rpx; background: #f8fafc; }
+.menu-editor__footer { display: flex; flex-direction: row; margin-top: 28rpx; }
+.menu-editor__footer button { flex: 1; margin: 0; }
+.menu-editor__footer button + button { margin-left: 20rpx; }
+.menu-editor__cancel { border-radius: 16rpx; color: #475569; background: #edf2f7; }
+.menu-editor__cancel::after, .menu-editor__save::after { border: 0; }

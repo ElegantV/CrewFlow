@@ -109,6 +109,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       address: string | null;
       emergency_contact_name: string | null;
       emergency_contact_phone: string | null;
+      home_menu_config: Array<{ key: string; hidden: boolean }> | null;
     }>(
       `SELECT u.id, u.name, u.employee_no, u.role, u.status,
               u.manager_id, manager.name AS manager_name,
@@ -118,7 +119,8 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
               u.personnel_type, u.digital_employee_no, u.department,
               u.bank_project, u.attendance_location, u.bank_level,
               u.itl_status, u.work_start_date::text, u.mobile, u.address,
-              u.emergency_contact_name, u.emergency_contact_phone
+              u.emergency_contact_name, u.emergency_contact_phone,
+              u.home_menu_config
        FROM users u
        LEFT JOIN users manager ON manager.id = u.manager_id
        LEFT JOIN users agent ON agent.id = u.agent_user_id
@@ -160,7 +162,35 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       },
       signatureConfigured: Boolean(user.signature_updated_at),
       signatureUpdatedAt: user.signature_updated_at,
+      homeMenuConfig: user.home_menu_config ?? [],
     };
+  });
+
+  // 首页菜单个性化:保存菜单项顺序与隐藏状态(按用户)。
+  const homeMenuSchema = z.object({
+    items: z.array(z.object({
+      key: z.enum(["assistant", "duty", "leave", "situation", "contact", "profile", "approval", "admin"]),
+      hidden: z.boolean(),
+    })).max(20),
+  });
+
+  app.put("/home-menu", protectedHooks, async (request, reply) => {
+    const parsed = homeMenuSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ code: "INVALID_HOME_MENU", message: "菜单配置无效" });
+    }
+    // 去重:同 key 只保留最后一次设置。
+    const seen = new Set<string>();
+    const items = parsed.data.items.filter(item => {
+      if (seen.has(item.key)) return false;
+      seen.add(item.key);
+      return true;
+    });
+    await db.query(
+      "UPDATE users SET home_menu_config = $1::jsonb, updated_at = now() WHERE id = $2",
+      [JSON.stringify(items), request.actor!.id],
+    );
+    return { success: true, items };
   });
 
   app.get("/people", protectedHooks, async (request) => {

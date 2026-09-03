@@ -104,11 +104,12 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return { success: true };
   });
 
-  // 按日期区间导出全部加班/请假记录为 Excel(仅超级管理员)。
+  // 按日期区间导出全部加班/请假记录为 Excel(仅超级管理员),可通过 userId 筛选单个用户。
   app.get("/records/export", superAdminHooks, async (request, reply) => {
     const parsed = z.object({
       start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      userId: z.string().uuid().optional(),
     }).safeParse(request.query);
     if (!parsed.success || parsed.data.start > parsed.data.end) {
       return reply.code(400).send({ code: "INVALID_RANGE", message: "请选择有效的起止日期" });
@@ -116,7 +117,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (parsed.data.end < parsed.data.start || Date.parse(parsed.data.end) - Date.parse(parsed.data.start) > 366 * 86400_000) {
       return reply.code(400).send({ code: "INVALID_RANGE", message: "导出区间不能超过一年" });
     }
-    const { start, end } = parsed.data;
+    const { start, end, userId } = parsed.data;
+
+    let exportUserName: string | null = null;
+    if (userId) {
+      const userResult = await db.query<{ name: string | null }>(
+        "SELECT name FROM users WHERE id = $1",
+        [userId],
+      );
+      const user = userResult.rows[0];
+      if (!user) {
+        return reply.code(404).send({ code: "USER_NOT_FOUND", message: "用户不存在" });
+      }
+      exportUserName = user.name;
+    }
 
     const [leaveResult, overtimeResult] = await Promise.all([
       db.query<LeaveRow>(
@@ -130,8 +144,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
          LEFT JOIN approval_records approval ON approval.leave_request_id = leave.id AND approval.step_no = 1
          LEFT JOIN users approver ON approver.id = approval.approver_id
          WHERE leave.start_date <= $2::date AND leave.end_date >= $1::date
+         ${userId ? "AND leave.applicant_id = $3::uuid" : ""}
          ORDER BY leave.start_date, applicant.name NULLS LAST`,
-        [start, end],
+        userId ? [start, end, userId] : [start, end],
       ),
       db.query<OvertimeRow>(
         `SELECT person.name, duty.duty_date::text, duty.hours::text,
@@ -139,14 +154,18 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
          FROM duty_records duty
          JOIN users person ON person.id = duty.user_id
          WHERE duty.duty_date >= $1::date AND duty.duty_date <= $2::date
+         ${userId ? "AND duty.user_id = $3::uuid" : ""}
          ORDER BY duty.duty_date, person.name NULLS LAST`,
-        [start, end],
+        userId ? [start, end, userId] : [start, end],
       ),
     ]);
 
     const workbook = buildRecordsWorkbook(leaveResult.rows, overtimeResult.rows);
     const buffer = await workbook.xlsx.writeBuffer();
-    const filename = `考勤记录_${start.replaceAll("-", "")}_${end.replaceAll("-", "")}.xlsx`;
+    const userSuffix = exportUserName
+      ? `_${exportUserName.replace(/[\\/:*?"<>|]/g, "_")}`
+      : "";
+    const filename = `考勤记录${userSuffix}_${start.replaceAll("-", "")}_${end.replaceAll("-", "")}.xlsx`;
     return reply
       .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
       .header("Content-Disposition", `attachment; filename="records.xlsx"; filename*=UTF-8''${encodeURIComponent(filename)}`)

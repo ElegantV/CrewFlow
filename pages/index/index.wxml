@@ -43,7 +43,10 @@
       </view>
     </view>
 
-    <view class="section-title">常用功能</view>
+    <view class="section-title section-title--row">
+      <text>常用功能</text>
+      <text class="menu-edit-link" bindtap="openMenuEditor" wx:if="{{user && user.status === 'active'}}">编辑菜单</text>
+    </view>
     <view class="shortcut-grid">
       <view
         wx:for="{{shortcuts}}"
@@ -61,6 +64,27 @@
           </view>
           <text class="shortcut-title">{{item.title}}</text>
           <text class="shortcut-description">{{item.description}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="modal-mask" wx:if="{{menuEditor}}" bindtap="closeMenuEditor">
+      <view class="menu-editor" catchtap="noopMenu">
+        <text class="menu-editor__title">编辑菜单</text>
+        <text class="menu-editor__hint">可隐藏不需要的入口,并调整显示顺序</text>
+        <view class="menu-editor__list">
+          <view class="menu-editor__item {{item.hidden ? 'menu-editor__item--hidden' : ''}}" wx:for="{{menuItems}}" wx:key="key">
+            <text class="menu-editor__name">{{item.title}}</text>
+            <view class="menu-editor__actions">
+              <switch class="menu-editor__switch" checked="{{!item.hidden}}" data-key="{{item.key}}" bindchange="toggleMenuItem" color="#2f6fed" />
+              <view class="menu-editor__move" data-index="{{index}}" data-direction="up" bindtap="moveMenuItem">↑</view>
+              <view class="menu-editor__move" data-index="{{index}}" data-direction="down" bindtap="moveMenuItem">↓</view>
+            </view>
+          </view>
+        </view>
+        <view class="menu-editor__footer">
+          <button class="menu-editor__cancel" bindtap="closeMenuEditor">取消</button>
+          <button class="menu-editor__save" loading="{{menuSaving}}" bindtap="saveMenuEditor">保存</button>
         </view>
       </view>
     </view>

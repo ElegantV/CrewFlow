@@ -11,6 +11,9 @@ Page({
     apiStatus: 'not_configured',
     user: null,
     reminders: emptyReminders(),
+    menuEditor: false,
+    menuSaving: false,
+    menuItems: [],
     shortcuts: [
       {
         key: 'assistant',
@@ -69,6 +72,22 @@ Page({
       await app.ready
     }
     const user = app.globalData.user
+    const shortcuts = this.buildShortcuts(user)
+    this.setData({
+      apiConfigured: isApiConfigured(),
+      apiStatus: app.globalData.apiStatus,
+      user,
+      shortcuts
+    })
+    if (user) {
+      await this.refreshUser(user)
+      await this.applyHomeMenu()
+    }
+    this.loadReminders(this.data.user || user)
+  },
+
+  // 根据角色计算默认菜单(不含个性化)。
+  buildShortcuts(user) {
     const shortcuts = this.data.shortcuts.filter(item => !['approval', 'admin', 'dev'].includes(item.key))
     if (user && (user.role === 'admin' || user.role === 'super_admin')) {
       shortcuts.push({
@@ -88,17 +107,89 @@ Page({
         description: '仅开发版可用，不影响真实微信账号', url: '/pages/dev/users', accent: 'slate'
       })
     }
-    this.setData({
-      apiConfigured: isApiConfigured(),
-      apiStatus: app.globalData.apiStatus,
-      user,
-      shortcuts
-    })
-    if (user) {
-      await this.refreshUser(user)
-    }
-    this.loadReminders(this.data.user || user)
+    return shortcuts
   },
+
+  // 应用用户的菜单配置:按保存顺序排列,隐藏项不展示;未配置项按默认顺序追加。
+  applyMenuConfig(shortcuts, config) {
+    if (!config || !config.length) return shortcuts
+    const byKey = {}
+    shortcuts.forEach(item => { byKey[item.key] = item })
+    const ordered = []
+    const used = new Set()
+    config.forEach(entry => {
+      const item = byKey[entry.key]
+      if (!item || used.has(entry.key)) return
+      used.add(entry.key)
+      if (!entry.hidden) ordered.push(item)
+    })
+    shortcuts.forEach(item => {
+      if (!used.has(item.key)) ordered.push(item)
+    })
+    return ordered
+  },
+
+  // 拉取个人信息中的菜单配置并应用;静默失败时保持默认菜单。
+  async applyHomeMenu() {
+    try {
+      const profile = await me.get()
+      if (profile && profile.homeMenuConfig) {
+        this.homeMenuConfig = profile.homeMenuConfig
+        this.setData({ shortcuts: this.applyMenuConfig(this.buildShortcuts(this.data.user), profile.homeMenuConfig) })
+      }
+    } catch (error) {
+      // 菜单配置获取失败不影响首页可用性。
+    }
+  },
+
+  // 打开编辑弹层:列出全部可见菜单(含已隐藏项),支持隐藏/显示与上下移动。
+  openMenuEditor() {
+    const all = this.buildShortcuts(this.data.user)
+    const config = this.homeMenuConfig || []
+    const hiddenKeys = new Set(config.filter(item => item.hidden).map(item => item.key))
+    const orderMap = new Map()
+    config.forEach((item, index) => { orderMap.set(item.key, index) })
+    const items = all
+      .map(item => ({ key: item.key, title: item.title, hidden: hiddenKeys.has(item.key), order: orderMap.has(item.key) ? orderMap.get(item.key) : 100 + all.indexOf(item) }))
+      .sort((a, b) => a.order - b.order)
+    this.setData({ menuEditor: true, menuItems: items })
+  },
+
+  closeMenuEditor() { this.setData({ menuEditor: false }) },
+
+  toggleMenuItem(event) {
+    const key = event.currentTarget.dataset.key
+    const menuItems = this.data.menuItems.map(item => item.key === key ? Object.assign({}, item, { hidden: !item.hidden }) : item)
+    this.setData({ menuItems })
+  },
+
+  moveMenuItem(event) {
+    const index = Number(event.currentTarget.dataset.index)
+    const delta = event.currentTarget.dataset.direction === 'up' ? -1 : 1
+    const target = index + delta
+    if (target < 0 || target >= this.data.menuItems.length) return
+    const menuItems = this.data.menuItems.slice()
+    const temp = menuItems[index]
+    menuItems[index] = menuItems[target]
+    menuItems[target] = temp
+    this.setData({ menuItems })
+  },
+
+  async saveMenuEditor() {
+    const items = this.data.menuItems.map(item => ({ key: item.key, hidden: item.hidden }))
+    this.setData({ menuSaving: true })
+    try {
+      await me.saveHomeMenu(items)
+      this.homeMenuConfig = items
+      this.setData({ menuSaving: false, menuEditor: false, shortcuts: this.applyMenuConfig(this.buildShortcuts(this.data.user), items) })
+      wx.showToast({ title: '菜单已更新', icon: 'success' })
+    } catch (error) {
+      this.setData({ menuSaving: false })
+      wx.showToast({ title: error.message || '保存失败', icon: 'none' })
+    }
+  },
+
+  noopMenu() {},
 
   // 从服务端刷新当前用户状态/姓名，避免会话缓存与数据库不一致。
   async refreshUser(user) {
