@@ -169,7 +169,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
   // 首页菜单个性化:保存菜单项顺序与隐藏状态(按用户)。
   const homeMenuSchema = z.object({
     items: z.array(z.object({
-      key: z.enum(["assistant", "duty", "leave", "situation", "contact", "profile", "approval", "admin"]),
+      key: z.enum(["assistant", "duty", "leave", "situation", "contact", "profile", "approval", "admin", "dev"]),
       hidden: z.boolean(),
     })).max(20),
   });
