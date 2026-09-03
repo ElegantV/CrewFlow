@@ -23,7 +23,11 @@ Page({
     roleIndex: 0,
     statusIndex: 0,
     managerIndex: 0,
-    form: null
+    form: null,
+    exportStart: '',
+    exportEnd: '',
+    exporting: false,
+    showExport: false
   },
 
   onShow() {
@@ -116,5 +120,38 @@ Page({
     }
   },
 
-  noop() {}
+  noop() {},
+
+  // 按日期区间导出考勤记录(仅超级管理员,后端二次校验角色)。
+  openExport() { this.setData({ showExport: true }) },
+  closeExport() { if (!this.data.exporting) this.setData({ showExport: false }) },
+  onExportStartChange(event) { this.setData({ exportStart: event.detail.value }) },
+  onExportEndChange(event) { this.setData({ exportEnd: event.detail.value }) },
+
+  async exportRecords() {
+    const { exportStart, exportEnd, exporting } = this.data
+    if (exporting) return
+    if (!exportStart || !exportEnd) {
+      wx.showToast({ title: '请选择起止日期', icon: 'none' })
+      return
+    }
+    if (exportStart > exportEnd) {
+      wx.showToast({ title: '开始日期不能晚于结束日期', icon: 'none' })
+      return
+    }
+    this.setData({ exporting: true })
+    try {
+      const filePath = await admin.downloadRecords(exportStart, exportEnd)
+      this.setData({ exporting: false })
+      wx.openDocument({
+        filePath,
+        fileType: 'xlsx',
+        showMenu: true,
+        fail: () => wx.showToast({ title: '文件已下载，但打开失败', icon: 'none' })
+      })
+    } catch (error) {
+      this.setData({ exporting: false })
+      wx.showToast({ title: error.message || '导出失败', icon: 'none' })
+    }
+  }
 })

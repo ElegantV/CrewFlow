@@ -2,6 +2,11 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { allowRoles, loadActiveActor } from "../authz.js";
 import { db } from "../db.js";
+import {
+  buildRecordsWorkbook,
+  type LeaveRow,
+  type OvertimeRow,
+} from "../business/export-records.js";
 
 const updateUserSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
@@ -97,6 +102,55 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       [next.name, next.employeeNo, next.role, next.status, next.managerId, id.data],
     );
     return { success: true };
+  });
+
+  // 按日期区间导出全部加班/请假记录为 Excel(仅超级管理员)。
+  app.get("/records/export", superAdminHooks, async (request, reply) => {
+    const parsed = z.object({
+      start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }).safeParse(request.query);
+    if (!parsed.success || parsed.data.start > parsed.data.end) {
+      return reply.code(400).send({ code: "INVALID_RANGE", message: "请选择有效的起止日期" });
+    }
+    if (parsed.data.end < parsed.data.start || Date.parse(parsed.data.end) - Date.parse(parsed.data.start) > 366 * 86400_000) {
+      return reply.code(400).send({ code: "INVALID_RANGE", message: "导出区间不能超过一年" });
+    }
+    const { start, end } = parsed.data;
+
+    const [leaveResult, overtimeResult] = await Promise.all([
+      db.query<LeaveRow>(
+        `SELECT applicant.name AS applicant_name,
+                leave.leave_type, leave.start_date::text, leave.end_date::text,
+                leave.start_period::text, leave.end_period::text,
+                leave.requested_days::text, leave.status, leave.reason,
+                approver.name AS approver_name, leave.created_at::text
+         FROM leave_requests leave
+         JOIN users applicant ON applicant.id = leave.applicant_id
+         LEFT JOIN approval_records approval ON approval.leave_request_id = leave.id AND approval.step_no = 1
+         LEFT JOIN users approver ON approver.id = approval.approver_id
+         WHERE leave.start_date <= $2::date AND leave.end_date >= $1::date
+         ORDER BY leave.start_date, applicant.name NULLS LAST`,
+        [start, end],
+      ),
+      db.query<OvertimeRow>(
+        `SELECT person.name, duty.duty_date::text, duty.hours::text,
+                duty.content, duty.status, duty.created_at::text
+         FROM duty_records duty
+         JOIN users person ON person.id = duty.user_id
+         WHERE duty.duty_date >= $1::date AND duty.duty_date <= $2::date
+         ORDER BY duty.duty_date, person.name NULLS LAST`,
+        [start, end],
+      ),
+    ]);
+
+    const workbook = buildRecordsWorkbook(leaveResult.rows, overtimeResult.rows);
+    const buffer = await workbook.xlsx.writeBuffer();
+    const filename = `考勤记录_${start.replaceAll("-", "")}_${end.replaceAll("-", "")}.xlsx`;
+    return reply
+      .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+      .header("Content-Disposition", `attachment; filename="records.xlsx"; filename*=UTF-8''${encodeURIComponent(filename)}`)
+      .send(Buffer.from(buffer));
   });
 };
 

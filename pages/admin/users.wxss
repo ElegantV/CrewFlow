@@ -19,3 +19,5 @@ page { height: 100vh; display: flex; flex-direction: column; }
 .actions button + button { margin-left: 20rpx; }
 .secondary { border-radius: 16rpx; color: #475569; background: #edf2f7; }
 .secondary::after { border: 0; }
+.export-button { margin-top: 28rpx; }
+.export-hint { display: block; margin-bottom: 8rpx; color: #64748b; font-size: 24rpx; line-height: 1.5; }
