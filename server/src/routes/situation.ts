@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { loadActiveActor } from "../authz.js";
-import { leavePolicies, type LeaveType } from "../business/leave-policy.js";
+import { leavePolicies, isWorkdayDate, type LeaveType } from "../business/leave-policy.js";
 import { db } from "../db.js";
 
 const querySchema = z.object({
@@ -79,7 +79,6 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
          CROSS JOIN LATERAL generate_series(leave.start_date, leave.end_date, interval '1 day') AS dates(day)
          WHERE leave.status IN ('pending', 'approved')
            AND day >= $1::date AND day < ($2::date + interval '1 month')
-           AND EXTRACT(ISODOW FROM day) < 6
          ORDER BY day, person.name NULLS LAST`,
         [rangeStart, rangeEndMonth],
       ),
@@ -108,7 +107,10 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
       ),
     ]);
 
-    const leaves = leaveResult.rows.map(item => ({
+    // 口径与请假计算一致:法定节假日不计入展示,调休上班日计入。
+    const leaves = leaveResult.rows
+      .filter(item => isWorkdayDate(item.date))
+      .map(item => ({
       id: item.id,
       date: item.date,
       name: item.name ?? "未命名用户",

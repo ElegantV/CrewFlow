@@ -1,0 +1,54 @@
+# CrewFlow API 反向代理配置
+#
+# 使用前：把下面两处 api.example.com 换成已备案的真实域名（与小程序
+# config/env.js 的 PRODUCTION_API_ORIGIN 保持一致），并把 email 换成真实邮箱。
+#
+# 裸机运行：  sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+# 容器运行：  docker run -d --name caddy --restart unless-stopped \
+#               -p 80:80 -p 443:443 \
+#               -v $PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro \
+#               -v caddy_data:/data -v caddy_config:/config \
+#               -v /var/log/caddy:/var/log/caddy \
+#               --add-host=host.docker.internal:host-gateway \
+#               caddy:2
+#             （容器内用 host.docker.internal:3000 代替 127.0.0.1:3000）
+{
+  # 证书签发失败或即将过期时，Let's Encrypt 会发邮件到这里。
+  email admin@example.com
+
+  # 管理接口只监听本机，避免公网可直接操作 Caddy。
+  admin 127.0.0.1:2019
+}
+
+api.example.com {
+  encode zstd gzip
+
+  # 头像与审批签名以 base64 提交，单张图片可达数 MB，默认 1MB 会直接 413。
+  request_body {
+    max_size 12MB
+  }
+
+  reverse_proxy 127.0.0.1:3000 {
+    header_up X-Real-IP {remote_host}
+
+    # PDF 请假单生成 + 下载需要更长的时间，默认无超时但显式声明便于排查。
+    transport http {
+      read_timeout 60s
+      write_timeout 60s
+    }
+  }
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "no-referrer"
+  }
+
+  log {
+    output file /var/log/caddy/crewflow.log {
+      roll_size 20mb
+      roll_keep 5
+    }
+  }
+}

@@ -16,6 +16,9 @@ RUN sed -i "s#https://dl-cdn.alpinelinux.org#${APK_MIRROR}#g" /etc/apk/repositor
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
+# scripts 与 migrations 一并打进镜像，部署后可直接 `docker compose run --rm api node scripts/migrate.mjs`。
+COPY scripts ./scripts
+COPY migrations ./migrations
 USER node
 EXPOSE 3000
 CMD ["node", "dist/index.js"]

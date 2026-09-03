@@ -71,6 +71,11 @@ function isWorkday(value: Date) {
   return day !== 0 && day !== 6;
 }
 
+// 供看板等场景复用的工作日判定(数据库 generate_series 日期按 UTC 解析)。
+export function isWorkdayDate(isoDate: string) {
+  return isWorkday(new Date(`${isoDate}T00:00:00Z`));
+}
+
 export function addWorkdays(startDate: string, workdays: number) {
   const cursor = parseDate(startDate);
   let counted = 0;

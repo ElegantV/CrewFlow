@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
+import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { config } from "./config.js";
 import { db } from "./db.js";
@@ -46,6 +47,15 @@ export async function buildApp() {
     origin: config.corsOrigins.length ? config.corsOrigins : false,
   });
   await app.register(jwt, { secret: config.JWT_SECRET });
+  // 全局限流:正常使用远低于此阈值,仅拦截异常刷量;登录等敏感接口各自叠加更严限制。
+  await app.register(rateLimit, {
+    max: 300,
+    timeWindow: "1 minute",
+    errorResponseBuilder: () => ({
+      code: "RATE_LIMITED",
+      message: "请求过于频繁，请稍后重试",
+    }),
+  });
 
   app.decorate("authenticate", async function authenticate(request, reply) {
     try {
@@ -63,10 +73,11 @@ export async function buildApp() {
   app.get("/health", async (_request, reply) => {
     try {
       await db.query("SELECT 1");
-      return { status: "ok" };
+      return { status: "ok", db: true };
     } catch (error) {
       app.log.error(error);
-      return reply.code(503).send({ status: "unavailable" });
+      // API 进程存活但数据库不可达:返回 200 让探活区分"服务挂"与"库挂"。
+      return { status: "degraded", db: false };
     }
   });
 

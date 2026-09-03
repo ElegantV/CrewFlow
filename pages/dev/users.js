@@ -1,4 +1,5 @@
 const auth = require('../../services/auth')
+const { isDevelopment } = require('../../config/env')
 
 const roleLabels = {
   super_admin: '超级管理员',
@@ -21,7 +22,16 @@ Page({
     users: []
   },
 
+  onLoad() {
+    // 首页入口已经按环境过滤，这里再兜一层：即使通过扫码、分享链接等非常规入口
+    // 进到本页，体验版与正式版也会直接退回首页。后端 /auth/dev* 接口同样是 404。
+    if (isDevelopment()) return
+    wx.showToast({ title: '测试身份仅开发版可用', icon: 'none' })
+    wx.reLaunch({ url: '/pages/index/index' })
+  },
+
   onShow() {
+    if (!isDevelopment()) return
     this.loadUsers()
   },
 

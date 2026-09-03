@@ -9,6 +9,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "migrate": "docker compose run --rm api node scripts/migrate.mjs",
+    "migrate:check": "docker compose run --rm api node scripts/migrate.mjs --check",
     "test": "NODE_ENV=test DATABASE_URL=postgresql://127.0.0.1:5432/crewflow_test node --import tsx --test test/**/*.test.ts"
   },
   "engines": {
@@ -17,6 +19,7 @@
   "dependencies": {
     "@fastify/cors": "^11.1.0",
     "@fastify/jwt": "^10.0.0",
+    "@fastify/rate-limit": "^11.2.0",
     "dotenv": "^17.2.1",
     "fastify": "^5.5.0",
     "pdfkit": "^0.19.1",

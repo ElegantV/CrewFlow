@@ -30,7 +30,12 @@ const wechatResponseSchema = z.object({
 });
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
-  app.post("/wechat", async (request, reply) => {
+  // 登录入口专项限流:同一 IP 每分钟最多 10 次,防暴力刷接口。
+  const loginRateLimit = {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+  };
+
+  app.post("/wechat", loginRateLimit, async (request, reply) => {
     const parsed = bodySchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ code: "INVALID_REQUEST", message: "登录凭证无效" });
@@ -250,7 +255,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
-  app.post("/dev", async (request, reply) => {
+  app.post("/dev", loginRateLimit, async (request, reply) => {
     if (config.NODE_ENV !== "development") {
       return reply.code(404).send({ code: "NOT_FOUND", message: "接口不存在" });
     }
