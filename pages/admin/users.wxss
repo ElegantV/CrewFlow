@@ -15,7 +15,8 @@ page { height: 100vh; display: flex; flex-direction: column; }
 .label { display: block; margin-bottom: 10rpx; color: #475569; font-size: 24rpx; }
 .control { padding: 20rpx 22rpx; border: 1rpx solid #d9e1ea; border-radius: 14rpx; background: #f8fafc; font-size: 27rpx; }
 .actions { display: flex; flex-direction: row; margin-top: 28rpx; }
-.actions button { flex: 1; margin: 0; }
+/* 重置微信 button 默认内边距/行高,flex 居中避免文字垂直偏移。 */
+.actions button { flex: 1; margin: 0; padding: 0; height: 88rpx; line-height: normal; display: flex; align-items: center; justify-content: center; border-radius: 18rpx; font-size: 29rpx; font-weight: 600; box-sizing: border-box; }
 .actions button + button { margin-left: 20rpx; }
 .secondary { border-radius: 16rpx; color: #475569; background: #edf2f7; }
 .secondary::after { border: 0; }

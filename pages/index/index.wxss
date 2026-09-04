@@ -265,7 +265,9 @@ page {
 .menu-editor__move { width: 52rpx; height: 52rpx; margin-left: 12rpx; border-radius: 50%; background: #fff; border: 1rpx solid #dde5ee; color: #475569; font-size: 26rpx; text-align: center; line-height: 48rpx; }
 .menu-editor__move:active { background: #e8eef7; }
 .menu-editor__footer { display: flex; flex-direction: row; margin-top: 30rpx; }
-.menu-editor__footer button { flex: 1; margin: 0; height: 84rpx; line-height: 84rpx; border-radius: 20rpx; font-size: 30rpx; }
+/* 微信 button 自带内边距与行高,在 flex 布局中会导致文字基线偏移;
+   重置为 flex 居中,保证文字严格垂直居中。 */
+.menu-editor__footer button { flex: 1; margin: 0; padding: 0; height: 84rpx; line-height: normal; display: flex; align-items: center; justify-content: center; border-radius: 20rpx; font-size: 30rpx; }
 .menu-editor__footer button + button { margin-left: 20rpx; }
 .menu-editor__cancel { color: #475569; background: #eef2f7; }
 .menu-editor__save { color: #fff; background: #2f6fed; }
