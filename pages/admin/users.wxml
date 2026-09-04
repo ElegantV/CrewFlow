@@ -30,7 +30,8 @@
 <view class="modal-mask" wx:if="{{showExport}}" bindtap="closeExport">
   <view class="form-card" catchtap="noop">
     <text class="form-title">导出考勤记录</text>
-    <text class="export-hint">按请假开始日期与加班日期落在区间内的记录导出为 Excel（请假、加班各一个工作表）</text>
+    <text class="export-hint">按请假开始日期与加班日期落在区间内的记录导出为 Excel（请假、加班各一个工作表），可选择单个用户</text>
+    <view class="field"><text class="label">用户</text><picker range="{{exportUsers}}" range-key="name" value="{{exportUserIndex}}" bindchange="onExportUserChange"><view class="control">{{exportUsers[exportUserIndex].name}}</view></picker></view>
     <view class="field"><text class="label">开始日期</text><picker mode="date" value="{{exportStart}}" bindchange="onExportStartChange"><view class="control">{{exportStart || '请选择'}}</view></picker></view>
     <view class="field"><text class="label">结束日期</text><picker mode="date" value="{{exportEnd}}" bindchange="onExportEndChange"><view class="control">{{exportEnd || '请选择'}}</view></picker></view>
     <view class="actions"><button class="secondary" bindtap="closeExport">取消</button><button class="primary-button" loading="{{exporting}}" bindtap="exportRecords">导出</button></view>

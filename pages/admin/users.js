@@ -26,6 +26,8 @@ Page({
     form: null,
     exportStart: '',
     exportEnd: '',
+    exportUsers: [{ id: '', name: '全部用户' }],
+    exportUserIndex: 0,
     exporting: false,
     showExport: false
   },
@@ -42,12 +44,18 @@ Page({
           .filter(user => user.status === 'active' && (user.role === 'admin' || user.role === 'super_admin'))
           .map(user => ({ id: user.id, name: user.name || user.openid.slice(0, 8) }))
       )
+      const exportUsers = [{ id: '', name: '全部用户' }].concat(
+        result.users.map(user => ({ id: user.id, name: user.name || user.openid.slice(0, 8) }))
+      )
       this.setData({
         users: result.users.map(user => Object.assign({}, user, {
           roleLabel: roles.find(item => item.value === user.role).label,
           statusLabel: statuses.find(item => item.value === user.status).label
         })),
-        managers
+        managers,
+        exportUsers,
+        // 用户列表刷新后收窄时，防止选中下标越界。
+        exportUserIndex: Math.min(this.data.exportUserIndex, exportUsers.length - 1)
       })
     } catch (error) {
       wx.showToast({ title: error.message || '加载失败', icon: 'none' })
@@ -127,9 +135,10 @@ Page({
   closeExport() { if (!this.data.exporting) this.setData({ showExport: false }) },
   onExportStartChange(event) { this.setData({ exportStart: event.detail.value }) },
   onExportEndChange(event) { this.setData({ exportEnd: event.detail.value }) },
+  onExportUserChange(event) { this.setData({ exportUserIndex: Number(event.detail.value) }) },
 
   async exportRecords() {
-    const { exportStart, exportEnd, exporting } = this.data
+    const { exportStart, exportEnd, exportUsers, exportUserIndex, exporting } = this.data
     if (exporting) return
     if (!exportStart || !exportEnd) {
       wx.showToast({ title: '请选择起止日期', icon: 'none' })
@@ -141,7 +150,8 @@ Page({
     }
     this.setData({ exporting: true })
     try {
-      const filePath = await admin.downloadRecords(exportStart, exportEnd)
+      const selectedUser = exportUsers[exportUserIndex]
+      const filePath = await admin.downloadRecords(exportStart, exportEnd, selectedUser ? selectedUser.id : '')
       this.setData({ exporting: false })
       wx.openDocument({
         filePath,
