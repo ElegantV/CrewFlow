@@ -37,6 +37,13 @@
 - 语音输入依赖微信「同声传译」插件（WechatSI），未配置则降级。
 - 含义：想做"真 AI 对话"是较大的增强项，不是现状。
 
+## 样式设计 token（2026-08-31 建立）
+
+- 全站颜色/圆角/阴影统一在 `app.wxss` 的 `page` 选择器里定义 CSS 变量（`--brand`/`--brand-deep`/`--brand-ai-*`/`--c-*`/`--r-*`/`--shadow-*`）。
+- 页面与组件 **不得再硬编码散落的十六进制色值**（尤其 6 个散落蓝 #1677ff/#2563eb/#2f6fed/#246bfd/#1d4ed8/#4f8cff，已归并到 --brand / --brand-deep / --brand-ai-from）；新增颜色一律走 token。
+- 状态语义：info=蓝(#2563eb/#eff6ff)、success=绿(#047857/#ecfdf5)、warning=琥珀(#92400e/#fffbeb)、danger=红(#b42318/#fef2f2)、neutral=灰(#718096/#edf2f7)。
+- 布局已统一 flex：`page{height:100vh;display:flex;flex-direction:column}` + `.scrollarea{flex:1;height:0}`；尺寸用 `rpx` 不用 `px`（nav-bar 组件除外）。
+
 ## 后续开发路线（权威来源）
 
 - `docs/pycode-migration-plan.md`：把旧 pycode(Flask+MySQL) 全量迁到 CrewFlow。P0=迁移脚本+批量管理页+兼容台账；P1=定时提醒/调休到期预警/产假158天/批量审批/`situation` 排除法定节假日；P2=Excel导出/年假视图/哺乳假额度/值班调休联动。
