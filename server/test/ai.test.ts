@@ -121,7 +121,7 @@ test("开启后转发大模型,回答仅作为文本返回", async () => {
     assert.equal(calls.length, 1);
     assert.ok(calls[0]!.url.includes("chatapi.weixin.qq.com"));
     const body = JSON.parse(String(calls[0]!.options.body));
-    assert.equal(body.model, "deepseek-v4-flash");
+    assert.equal(body.model, "Deepseek-v4-flash");
     assert.equal(body.messages[0].role, "system");
     assert.equal(body.messages.length, 4);
     assert.ok(body.messages[0].content.includes("简序日程助手"));
