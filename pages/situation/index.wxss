@@ -21,8 +21,8 @@ page { height: 100vh; display: flex; flex-direction: column; }
 .day-number--today { color: #fff; border-radius: 50%; background: var(--brand); font-weight: 700; }
 .day-markers { display: flex; flex-direction: row; height: 23rpx; margin-top: 2rpx; }
 .day-marker { margin: 0 2rpx; padding: 1rpx 5rpx; border-radius: var(--r-xs); font-size: 15rpx; line-height: 20rpx; }
-.day-marker--leave { color: #be123c; background: #ffe4e6; }
-.day-marker--overtime { color: var(--c-success); background: var(--c-success-bg); }
+.day-marker--leave { color: var(--c-danger); background: var(--c-danger-bg-strong); }
+.day-marker--overtime { color: var(--c-success); background: var(--c-success-bg-strong); }
 .legend { display: flex; justify-content: center; margin-top: 16rpx; color: #7b8797; font-size: 21rpx; }
 .legend-item { display: flex; align-items: center; }
 .legend-item + .legend-item { margin-left: 28rpx; }
@@ -40,7 +40,7 @@ page { height: 100vh; display: flex; flex-direction: column; }
 .person-main { display: flex; flex: 1; min-width: 0; flex-direction: column; margin-left: 18rpx; }
 .person-name-row { display: flex; align-items: center; }
 .person-name { color: #172033; font-size: 27rpx; font-weight: 700; }
-.pending-tag { margin-left: 12rpx; padding: 3rpx 10rpx; border-radius: var(--r-xs); color: var(--c-warning); background: #fef3c7; font-size: 18rpx; }
+.pending-tag { margin-left: 12rpx; padding: 3rpx 10rpx; border-radius: var(--r-xs); color: var(--c-warning); background: var(--c-warning-bg-strong); font-size: 18rpx; }
 .person-sub { overflow: hidden; margin-top: 8rpx; color: #7b8797; font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; }
 .system-tag { max-width: 170rpx; margin-left: 12rpx; padding: 7rpx 10rpx; overflow: hidden; border-radius: var(--r-xs); color: var(--brand-deep); background: var(--c-info-bg); font-size: 19rpx; text-overflow: ellipsis; white-space: nowrap; }
 .empty, .loading-state { padding: 72rpx 24rpx; color: var(--c-text-muted); text-align: center; }

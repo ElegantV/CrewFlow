@@ -1,5 +1,6 @@
 const { isApiConfigured, isDevelopment } = require('../../config/env')
 const me = require('../../services/me')
+const { BRAND_DEEP } = require('../../utils/theme')
 
 function emptyReminders() {
   return { overtimeExpiring: [], pendingApprovals: null, dutyConflicts: [] }
@@ -12,8 +13,10 @@ Page({
     user: null,
     reminders: emptyReminders(),
     menuEditor: false,
+    menuClosing: false,
     menuSaving: false,
     menuItems: [],
+    switchColor: BRAND_DEEP,
     shortcuts: [
       {
         key: 'assistant',
@@ -150,12 +153,30 @@ Page({
     const orderMap = new Map()
     config.forEach((item, index) => { orderMap.set(item.key, index) })
     const items = all
-      .map(item => ({ key: item.key, title: item.title, hidden: hiddenKeys.has(item.key), order: orderMap.has(item.key) ? orderMap.get(item.key) : 100 + all.indexOf(item) }))
+      .map(item => ({
+        key: item.key,
+        title: item.title,
+        icon: item.icon,
+        accent: item.accent,
+        hidden: hiddenKeys.has(item.key),
+        order: orderMap.has(item.key) ? orderMap.get(item.key) : 100 + all.indexOf(item)
+      }))
       .sort((a, b) => a.order - b.order)
-    this.setData({ menuEditor: true, menuItems: items })
+    this.setData({ menuEditor: true, menuClosing: false, menuItems: items })
   },
 
-  closeMenuEditor() { this.setData({ menuEditor: false }) },
+  // 关闭弹层:先播收起动画,再卸载节点,避免底部 sheet 直接消失的突兀感。
+  closeMenuEditor() {
+    if (this.data.menuClosing) return
+    this.setData({ menuClosing: true })
+    this.menuCloseTimer = setTimeout(() => {
+      this.setData({ menuEditor: false, menuClosing: false })
+    }, 200)
+  },
+
+  onUnload() {
+    if (this.menuCloseTimer) clearTimeout(this.menuCloseTimer)
+  },
 
   toggleMenuItem(event) {
     const key = event.currentTarget.dataset.key
@@ -181,7 +202,8 @@ Page({
     try {
       await me.saveHomeMenu(items)
       this.homeMenuConfig = items
-      this.setData({ menuSaving: false, menuEditor: false, shortcuts: this.applyMenuConfig(this.buildShortcuts(this.data.user), items) })
+      if (this.menuCloseTimer) clearTimeout(this.menuCloseTimer)
+      this.setData({ menuSaving: false, menuEditor: false, menuClosing: false, shortcuts: this.applyMenuConfig(this.buildShortcuts(this.data.user), items) })
       wx.showToast({ title: '菜单已更新', icon: 'success' })
     } catch (error) {
       this.setData({ menuSaving: false })

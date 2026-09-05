@@ -17,4 +17,4 @@
 .record-status { flex: 0 0 auto; margin-left: 16rpx; padding: 4rpx 12rpx; border-radius: var(--r-pill); color: var(--c-warning); background: var(--c-warning-bg); font-size: 20rpx; }
 .record-status.status--approved { color: var(--c-success); background: var(--c-success-bg); }
 .record-status.status--rejected, .record-status.status--cancelled, .record-status.status--revoked, .record-status.status--expired { color: var(--c-text-muted); background: var(--c-neutral-bg); }
-.record-status.status--consumed { color: var(--c-warning); background: #fef3c7; }
+.record-status.status--consumed { color: var(--c-warning); background: var(--c-warning-bg-strong); }

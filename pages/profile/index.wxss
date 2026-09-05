@@ -45,7 +45,7 @@ page { height: 100vh; display: flex; flex-direction: column; background: var(--c
 .signature-actions { display: flex; flex-direction: row; margin-top: 20rpx; }
 .signature-actions button { flex: 1; margin: 0; }
 .signature-actions button + button { margin-left: 18rpx; }
-.secondary-button { border-radius: var(--r-md); color: var(--c-text-muted); background: var(--c-neutral-bg); }
+.secondary-button { border-radius: var(--r-md); color: var(--c-text-on-neutral); background: var(--c-neutral-bg); }
 .secondary-button::after { border: 0; }
 .save-bar { flex-shrink: 0; padding: 14rpx 28rpx; padding-bottom: calc(14rpx + env(safe-area-inset-bottom)); border-top: 1rpx solid #e8edf3; background: rgba(255, 255, 255, .96); box-sizing: border-box; }
 .save-button { width: 100%; margin: 0; }

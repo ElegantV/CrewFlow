@@ -17,6 +17,8 @@ page {
   --c-text-sub: #646a73;
   --c-text-muted: #718096;
   --c-text-faint: #94a3b8;
+  /* 灰底(--c-neutral-bg 等)上的文字色:--c-text-muted 在其上仅约 3.5:1,达不到 AA,故单独一档 */
+  --c-text-on-neutral: #475569;
   --c-border: #edf0f5;
   --c-border-soft: #f0f2f5;
 
@@ -37,6 +39,15 @@ page {
   --c-danger-bg: #fef2f2;
   --c-neutral: #718096;
   --c-neutral-bg: #edf2f7;
+
+  /* 状态色的实底变体:用于彩色图标/按钮填充。-bg 系列是给大块告警区配的,做填充色太浅压不住 */
+  --c-danger-strong: #dc2626;
+
+  /* 小标签专用浅底:15~22rpx 的 tag/day-marker 用 -bg 系列会糊成一片,需要更饱和的底 */
+  --c-info-bg-strong: #dbeafe;
+  --c-success-bg-strong: #d1fae5;
+  --c-warning-bg-strong: #fef3c7;
+  --c-danger-bg-strong: #ffe4e6;
 
   /* 圆角档位 */
   --r-sm: 12rpx;

@@ -68,23 +68,38 @@
       </view>
     </view>
 
-    <view class="modal-mask" wx:if="{{menuEditor}}" bindtap="closeMenuEditor">
-      <view class="menu-editor" catchtap="noopMenu">
-        <text class="menu-editor__title">编辑菜单</text>
-        <text class="menu-editor__hint">可隐藏不需要的入口,并调整显示顺序</text>
-        <view class="menu-editor__list">
-          <view class="menu-editor__item {{item.hidden ? 'menu-editor__item--hidden' : ''}}" wx:for="{{menuItems}}" wx:key="key">
-            <text class="menu-editor__name">{{item.title}}</text>
-            <view class="menu-editor__actions">
-              <switch class="menu-editor__switch" checked="{{!item.hidden}}" data-key="{{item.key}}" bindchange="toggleMenuItem" color="#2f6fed" />
-              <view class="menu-editor__move" data-index="{{index}}" data-direction="up" bindtap="moveMenuItem">↑</view>
-              <view class="menu-editor__move" data-index="{{index}}" data-direction="down" bindtap="moveMenuItem">↓</view>
+    <view class="modal-mask {{menuClosing ? 'modal-mask--closing' : ''}}" wx:if="{{menuEditor}}" bindtap="closeMenuEditor">
+      <view class="menu-sheet {{menuClosing ? 'menu-sheet--closing' : ''}}" catchtap="noopMenu">
+        <view class="menu-sheet__handle"></view>
+        <view class="menu-sheet__head">
+          <text class="menu-sheet__title">编辑菜单</text>
+          <view class="menu-sheet__close" bindtap="closeMenuEditor">✕</view>
+        </view>
+        <text class="menu-sheet__hint">关闭的入口不再显示在首页,箭头可调整顺序</text>
+        <scroll-view class="menu-sheet__list" scroll-y>
+          <view
+            class="menu-item shortcut--{{item.accent}} {{item.hidden ? 'menu-item--hidden' : ''}}"
+            wx:for="{{menuItems}}"
+            wx:key="key"
+          >
+            <text class="menu-item__index">{{index + 1}}</text>
+            <view class="shortcut-icon menu-item__icon">
+              <image class="menu-item__icon-img" src="{{item.icon}}" mode="aspectFit"></image>
+            </view>
+            <view class="menu-item__copy">
+              <text class="menu-item__name">{{item.title}}</text>
+              <text class="menu-item__state">{{item.hidden ? '已隐藏' : '已显示'}}</text>
+            </view>
+            <view class="menu-item__actions">
+              <switch class="menu-item__switch" checked="{{!item.hidden}}" data-key="{{item.key}}" bindchange="toggleMenuItem" color="{{switchColor}}" />
+              <view class="menu-item__move {{index === 0 ? 'menu-item__move--disabled' : ''}}" data-index="{{index}}" data-direction="up" bindtap="moveMenuItem">↑</view>
+              <view class="menu-item__move {{index === menuItems.length - 1 ? 'menu-item__move--disabled' : ''}}" data-index="{{index}}" data-direction="down" bindtap="moveMenuItem">↓</view>
             </view>
           </view>
-        </view>
-        <view class="menu-editor__footer">
-          <button class="menu-editor__cancel" bindtap="closeMenuEditor">取消</button>
-          <button class="menu-editor__save" loading="{{menuSaving}}" bindtap="saveMenuEditor">保存</button>
+        </scroll-view>
+        <view class="menu-sheet__footer">
+          <button class="menu-sheet__cancel" bindtap="closeMenuEditor">取消</button>
+          <button class="menu-sheet__save" loading="{{menuSaving}}" bindtap="saveMenuEditor">保存</button>
         </view>
       </view>
     </view>
