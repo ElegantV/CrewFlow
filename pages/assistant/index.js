@@ -465,8 +465,7 @@ Page({
       .filter(item => item.tone !== 'error')
       .slice(-10)
       .map(item => ({ role: item.role, content: item.text }))
-    const placeholderId = Date.now() + Math.random()
-    this.appendMessage('assistant', '正在思考…', 'running')
+    const placeholderId = this.appendMessage('assistant', '正在思考…', 'running')
     try {
       const result = await ai.chat(history.concat({ role: 'user', content: text }))
       this.replaceMessage(placeholderId, result.reply)
@@ -478,10 +477,13 @@ Page({
     }
   },
 
+  // 返回消息 id,供调用方后续替换内容(如 AI 回复替换"正在思考…"占位)。
   appendMessage(role, text, tone) {
-    const messages = this.data.messages.concat({ id: Date.now() + Math.random(), role, text, tone: tone || '' })
+    const message = { id: Date.now() + Math.random(), role, text, tone: tone || '' }
+    const messages = this.data.messages.concat(message)
     this.setData({ messages })
     setTimeout(() => this.setData({ scrollIntoView: `message-${messages.length - 1}` }), 30)
+    return message.id
   },
 
   replaceMessage(id, text, tone) {
