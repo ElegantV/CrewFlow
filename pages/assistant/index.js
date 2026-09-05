@@ -150,23 +150,40 @@ Page({
     const results = command.splitTasks(text)
       .map(part => command.parseCommand(part) || parser.parsePrompt(part, { availableTypes: this.data.types }))
       .filter(result => result && result.status !== 'invalid')
+    if (results.length === 1 && results[0].status === 'clarify' && this.data.aiAgentEnabled && this.looksLikeQuestion(text)) {
+      // 开启深度问答时,带疑问词且只差补槽的消息多是咨询(如"调休可以折现吗"),
+      // 若仍走补槽流程会弹日期选择器把问题劫持掉,应直接交给 agent。
+      this.askAi(text)
+      return
+    }
     if (results.length === 0) {
-      // 开启 AI 深度问答后,指令与请假语料都没命中的输入转交大模型;命中但参数有误(如日期不存在)仍走规则层的具体报错。
       const commandResult = command.parseCommand(text)
-      if (!commandResult) {
-        const leaveResult = parser.parsePrompt(text, { availableTypes: this.data.types })
-        if (leaveResult.status !== 'invalid') {
-          this.handleResult(leaveResult)
-          return
-        }
-        if (this.data.aiAgentEnabled) {
+      if (commandResult && commandResult.status !== 'invalid') {
+        this.handleResult(commandResult)
+        return
+      }
+      const leaveResult = commandResult ? null : parser.parsePrompt(text, { availableTypes: this.data.types })
+      if (leaveResult && leaveResult.status !== 'invalid') {
+        // 开启深度问答时,带疑问词的"请假/调休"类消息多是咨询(如"调休可以折现吗"),
+        // 若仍走补槽流程会弹日期选择器把问题劫持掉,应直接交给 agent。
+        if (this.data.aiAgentEnabled && leaveResult.status === 'clarify' && this.looksLikeQuestion(text)) {
           this.askAi(text)
           return
         }
         this.handleResult(leaveResult)
         return
       }
-      this.handleResult(commandResult)
+      if (commandResult) {
+        // 正则命中了指令但参数有误(如日期不存在),保留规则层的精确报错。
+        this.handleResult(commandResult)
+        return
+      }
+      if (this.data.aiAgentEnabled) {
+        // 与系统无关的问题直接发送真实 agent,不再展示"不可执行"类提示。
+        this.askAi(text)
+        return
+      }
+      this.handleResult(leaveResult)
       return
     }
     if (results.length === 1) {
@@ -456,6 +473,14 @@ Page({
     this.setData({ pending })
     this.appendMessage('assistant', message, 'clarify')
     return ''
+  },
+
+  // 疑问句启发式:结尾的"可以吗/行吗"先剥离,避免把"明天请病假可以吗"这类真指令误判为咨询。
+  looksLikeQuestion(text) {
+    const raw = String(text || '')
+    const stripped = raw.replace(/(可以吗|行吗|好吗)+$/, '')
+    if (stripped !== raw) return false
+    return /(什么|怎么|怎样|如何|为什么|是否|能不能|多少|几|哪些|区别|政策|制度|规定|流程|条件|吗[?？]?|[?？])/.test(stripped)
   },
 
   // AI 深度问答:大模型输出只作为回答文本展示,不解析为指令,系统操作永远走上面的规则执行路径。
