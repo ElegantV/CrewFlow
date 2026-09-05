@@ -51,8 +51,7 @@ Page({
     wxpusherEnabled: false,
     wxpusherBound: false,
     wxpusherUid: '',
-    wxpusherLoading: false,
-    aiAgentEnabled: false
+    wxpusherLoading: false
   },
 
   onShow() {
@@ -187,24 +186,10 @@ Page({
         personnelTypeIndex: Math.max(0, this.data.personnelTypes.findIndex(item => item.value === personnelType)),
         itlIndex: Math.max(0, this.data.itlOptions.findIndex(item => item.value === itlStatus)),
         annualLeave: profile.annualLeave || calculateAnnualLeave(form.workStartDate),
-        isManager: profile.role === 'admin' || profile.role === 'super_admin',
-        aiAgentEnabled: Boolean(profile.aiAgentEnabled)
+        isManager: profile.role === 'admin' || profile.role === 'super_admin'
       })
     } catch (error) {
       wx.showToast({ title: error.message || '个人信息加载失败', icon: 'none' })
-    }
-  },
-
-  async onAiAgentToggle(event) {
-    const enabled = Boolean(event.detail.value)
-    const previous = this.data.aiAgentEnabled
-    this.setData({ aiAgentEnabled: enabled })
-    try {
-      await me.setAiAgent(enabled)
-      wx.showToast({ title: enabled ? 'AI 深度问答已开启' : 'AI 深度问答已关闭', icon: 'none' })
-    } catch (error) {
-      this.setData({ aiAgentEnabled: previous })
-      wx.showToast({ title: error.message || '设置失败，请重试', icon: 'none' })
     }
   },
 

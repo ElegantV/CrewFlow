@@ -136,14 +136,6 @@
       </view>
     </view>
 
-    <view class="section-card card">
-      <view class="section-head">
-        <text class="section-title">AI 深度问答</text>
-        <switch checked="{{aiAgentEnabled}}" color="#2f6fed" bindchange="onAiAgentToggle"/>
-      </view>
-      <text class="field-help">开启后，AI 助手在无法识别指令时会回答复杂问题（不限于此项目）。默认关闭时仅支持系统功能指令。</text>
-    </view>
-
     <view class="section-card card" wx:if="{{isManager}}">
       <view class="section-head">
         <text class="section-title">审批签名</text>

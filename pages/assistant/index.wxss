@@ -62,6 +62,27 @@ page {
 .online { color: #16875d; font-size: 21rpx; }
 .online-dot { display: inline-block; width: 12rpx; height: 12rpx; margin-right: 8rpx; border-radius: 50%; background: #21b879; }
 
+/* 深度问答开关条:点整行或开关均可切换;开启态用品牌色浅底提示当前模式 */
+.ai-mode-bar {
+  display: flex;
+  align-items: center;
+  margin-top: 18rpx;
+  padding: 18rpx 22rpx;
+  border: 1rpx solid var(--c-border);
+  border-radius: var(--r-lg);
+  background: #fff;
+  transition: background .25s ease, border-color .25s ease;
+}
+.ai-mode-bar--on {
+  border-color: #cfdffc;
+  background: linear-gradient(135deg, #f5f9ff, #eef4ff);
+}
+.ai-mode-copy { display: flex; flex: 1; flex-direction: column; min-width: 0; margin-right: 16rpx; }
+.ai-mode-title { font-size: 25rpx; font-weight: 600; color: #353b48; }
+.ai-mode-sub { margin-top: 4rpx; font-size: 20rpx; color: #9aa2af; }
+.ai-mode-bar--on .ai-mode-title { color: #2f6fed; }
+.ai-mode-bar--on .ai-mode-sub { color: #5a7fc4; }
+
 .message-list { margin-top: 34rpx; }
 .message-row { display: flex; align-items: flex-start; margin-bottom: 26rpx; }
 .message-row--user { justify-content: flex-end; }

@@ -10,6 +10,14 @@
       <view class="online"><text class="online-dot"></text>在线</view>
     </view>
 
+    <view class="ai-mode-bar {{aiAgentEnabled ? 'ai-mode-bar--on' : ''}}" bindtap="toggleAiAgent">
+      <view class="ai-mode-copy">
+        <text class="ai-mode-title">深度问答</text>
+        <text class="ai-mode-sub">{{aiAgentEnabled ? '已开启 · 复杂问题也能答' : '未开启 · 仅识别系统指令'}}</text>
+      </view>
+      <switch checked="{{aiAgentEnabled}}" color="#2f6fed" catchchange="onAiAgentToggle"/>
+    </view>
+
     <view class="message-list">
       <view id="message-{{index}}" class="message-row message-row--{{item.role}}" wx:for="{{messages}}" wx:key="id">
         <view class="avatar" wx:if="{{item.role === 'assistant'}}">AI</view>
@@ -63,7 +71,7 @@
       </view>
       <button class="send-button {{running ? 'send-button--disabled' : ''}}" bindtap="send" disabled="{{running}}">{{running ? '···' : '发送'}}</button>
     </view>
-    <text class="composer-hint" wx:if="{{!recording}}">AI 会执行真实操作，请确认指令中的日期和假别</text>
+    <text class="composer-hint" wx:if="{{!recording}}">{{aiAgentEnabled ? '未识别为指令的问题，将由 AI 深度问答回答' : 'AI 会执行真实操作，请确认指令中的日期和假别'}}</text>
     <text class="composer-hint composer-hint--recording" wx:else>正在聆听，点击 ■ 结束</text>
   </view>
 </view>

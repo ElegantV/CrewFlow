@@ -101,6 +101,35 @@ Page({
     recognitionManager.start({ lang: 'zh_CN', duration: 60000 })
   },
 
+  // 深度问答开关:点整行切换;switch 自身的 change 已 catch,避免二次触发。
+  toggleAiAgent() {
+    if (this.aiToggleLock) return
+    this.aiToggleLock = true
+    this.applyAiAgent(!this.data.aiAgentEnabled)
+  },
+
+  onAiAgentToggle(event) {
+    this.applyAiAgent(Boolean(event.detail.value))
+  },
+
+  async applyAiAgent(enabled) {
+    const previous = this.data.aiAgentEnabled
+    if (enabled === previous) {
+      this.aiToggleLock = false
+      return
+    }
+    this.setData({ aiAgentEnabled: enabled })
+    try {
+      await me.setAiAgent(enabled)
+      wx.showToast({ title: enabled ? '深度问答已开启' : '深度问答已关闭', icon: 'none' })
+    } catch (error) {
+      this.setData({ aiAgentEnabled: previous })
+      wx.showToast({ title: error.message || '设置失败，请重试', icon: 'none' })
+    } finally {
+      this.aiToggleLock = false
+    }
+  },
+
   onInput(event) {
     this.inputDraft = event.detail.value
   },
