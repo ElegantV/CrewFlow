@@ -15,7 +15,9 @@
         <text class="ai-mode-title">深度问答</text>
         <text class="ai-mode-sub">{{aiAgentEnabled ? '已开启 · 复杂问题也能答' : '未开启 · 仅识别系统指令'}}</text>
       </view>
-      <switch checked="{{aiAgentEnabled}}" color="#2f6fed" catchchange="onAiAgentToggle"/>
+      <view class="ai-toggle {{aiAgentEnabled ? 'ai-toggle--on' : ''}}" aria-role="switch" aria-checked="{{aiAgentEnabled}}">
+        <view class="ai-toggle-knob"></view>
+      </view>
     </view>
 
     <view class="message-list">

@@ -101,15 +101,11 @@ Page({
     recognitionManager.start({ lang: 'zh_CN', duration: 60000 })
   },
 
-  // 深度问答开关:点整行切换;switch 自身的 change 已 catch,避免二次触发。
+  // 深度问答开关:整行点击切换,自绘开关样式随 aiAgentEnabled 数据变化。
   toggleAiAgent() {
     if (this.aiToggleLock) return
     this.aiToggleLock = true
     this.applyAiAgent(!this.data.aiAgentEnabled)
-  },
-
-  onAiAgentToggle(event) {
-    this.applyAiAgent(Boolean(event.detail.value))
   },
 
   async applyAiAgent(enabled) {

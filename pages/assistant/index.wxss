@@ -62,7 +62,8 @@ page {
 .online { color: #16875d; font-size: 21rpx; }
 .online-dot { display: inline-block; width: 12rpx; height: 12rpx; margin-right: 8rpx; border-radius: 50%; background: #21b879; }
 
-/* 深度问答开关条:点整行或开关均可切换;开启态用品牌色浅底提示当前模式 */
+/* 深度问答开关条:点整行切换。开关为纯 CSS 自绘——原生 switch 走原生渲染通道,
+   开发者工具中选中色/状态同步不可靠(与 utils/theme.js 存在的原因同类),自绘由数据驱动、状态必然一致 */
 .ai-mode-bar {
   display: flex;
   align-items: center;
@@ -71,17 +72,38 @@ page {
   border: 1rpx solid var(--c-border);
   border-radius: var(--r-lg);
   background: #fff;
-  transition: background .25s ease, border-color .25s ease;
+  transition: background-color .25s ease, border-color .25s ease;
 }
 .ai-mode-bar--on {
   border-color: #cfdffc;
-  background: linear-gradient(135deg, #f5f9ff, #eef4ff);
+  background-color: #f0f6ff;
 }
 .ai-mode-copy { display: flex; flex: 1; flex-direction: column; min-width: 0; margin-right: 16rpx; }
-.ai-mode-title { font-size: 25rpx; font-weight: 600; color: #353b48; }
-.ai-mode-sub { margin-top: 4rpx; font-size: 20rpx; color: #9aa2af; }
+.ai-mode-title { font-size: 25rpx; font-weight: 600; color: #353b48; transition: color .25s ease; }
+.ai-mode-sub { margin-top: 4rpx; font-size: 20rpx; color: #9aa2af; transition: color .25s ease; }
 .ai-mode-bar--on .ai-mode-title { color: #2f6fed; }
 .ai-mode-bar--on .ai-mode-sub { color: #5a7fc4; }
+
+.ai-toggle {
+  flex: 0 0 auto;
+  width: 84rpx;
+  height: 48rpx;
+  padding: 4rpx;
+  box-sizing: border-box;
+  border-radius: 999rpx;
+  background: #d4d9e3;
+  transition: background-color .25s ease;
+}
+.ai-toggle--on { background: #2f6fed; }
+.ai-toggle-knob {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2rpx 6rpx rgba(15, 35, 70, .25);
+  transition: transform .25s cubic-bezier(.32, .72, 0, 1);
+}
+.ai-toggle--on .ai-toggle-knob { transform: translateX(36rpx); }
 
 .message-list { margin-top: 34rpx; }
 .message-row { display: flex; align-items: flex-start; margin-bottom: 26rpx; }
