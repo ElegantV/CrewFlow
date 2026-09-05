@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "docker compose run --rm api node scripts/migrate.mjs",
     "migrate:check": "docker compose run --rm api node scripts/migrate.mjs --check",
-    "test": "NODE_ENV=test DATABASE_URL=postgresql://127.0.0.1:5432/crewflow_test node --import tsx --test test/**/*.test.ts"
+    "test": "NODE_ENV=test DATABASE_URL=postgresql://127.0.0.1:5432/crewflow_test node --import tsx --test --test-concurrency=1 test/**/*.test.ts"
   },
   "engines": {
     "node": ">=20"

@@ -110,6 +110,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       emergency_contact_name: string | null;
       emergency_contact_phone: string | null;
       home_menu_config: Array<{ key: string; hidden: boolean }> | null;
+      ai_agent_enabled: boolean;
     }>(
       `SELECT u.id, u.name, u.employee_no, u.role, u.status,
               u.manager_id, manager.name AS manager_name,
@@ -120,7 +121,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
               u.bank_project, u.attendance_location, u.bank_level,
               u.itl_status, u.work_start_date::text, u.mobile, u.address,
               u.emergency_contact_name, u.emergency_contact_phone,
-              u.home_menu_config
+              u.home_menu_config, u.ai_agent_enabled
        FROM users u
        LEFT JOIN users manager ON manager.id = u.manager_id
        LEFT JOIN users agent ON agent.id = u.agent_user_id
@@ -163,6 +164,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       signatureConfigured: Boolean(user.signature_updated_at),
       signatureUpdatedAt: user.signature_updated_at,
       homeMenuConfig: user.home_menu_config ?? [],
+      aiAgentEnabled: user.ai_agent_enabled,
     };
   });
 
@@ -191,6 +193,21 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       [JSON.stringify(items), request.actor!.id],
     );
     return { success: true, items };
+  });
+
+  // AI 深度问答开关:开启后助手在规则未命中时把问题转交大模型,默认关闭。
+  const aiAgentSchema = z.object({ enabled: z.boolean() });
+
+  app.put("/ai-agent", protectedHooks, async (request, reply) => {
+    const parsed = aiAgentSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ code: "INVALID_AI_AGENT", message: "参数无效" });
+    }
+    await db.query(
+      "UPDATE users SET ai_agent_enabled = $1, updated_at = now() WHERE id = $2",
+      [parsed.data.enabled, request.actor!.id],
+    );
+    return { success: true, enabled: parsed.data.enabled };
   });
 
   app.get("/people", protectedHooks, async (request) => {

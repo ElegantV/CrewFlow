@@ -19,6 +19,11 @@ const schema = z.object({
   PDF_WORK_LOCATION: z.string().default("博瑞"),
   PDF_FONT_PATH: z.string().default(""),
   PDF_FONT_FAMILY: z.string().default(""),
+  // AI 深度问答:走微信 OpenAI 兼容网关(chatapi.weixin.qq.com)。Key 留空即视为未开通,
+  // /ai/chat 会返回 503;小程序端规则匹配的指令功能不受影响。
+  AI_API_KEY: z.string().default(""),
+  AI_API_URL: z.string().default("https://chatapi.weixin.qq.com/openai/v1/chat/completions"),
+  AI_MODEL: z.string().default("deepseek-v4-flash"),
 });
 
 const parsed = schema.safeParse(process.env);

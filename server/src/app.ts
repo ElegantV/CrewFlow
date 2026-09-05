@@ -13,6 +13,7 @@ import { overtimeRoutes } from "./routes/overtime.js";
 import { situationRoutes } from "./routes/situation.js";
 import { contactRoutes } from "./routes/contacts.js";
 import { wxpusherRoutes } from "./routes/wxpusher.js";
+import { aiRoutes } from "./routes/ai.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -90,6 +91,7 @@ export async function buildApp() {
   await app.register(approvalRoutes, { prefix: "/api/v1/approvals" });
   await app.register(adminRoutes, { prefix: "/api/v1/admin" });
   await app.register(wxpusherRoutes, { prefix: "/api/v1/wxpusher" });
+  await app.register(aiRoutes, { prefix: "/api/v1/ai" });
 
   app.addHook("onClose", async () => {
     await db.end();

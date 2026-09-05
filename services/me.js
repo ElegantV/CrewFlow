@@ -27,5 +27,8 @@ module.exports = {
   },
   saveHomeMenu(items) {
     return request({ url: '/api/v1/me/home-menu', method: 'PUT', data: { items } })
+  },
+  setAiAgent(enabled) {
+    return request({ url: '/api/v1/me/ai-agent', method: 'PUT', data: { enabled } })
   }
 }

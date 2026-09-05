@@ -7,6 +7,7 @@ const approval = require('../../services/approval')
 const admin = require('../../services/admin')
 const parser = require('../../utils/assistant-parser')
 const command = require('../../utils/assistant-command')
+const ai = require('../../services/ai')
 
 const fallbackTypes = [
   { value: 'comp_time', label: '调休' }, { value: 'annual', label: '年假' },
@@ -37,6 +38,7 @@ Page({
     recording: false,
     types: fallbackTypes,
     pending: null,
+    aiAgentEnabled: false,
     messages: [
       { id: 1, role: 'assistant', text: '你好，我是简序日程助手。可以帮你办理请假与加班，也能查询员工情况、通讯录、个人记录，或处理权限范围内的审批和用户管理任务。' }
     ],
@@ -51,6 +53,12 @@ Page({
       if (result.types && result.types.length) this.setData({ types: result.types })
     } catch (error) {
       // 离线时仍允许体验指令判断，真正执行时由请求层展示失败原因。
+    }
+    try {
+      const profile = await me.get()
+      this.setData({ aiAgentEnabled: Boolean(profile.aiAgentEnabled) })
+    } catch (error) {
+      // 开关状态获取失败不影响指令功能,仅退化为纯规则模式。
     }
   },
 
@@ -118,8 +126,22 @@ Page({
       .map(part => command.parseCommand(part) || parser.parsePrompt(part, { availableTypes: this.data.types }))
       .filter(result => result && result.status !== 'invalid')
     if (results.length === 0) {
-      const result = command.parseCommand(text) || parser.parsePrompt(text, { availableTypes: this.data.types })
-      this.handleResult(result)
+      // 开启 AI 深度问答后,指令与请假语料都没命中的输入转交大模型;命中但参数有误(如日期不存在)仍走规则层的具体报错。
+      const commandResult = command.parseCommand(text)
+      if (!commandResult) {
+        const leaveResult = parser.parsePrompt(text, { availableTypes: this.data.types })
+        if (leaveResult.status !== 'invalid') {
+          this.handleResult(leaveResult)
+          return
+        }
+        if (this.data.aiAgentEnabled) {
+          this.askAi(text)
+          return
+        }
+        this.handleResult(leaveResult)
+        return
+      }
+      this.handleResult(commandResult)
       return
     }
     if (results.length === 1) {
@@ -411,9 +433,34 @@ Page({
     return ''
   },
 
+  // AI 深度问答:大模型输出只作为回答文本展示,不解析为指令,系统操作永远走上面的规则执行路径。
+  async askAi(text) {
+    this.setData({ running: true })
+    const history = this.data.messages
+      .filter(item => item.tone !== 'error')
+      .slice(-10)
+      .map(item => ({ role: item.role, content: item.text }))
+    const placeholderId = Date.now() + Math.random()
+    this.appendMessage('assistant', '正在思考…', 'running')
+    try {
+      const result = await ai.chat(history.concat({ role: 'user', content: text }))
+      this.replaceMessage(placeholderId, result.reply)
+    } catch (error) {
+      this.replaceMessage(placeholderId, error.message || 'AI 暂时不可用，请稍后重试。', 'error')
+    } finally {
+      this.setData({ running: false })
+      setTimeout(() => this.setData({ scrollIntoView: `message-${this.data.messages.length - 1}` }), 30)
+    }
+  },
+
   appendMessage(role, text, tone) {
     const messages = this.data.messages.concat({ id: Date.now() + Math.random(), role, text, tone: tone || '' })
     this.setData({ messages })
     setTimeout(() => this.setData({ scrollIntoView: `message-${messages.length - 1}` }), 30)
+  },
+
+  replaceMessage(id, text, tone) {
+    const messages = this.data.messages.map(item => item.id === id ? Object.assign({}, item, { text, tone: tone || '' }) : item)
+    this.setData({ messages })
   }
 })
