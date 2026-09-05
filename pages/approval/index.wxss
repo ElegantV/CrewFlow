@@ -4,17 +4,17 @@ page { height: 100vh; display: flex; flex-direction: column; }
 .approval-card { display: flex; flex-direction: column; margin-bottom: 20rpx; padding: 28rpx; }
 .approval-head { display: flex; justify-content: space-between; align-items: center; }
 .applicant { font-size: 30rpx; font-weight: 700; }
-.type { padding: 6rpx 14rpx; border-radius: 999rpx; color: #2563eb; background: #eff6ff; font-size: 22rpx; }
+.type { padding: 6rpx 14rpx; border-radius: var(--r-pill); color: var(--brand-deep); background: var(--c-info-bg); font-size: 22rpx; }
 .date { margin-top: 20rpx; font-size: 27rpx; }
-.meta, .reason { margin-top: 10rpx; color: #718096; font-size: 23rpx; line-height: 1.5; }
+.meta, .reason { margin-top: 10rpx; color: var(--c-text-muted); font-size: 23rpx; line-height: 1.5; }
 .actions { display: flex; flex-direction: row; margin-top: 24rpx; }
 .actions button { flex: 1; margin: 0; }
 .actions button + button { margin-left: 20rpx; }
-.reject-button, .approve-button { border-radius: 14rpx; font-size: 26rpx; }
-.reject-button { color: #dc2626; background: #fef2f2; }
+.reject-button, .approve-button { border-radius: var(--r-md); font-size: 26rpx; }
+.reject-button { color: var(--c-danger); background: var(--c-danger-bg); }
 .approve-button { color: #fff; background: #059669; }
 .reject-button::after, .approve-button::after { border: 0; }
-.empty, .loading { padding: 80rpx 24rpx; color: #718096; text-align: center; }
+.empty, .loading { padding: 80rpx 24rpx; color: var(--c-text-muted); text-align: center; }
 .section-title { margin: 36rpx 0 18rpx; color: #475569; font-size: 26rpx; font-weight: 700; }
 .history-list { margin-bottom: 24rpx; }
-.type--approved { color: #047857; background: #ecfdf5; }
+.type--approved { color: var(--c-success); background: var(--c-success-bg); }

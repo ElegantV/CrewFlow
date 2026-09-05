@@ -4,21 +4,21 @@ page { height: 100vh; display: flex; flex-direction: column; }
 .user-card { display: flex; flex-direction: column; margin-bottom: 20rpx; padding: 28rpx; }
 .user-head { display: flex; align-items: center; justify-content: space-between; }
 .user-name { font-size: 30rpx; font-weight: 700; }
-.status { padding: 6rpx 14rpx; border-radius: 999rpx; color: #047857; background: #ecfdf5; font-size: 22rpx; }
-.status--pending { color: #92400e; background: #fffbeb; }
-.status--disabled { color: #718096; background: #edf2f7; }
-.meta { margin-top: 10rpx; color: #718096; font-size: 23rpx; }
+.status { padding: 6rpx 14rpx; border-radius: var(--r-pill); color: var(--c-success); background: var(--c-success-bg); font-size: 22rpx; }
+.status--pending { color: var(--c-warning); background: var(--c-warning-bg); }
+.status--disabled { color: var(--c-text-muted); background: var(--c-neutral-bg); }
+.meta { margin-top: 10rpx; color: var(--c-text-muted); font-size: 23rpx; }
 .modal-mask { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 100; display: flex; align-items: flex-end; background: rgba(15, 23, 42, .48); }
-.form-card { width: 100%; padding: 36rpx 32rpx; padding-bottom: calc(36rpx + env(safe-area-inset-bottom)); border-radius: 32rpx 32rpx 0 0; background: #fff; box-sizing: border-box; }
+.form-card { width: 100%; padding: 36rpx 32rpx; padding-bottom: calc(36rpx + env(safe-area-inset-bottom)); border-radius: var(--r-xl) var(--r-xl) 0 0; background: #fff; box-sizing: border-box; }
 .form-title { display: block; margin-bottom: 20rpx; font-size: 36rpx; font-weight: 700; }
 .field { margin-top: 20rpx; }
 .label { display: block; margin-bottom: 10rpx; color: #475569; font-size: 24rpx; }
-.control { padding: 20rpx 22rpx; border: 1rpx solid #d9e1ea; border-radius: 14rpx; background: #f8fafc; font-size: 27rpx; }
+.control { padding: 20rpx 22rpx; border: 1rpx solid #d9e1ea; border-radius: var(--r-md); background: var(--c-bg-subtle); font-size: 27rpx; }
 .actions { display: flex; flex-direction: row; margin-top: 28rpx; }
 /* 重置微信 button 默认内边距/行高,flex 居中避免文字垂直偏移。 */
-.actions button { flex: 1; margin: 0; padding: 0; height: 88rpx; line-height: normal; display: flex; align-items: center; justify-content: center; border-radius: 18rpx; font-size: 29rpx; font-weight: 600; box-sizing: border-box; }
+.actions button { flex: 1; margin: 0; padding: 0; height: 88rpx; line-height: normal; display: flex; align-items: center; justify-content: center; border-radius: var(--r-lg); font-size: 29rpx; font-weight: 600; box-sizing: border-box; }
 .actions button + button { margin-left: 20rpx; }
-.secondary { border-radius: 16rpx; color: #475569; background: #edf2f7; }
+.secondary { border-radius: var(--r-md); color: var(--c-text-muted); background: var(--c-neutral-bg); }
 .secondary::after { border: 0; }
 .export-button { margin-top: 28rpx; }
 .export-hint { display: block; margin-bottom: 8rpx; color: #64748b; font-size: 24rpx; line-height: 1.5; }

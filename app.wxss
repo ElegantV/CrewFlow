@@ -1,8 +1,57 @@
 page {
   min-height: 100%;
-  background: #f7f8fa;
-  color: #1f2329;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+
+  /* ===== 设计 token：全站颜色 / 圆角 / 阴影统一引用 ===== */
+  /* 品牌色（原散落 #1677ff / #2563eb / #2f6fed / #246bfd / #1d4ed8 / #4f8cff 统一归并） */
+  --brand: #1677ff;
+  --brand-deep: #2563eb;
+  --brand-ai-from: #246bfd;
+  --brand-ai-to: #7047eb;
+  --c-brand-tint: #eaf2ff;
+
+  /* 文字 / 描边 */
+  --c-text: #1f2329;
+  --c-text-sub: #646a73;
+  --c-text-muted: #718096;
+  --c-text-faint: #94a3b8;
+  --c-border: #edf0f5;
+  --c-border-soft: #f0f2f5;
+
+  /* 表面 */
+  --c-bg: #f7f8fa;
+  --c-bg-card: #ffffff;
+  --c-bg-subtle: #f8fafc;
+  --c-bg-soft: #f1f5f9;
+
+  /* 语义状态色 */
+  --c-info: #2563eb;
+  --c-info-bg: #eff6ff;
+  --c-success: #047857;
+  --c-success-bg: #ecfdf5;
+  --c-warning: #92400e;
+  --c-warning-bg: #fffbeb;
+  --c-danger: #b42318;
+  --c-danger-bg: #fef2f2;
+  --c-neutral: #718096;
+  --c-neutral-bg: #edf2f7;
+
+  /* 圆角档位 */
+  --r-sm: 12rpx;
+  --r-md: 16rpx;
+  --r-lg: 20rpx;
+  --r-xl: 28rpx;
+  --r-pill: 999rpx;
+  --r-xs: 8rpx;
+
+  /* 图标 */
+  --empty-icon: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYzdkMmU2IiBzdHJva2Utd2lkdGg9IjMiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTEyIDIybDgtMTBoMjRsOCAxMCIvPjxwYXRoIGQ9Ik0xMiAyMnYyOGEyIDIgMCAwIDAgMiAyaDM2YTIgMiAwIDAgMCAyLTJWMjIiLz48cGF0aCBkPSJNMTIgMjJoMTNsNCA2aDZsNC02aDEzIi8+PC9zdmc+");
+
+  /* 阴影 */
+  --shadow-card: 0 6rpx 20rpx rgba(31, 35, 41, 0.04);
+  --shadow-pop: 0 18rpx 60rpx rgba(15, 23, 42, 0.18);
 }
 
 .page-shell {
@@ -11,14 +60,20 @@ page {
 }
 
 .card {
-  background: #fff;
-  border: 1rpx solid #edf0f5;
-  border-radius: 20rpx;
-  box-shadow: 0 6rpx 20rpx rgba(31, 35, 41, 0.04);
+  background: var(--c-bg-card);
+  border: 1rpx solid var(--c-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow .2s ease, transform .12s ease;
+}
+
+.card:active {
+  transform: translateY(2rpx);
+  box-shadow: 0 2rpx 10rpx rgba(31, 35, 41, 0.06);
 }
 
 .muted {
-  color: #718096;
+  color: var(--c-text-muted);
 }
 
 .primary-button {
@@ -29,8 +84,8 @@ page {
   padding: 0;
   box-sizing: border-box;
   color: #fff;
-  background: #1677ff;
-  border-radius: 18rpx;
+  background: var(--brand);
+  border-radius: var(--r-md);
   font-size: 29rpx;
   font-weight: 600;
 }
@@ -43,4 +98,32 @@ page {
   opacity: .78;
 }
 
+/* 全局交互反馈：按钮按下回弹 + 微缩放 */
+button {
+  transition: opacity .15s ease, background-color .15s ease, transform .12s ease;
+}
 
+button:active {
+  opacity: .82;
+  transform: scale(.985);
+}
+
+/* 统一空状态：图标 + 文案居中（图标走 ::before，无需改各页 wxml） */
+.empty,
+.records-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.empty::before,
+.records-empty::before {
+  content: "";
+  width: 96rpx;
+  height: 96rpx;
+  margin-bottom: 24rpx;
+  background: var(--empty-icon) center / contain no-repeat;
+  opacity: .9;
+}

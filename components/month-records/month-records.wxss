@@ -1,6 +1,6 @@
 .month-records { width: 100%; }
 .records-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20rpx; }
-.records-nav { display: flex; align-items: center; justify-content: center; width: 56rpx; height: 56rpx; border-radius: 12rpx; color: #64748b; background: #f1f5f9; font-size: 32rpx; }
+.records-nav { display: flex; align-items: center; justify-content: center; width: 56rpx; height: 56rpx; border-radius: var(--r-sm); color: #64748b; background: var(--c-bg-soft); font-size: 32rpx; }
 .records-title { color: #263244; font-size: 28rpx; font-weight: 700; }
 .records-loading, .records-empty { padding: 40rpx 0; color: #8a96a6; font-size: 24rpx; text-align: center; }
 .records-group { margin-top: 22rpx; }
@@ -8,13 +8,13 @@
 .record-item { display: flex; align-items: center; justify-content: space-between; padding: 20rpx 0; border-bottom: 1rpx solid #f0f2f5; }
 .record-item:last-child { border-bottom: 0; }
 .record-left { display: flex; align-items: center; min-width: 0; }
-.record-tag { flex: 0 0 auto; padding: 4rpx 12rpx; border-radius: 8rpx; color: #fff; font-size: 20rpx; }
+.record-tag { flex: 0 0 auto; padding: 4rpx 12rpx; border-radius: var(--r-xs); color: #fff; font-size: 20rpx; }
 .record-tag--leave { background: #f43f5e; }
 .record-tag--overtime { background: #10b981; }
 .record-main { display: flex; flex-direction: column; min-width: 0; margin-left: 16rpx; }
 .record-date { color: #263244; font-size: 26rpx; font-weight: 600; }
 .record-sub { overflow: hidden; margin-top: 4rpx; color: #8a96a6; font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; }
-.record-status { flex: 0 0 auto; margin-left: 16rpx; padding: 4rpx 12rpx; border-radius: 999rpx; color: #92400e; background: #fffbeb; font-size: 20rpx; }
-.record-status.status--approved { color: #047857; background: #ecfdf5; }
-.record-status.status--rejected, .record-status.status--cancelled, .record-status.status--revoked, .record-status.status--expired { color: #718096; background: #edf2f7; }
-.record-status.status--consumed { color: #92400e; background: #fef3c7; }
+.record-status { flex: 0 0 auto; margin-left: 16rpx; padding: 4rpx 12rpx; border-radius: var(--r-pill); color: var(--c-warning); background: var(--c-warning-bg); font-size: 20rpx; }
+.record-status.status--approved { color: var(--c-success); background: var(--c-success-bg); }
+.record-status.status--rejected, .record-status.status--cancelled, .record-status.status--revoked, .record-status.status--expired { color: var(--c-text-muted); background: var(--c-neutral-bg); }
+.record-status.status--consumed { color: var(--c-warning); background: #fef3c7; }
