@@ -290,6 +290,20 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
       });
     } catch (error) {
       await client.query("ROLLBACK");
+      // 并发提交穿透业务层预检时(幻影插入),由 014 迁移的数据库约束兜底,映射为与预检一致的 409。
+      const pgCode = (error as { code?: string }).code;
+      if (pgCode === "23P01") {
+        return reply.code(409).send({
+          code: "LEAVE_OVERLAP",
+          message: "该时段与已有申请重复，请刷新后重试",
+        });
+      }
+      if (pgCode === "23505") {
+        return reply.code(409).send({
+          code: "FIXED_LEAVE_ALREADY_USED",
+          message: `${policy.label}只能一次性申请`,
+        });
+      }
       throw error;
     } finally {
       client.release();

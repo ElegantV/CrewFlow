@@ -22,7 +22,9 @@ declare module "fastify" {
 }
 
 export async function buildApp() {
-  const app = Fastify({ logger: true, trustProxy: true });
+  // 只信任回环与私网来源的 X-Forwarded-For(Caddy 在同一主机/内网反代);
+  // 全盘信任会让公网客户端伪造 XFF 轮换 IP,绕过登录/AI 等基于 IP 的限流。
+  const app = Fastify({ logger: true, trustProxy: "loopback,uniquelocal" });
 
   app.setErrorHandler((error, request, reply) => {
     request.log.error({ err: error }, "Unhandled API error");

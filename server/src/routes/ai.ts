@@ -187,6 +187,10 @@ async function* upstreamDeltas(response: Response) {
   }
 }
 
+// AI 有真实成本,限流按登录用户计数而非 IP:同一出口 IP 后面可能是多个正常用户,
+// 而 IP 维度在伪造 XFF 时也不可靠;未鉴权的极端情况回落到 request.ip。
+const aiRateLimitKey = (request: FastifyRequest) => `user:${request.actor?.id ?? request.ip}`;
+
 export const aiRoutes: FastifyPluginAsync = async (app) => {
   const protectedHooks = { onRequest: [app.authenticate, loadActiveActor] };
   const adminHooks = { onRequest: [app.authenticate, loadActiveActor, allowRoles("super_admin")] };
@@ -194,7 +198,7 @@ export const aiRoutes: FastifyPluginAsync = async (app) => {
   app.post("/chat", {
     ...protectedHooks,
     // AI 调用有真实成本,单独收紧限流;groupId 隔离计数器,避免与登录等其他限流路由互吃额度。
-    config: { rateLimit: { max: 10, timeWindow: "1 minute", groupId: "ai-chat" } },
+    config: { rateLimit: { max: 10, timeWindow: "1 minute", groupId: "ai-chat", keyGenerator: aiRateLimitKey } },
   }, async (request, reply) => {
     const ai = await loadAiConfig();
     if (!ai.apiKey) {
@@ -331,7 +335,7 @@ export const aiRoutes: FastifyPluginAsync = async (app) => {
   app.post("/classify", {
     ...protectedHooks,
     // 每条开启深度问答的消息都会先分类一次,限流比 /chat 稍宽,计数器独立于 /chat。
-    config: { rateLimit: { max: 30, timeWindow: "1 minute", groupId: "ai-classify" } },
+    config: { rateLimit: { max: 30, timeWindow: "1 minute", groupId: "ai-classify", keyGenerator: aiRateLimitKey } },
   }, async (request, reply) => {
     const ai = await loadAiConfig();
     if (!ai.apiKey) {
