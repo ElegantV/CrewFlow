@@ -75,20 +75,32 @@ PDF 默认使用 macOS 自带的华文黑体；Docker 镜像会安装 Noto CJK �
 ## 云服务器部署
 
 1. 安装 Docker Engine 与 Compose 插件。
-2. 将 `server/` 上传到服务器。
-3. 创建 `.env`，设置微信密钥、JWT 密钥和数据库密码。生产环境必须设 `NODE_ENV=production`，
-   否则 `/api/v1/auth/dev` 测试登录接口会暴露。
-4. 先构建新镜像，再执行迁移，最后切流量——顺序不能反：
+2. 将 `server/` 同步到服务器 `/opt/crewflow`（阿里云 ECS `root@101.201.100.221`，
+   密钥 `~/.ssh/aliyun_182`；该目录不是 git 仓库，靠 rsync 更新）：
 
    ```bash
+   # 仓库根目录执行；排除项保证绝不覆盖服务器的 .env 与备份目录
+   rsync -av --exclude=".env" --exclude="node_modules" --exclude="dist" \
+     --exclude="backups" --exclude="backup.log" --exclude="test-results" \
+     -e "ssh -i ~/.ssh/aliyun_182" server/ root@101.201.100.221:/opt/crewflow/
+   ```
+
+3. 创建 `.env`，设置微信密钥、JWT 密钥和数据库密码。生产环境必须设 `NODE_ENV=production`，
+   否则 `/api/v1/auth/dev` 测试登录接口会暴露。
+4. 迁移前先备份，然后先构建新镜像，再执行迁移，最后切流量——顺序不能反：
+
+   ```bash
+   ./scripts/backup-database.sh
    docker compose build api
    docker compose run --rm api node scripts/migrate.mjs
    docker compose up -d
    ```
 
-5. 配置 HTTPS：把 `deploy/Caddyfile` 里的 `api.example.com` 换成已备案的真实域名、
+5. 部署后验证：`curl http://127.0.0.1:3000/health` 应返回 `{"status":"ok","db":true}`，
+   `docker logs crewflow-api-1 --tail 50` 无未处理异常；带新迁移时进 db 容器抽查新表数据。
+6. 配置 HTTPS：把 `deploy/Caddyfile` 里的 `api.example.com` 换成已备案的真实域名、
    `email` 换成真实邮箱，然后启动 Caddy。证书会自动申请与续期。
-6. 在微信公众平台「开发管理 → 开发设置 → 服务器域名」把该域名加入 **request 合法域名**
+7. 在微信公众平台「开发管理 → 开发设置 → 服务器域名」把该域名加入 **request 合法域名**
    （还有 `downloadFile` 合法域名，PDF 请假单下载会用到）。
 
 不要把 `.env`、微信 `AppSecret` 或数据库密码提交到版本库。
