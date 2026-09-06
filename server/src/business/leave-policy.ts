@@ -44,7 +44,7 @@ export function isValidDate(value: string) {
 
 // 2026 年法定节假日与调休上班日，来源：国务院办公厅 国办发明电〔2025〕7号。
 // 与前端 config/holidays.js 保持一致，每年国务院公布新安排后需同步更新。
-const STATUTORY_HOLIDAYS = new Set<string>([
+export const STATUTORY_HOLIDAYS = new Set<string>([
   "2026-01-01", "2026-01-02", "2026-01-03",
   "2026-02-15", "2026-02-16", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20", "2026-02-21", "2026-02-22", "2026-02-23",
   "2026-04-04", "2026-04-05", "2026-04-06",
@@ -54,7 +54,7 @@ const STATUTORY_HOLIDAYS = new Set<string>([
   "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07",
 ]);
 
-const MAKEUP_WORKDAYS = new Set<string>([
+export const MAKEUP_WORKDAYS = new Set<string>([
   "2026-01-04",
   "2026-02-14", "2026-02-28",
   "2026-05-09",

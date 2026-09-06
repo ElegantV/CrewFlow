@@ -2,6 +2,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { allowRoles, loadActiveActor } from "../authz.js";
 import { config } from "../config.js";
+import { MAKEUP_WORKDAYS, STATUTORY_HOLIDAYS } from "../business/leave-policy.js";
 import { db } from "../db.js";
 
 const chatSchema = z.object({
@@ -55,6 +56,55 @@ async function loadAiConfig(): Promise<AiConfig> {
   };
 }
 
+// 节假日名称按起始月份映射,与 STATUTORY_HOLIDAYS 的 2026 年数据一一对应。
+const HOLIDAY_NAMES: Record<number, string> = {
+  1: "元旦", 2: "春节", 4: "清明节", 5: "劳动节", 6: "端午节", 9: "中秋节", 10: "国庆节",
+};
+
+function beijingDateParts(date = new Date()) {
+  const iso = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(date);
+  const [year, month, day] = iso.split("-").map(Number);
+  const weekday = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"][
+    new Date(`${iso}T00:00:00Z`).getUTCDay()
+  ];
+  return { iso, year, month, day, weekday };
+}
+
+function monthDay(iso: string) {
+  const [, month, day] = iso.split("-").map(Number);
+  return `${month}月${day}日`;
+}
+
+// 把法定节假日按连续日期聚合为区间并给出名称;跳过已过去的区间,标注下一个即将到来的节假日。
+function describeHolidaySchedule(todayIso: string) {
+  const sorted = [...STATUTORY_HOLIDAYS].sort();
+  const ranges: Array<{ start: string; end: string }> = [];
+  for (const iso of sorted) {
+    const last = ranges[ranges.length - 1];
+    const prevDay = new Date(`${last?.end ?? iso}T00:00:00Z`);
+    prevDay.setUTCDate(prevDay.getUTCDate() + 1);
+    const prevIso = prevDay.toISOString().slice(0, 10);
+    if (last && prevIso === iso) last.end = iso;
+    else ranges.push({ start: iso, end: iso });
+  }
+  const holidayLine = ranges
+    .map((range) => `${HOLIDAY_NAMES[Number(range.start.split("-")[1])] ?? "法定节假日"}：${monthDay(range.start)}${range.end !== range.start ? `至${monthDay(range.end)}` : ""}`)
+    .join("；");
+  const makeupLine = `调休上班日：${[...MAKEUP_WORKDAYS].sort().map(monthDay).join("、")}`;
+  const next = ranges.find((range) => range.end >= todayIso);
+  let nextLine = "";
+  if (next) {
+    const days = Math.round(
+      (new Date(`${next.start}T00:00:00Z`).getTime() - new Date(`${todayIso}T00:00:00Z`).getTime()) / 86_400_000,
+    );
+    const name = HOLIDAY_NAMES[Number(next.start.split("-")[1])] ?? "法定节假日";
+    nextLine = `下一个法定节假日是${name}（${monthDay(next.start)}${next.end !== next.start ? `至${monthDay(next.end)}` : ""}），还有 ${days} 天。`;
+  }
+  return `以下是国务院办公厅公布的 2026 年法定节假日安排，回答日期类问题时必须以此为准：\n法定节假日：${holidayLine}。\n${makeupLine}。\n${nextLine}`;
+}
+
 // 系统提示词:回答严格限定在本小程序的考勤日程领域,无关问题礼貌拒绝,并强制控制篇幅。
 // 管理员可通过 ai_config.system_prompt 整体覆盖默认提示词。
 function buildSystemPrompt(name: string | null, role: string, ai: AiConfig) {
@@ -63,8 +113,11 @@ function buildSystemPrompt(name: string | null, role: string, ai: AiConfig) {
     "你只回答与本小程序功能相关的问题：请假、调休、加班、审批流程、通讯录、个人考勤与日程。",
     "与小程序功能无关的问题（天气、新闻、闲聊、其他领域知识等），礼貌说明你只能协助考勤日程相关事宜，并用一句话引导回正题。",
   ].join("\n");
+  const today = beijingDateParts();
   return [
     `你是「简序日程助手」，一个企业考勤与日程小程序的 AI 助手。当前用户：${name || "未命名用户"}（${roleLabel}）。`,
+    `今天是 ${today.iso}（${today.weekday}，北京时间）。`,
+    describeHolidaySchedule(today.iso),
     scope,
     "不要编造用户的考勤、请假、审批等内部数据——你没有查询这些数据的工具。",
     "如果用户想办理业务（请假、加班、审批等），引导他们直接发送简短指令（如「8月13号请一天调休假」），系统会自动识别执行；不要声称自己执行了任何操作。",
