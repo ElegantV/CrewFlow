@@ -19,6 +19,9 @@ module.exports = {
   setSignature(imageData) {
     return request({ url: '/api/v1/me/signature', method: 'PUT', data: { imageData }, timeout: 30000 })
   },
+  getSignature() {
+    return request({ url: '/api/v1/me/signature' })
+  },
   dashboard() {
     return request({ url: '/api/v1/me/dashboard' })
   },

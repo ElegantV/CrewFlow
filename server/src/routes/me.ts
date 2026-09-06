@@ -521,6 +521,25 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.get("/signature", protectedHooks, async (request, reply) => {
+    if (!request.actor || !["admin", "super_admin"].includes(request.actor.role)) {
+      return reply.code(403).send({ code: "FORBIDDEN", message: "只有管理员可以查看审批签名" });
+    }
+    const result = await db.query<{
+      signature_data: Buffer | null;
+      signature_mime_type: string | null;
+      signature_updated_at: string | null;
+    }>(
+      "SELECT signature_data, signature_mime_type, signature_updated_at::text FROM users WHERE id = $1",
+      [request.actor.id],
+    );
+    const row = result.rows[0];
+    return {
+      imageData: avatarDataUrl(row?.signature_data ?? null, row?.signature_mime_type ?? null),
+      updatedAt: row?.signature_updated_at ?? null,
+    };
+  });
+
   app.put("/signature", protectedHooks, async (request, reply) => {
     if (!request.actor || !["admin", "super_admin"].includes(request.actor.role)) {
       return reply.code(403).send({ code: "FORBIDDEN", message: "只有管理员可以维护审批签名" });

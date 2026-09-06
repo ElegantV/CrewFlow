@@ -46,6 +46,7 @@ Page({
     savingAvatar: false,
     avatarPicking: false,
     isManager: false,
+    signatureImage: '',
     signatureDirty: false,
     savingSignature: false,
     wxpusherEnabled: false,
@@ -188,8 +189,23 @@ Page({
         annualLeave: profile.annualLeave || calculateAnnualLeave(form.workStartDate),
         isManager: profile.role === 'admin' || profile.role === 'super_admin'
       })
+      // 管理员且已保存过签名时回显当前签名;失败不影响资料页其余功能。
+      if (profile.signatureConfigured && (profile.role === 'admin' || profile.role === 'super_admin')) {
+        this.loadSignature()
+      } else {
+        this.setData({ signatureImage: '' })
+      }
     } catch (error) {
       wx.showToast({ title: error.message || '个人信息加载失败', icon: 'none' })
+    }
+  },
+
+  async loadSignature() {
+    try {
+      const result = await me.getSignature()
+      this.setData({ signatureImage: result.imageData || '' })
+    } catch (error) {
+      this.setData({ signatureImage: '' })
     }
   },
 
@@ -360,7 +376,12 @@ Page({
           success: async file => {
             try {
               await me.setSignature(`data:image/png;base64,${file.data}`)
-              this.setData({ savingSignature: false, signatureDirty: false, 'profile.signatureConfigured': true })
+              this.setData({
+                savingSignature: false,
+                signatureDirty: false,
+                signatureImage: `data:image/png;base64,${file.data}`,
+                'profile.signatureConfigured': true
+              })
               wx.showToast({ title: '审批签名已保存', icon: 'success' })
             } catch (error) {
               this.setData({ savingSignature: false })

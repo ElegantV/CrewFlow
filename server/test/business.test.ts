@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { buildApp } from "../src/app.js";
-import { calculateWorkingHours } from "../src/business/leave-policy.js";
+import { calculateWorkingHours, isWorkdayDate } from "../src/business/leave-policy.js";
 import { db } from "../src/db.js";
 
 const app = await buildApp();
@@ -22,9 +22,10 @@ function addDays(date: string, days: number) {
   return isoDate(value);
 }
 
+// 跳过所有非工作日(周末+法定节假日),避免用例日期随真实日期滚动撞上假期。
 function nextWeekday(date: string, offset: number) {
   let value = addDays(date, offset);
-  while ([0, 6].includes(new Date(`${value}T00:00:00Z`).getUTCDay())) {
+  while (!isWorkdayDate(value)) {
     value = addDays(value, 1);
   }
   return value;
@@ -564,7 +565,8 @@ test("周末请假返回明确的 NO_WORKDAY_IN_RANGE", async () => {
   const todayResult = await db.query<{ today: string }>("SELECT current_date::text AS today");
   const today = todayResult.rows[0]!.today;
   let weekend = addDays(today, 1);
-  while (![0, 6].includes(new Date(`${weekend}T00:00:00Z`).getUTCDay())) {
+  // 补班调休的周末也算工作日,同样要跳过,确保拿到的是真实的非工作日。
+  while (isWorkdayDate(weekend)) {
     weekend = addDays(weekend, 1);
   }
   const result = await app.inject({

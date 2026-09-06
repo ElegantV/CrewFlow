@@ -136,4 +136,13 @@ test("普通用户不可维护审批签名,管理员设置后缺失项消除", a
 
   const profile = await getMe(adminSig);
   expect(profile.missingRequired).toEqual([]);
+
+  // 个人信息页回显依赖的读取接口:管理员可读,普通用户不可读。
+  const forbiddenGet = await api.get("/api/v1/me/signature", { headers: auth(bankReady) });
+  expect(forbiddenGet.status()).toBe(403);
+
+  const fetched = await api.get("/api/v1/me/signature", { headers: auth(adminSig) });
+  expect(fetched.ok()).toBeTruthy();
+  const body = (await fetched.json()) as { imageData: string | null };
+  expect(body.imageData).toMatch(/^data:image\/png;base64,/);
 });
