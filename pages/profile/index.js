@@ -187,9 +187,6 @@ Page({
         itlIndex: Math.max(0, this.data.itlOptions.findIndex(item => item.value === itlStatus)),
         annualLeave: profile.annualLeave || calculateAnnualLeave(form.workStartDate),
         isManager: profile.role === 'admin' || profile.role === 'super_admin'
-      }, () => {
-        // 签名画布在 isManager 为 true 后才渲染,渲染完成后才能查到节点。
-        if (this.data.isManager) this.setupSignatureCanvas()
       })
     } catch (error) {
       wx.showToast({ title: error.message || '个人信息加载失败', icon: 'none' })
