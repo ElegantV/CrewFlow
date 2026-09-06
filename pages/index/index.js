@@ -76,13 +76,19 @@ Page({
       await app.ready
     }
     const user = app.globalData.user
-    const shortcuts = this.buildShortcuts(user)
-    this.setData({
+    // 用页面实例缓存的菜单配置立即渲染,并按需更新数据:
+    // 若先按默认顺序 setData、等网络返回后再套个性化配置,真机上返回首页时
+    // 图标会出现"跳到默认顺序又复位"的闪动;菜单未变化时则完全不动列表。
+    const shortcuts = this.applyMenuConfig(this.buildShortcuts(user), this.homeMenuConfig || [])
+    const updates = {
       apiConfigured: isApiConfigured(),
       apiStatus: app.globalData.apiStatus,
-      user,
-      shortcuts
-    })
+      user
+    }
+    if (JSON.stringify(shortcuts) !== JSON.stringify(this.data.shortcuts)) {
+      updates.shortcuts = shortcuts
+    }
+    this.setData(updates)
     if (user) {
       const profile = await this.refreshUser(user)
       // 登录后资料完备性闸口：必填系统字段缺失时先引导补齐，再回到首页。
@@ -90,7 +96,7 @@ Page({
         wx.redirectTo({ url: '/pages/onboard/index' })
         return
       }
-      await this.applyHomeMenu()
+      this.applyProfile(profile)
     }
     this.loadReminders(this.data.user || user)
   },
@@ -145,17 +151,14 @@ Page({
     return ordered
   },
 
-  // 拉取个人信息中的菜单配置并应用;静默失败时保持默认菜单。
-  async applyHomeMenu() {
-    try {
-      const profile = await me.get()
-      if (profile && profile.homeMenuConfig) {
-        this.homeMenuConfig = profile.homeMenuConfig
-        this.setData({ shortcuts: this.applyMenuConfig(this.buildShortcuts(this.data.user), profile.homeMenuConfig) })
-      }
-    } catch (error) {
-      // 菜单配置获取失败不影响首页可用性。
-    }
+  // 用 refreshUser 拉到的资料更新菜单配置(替代原 applyHomeMenu 的第二次 me.get)。
+  // 菜单未变化时不重设数据,避免返回首页触发冗余重渲染。
+  applyProfile(profile) {
+    if (!profile) return
+    this.homeMenuConfig = profile.homeMenuConfig || []
+    const shortcuts = this.applyMenuConfig(this.buildShortcuts(this.data.user), this.homeMenuConfig)
+    if (JSON.stringify(shortcuts) === JSON.stringify(this.data.shortcuts)) return
+    this.setData({ shortcuts })
   },
 
   // 打开编辑弹层:列出全部可见菜单(含已隐藏项),支持隐藏/显示与上下移动。
