@@ -1,5 +1,6 @@
 const leave = require('../../services/leave')
 const me = require('../../services/me')
+const calendarService = require('../../services/calendar')
 const holidays = require('../../config/holidays')
 
 function pad(value) { return String(value).padStart(2, '0') }
@@ -188,6 +189,12 @@ Page({
       cells.push({ key: `${month}-empty-end-${cells.length}`, empty: true })
     }
     this.setData({ calCells: cells, calMonth: month, calTitle: this.monthTitle(month) })
+    // 日历数据晚于首屏到达时(服务端按年加载),拉取成功后仅重渲染一次当前月份。
+    calendarService.ensureYear(month.slice(0, 4))
+      .then(outcome => {
+        if (outcome.loaded && this.data.calMonth === month) this.buildCalendar(month)
+      })
+      .catch(() => {})
   },
 
   inRange(date) {

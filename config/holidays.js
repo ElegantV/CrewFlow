@@ -1,5 +1,6 @@
 // 2026 年法定节假日与调休上班日，来源：国务院办公厅 国办发明电〔2025〕7号。
-// 每年国务院公布新安排后需同步更新此处，并与 server/src/business/leave-policy.ts 保持一致。
+// 此静态表仅作离线兜底；启动后以服务端 /api/v1/calendar 同步的数据为准
+// （服务端数据源为 holiday-cn，管理员可在后台手工覆盖），无需每年改代码。
 
 const STATUTORY_HOLIDAYS = [
   '2026-01-01', '2026-01-02', '2026-01-03', // 元旦
@@ -58,4 +59,20 @@ function countWorkdays(start, end) {
   return total
 }
 
-module.exports = { countWorkdays, isWorkday, isWeekend, STATUTORY_HOLIDAYS, MAKEUP_WORKDAYS }
+// 应用服务端日历数据：服务端优先级高于静态兜底（同一日期覆盖归类）。
+// days 结构：[{ date: 'YYYY-MM-DD', dayType: 'holiday' | 'makeup' }]
+function applyServerCalendar(days) {
+  if (!Array.isArray(days)) return
+  for (const day of days) {
+    if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day.date)) continue
+    if (day.dayType === 'holiday') {
+      holidaySet.add(day.date)
+      makeupSet.delete(day.date)
+    } else if (day.dayType === 'makeup') {
+      makeupSet.add(day.date)
+      holidaySet.delete(day.date)
+    }
+  }
+}
+
+module.exports = { countWorkdays, isWorkday, isWeekend, applyServerCalendar, STATUTORY_HOLIDAYS, MAKEUP_WORKDAYS }

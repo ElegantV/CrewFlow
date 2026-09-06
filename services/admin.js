@@ -20,6 +20,18 @@ module.exports = {
   },
   saveAiConfig(data) {
     return request({ url: '/api/v1/admin/ai-config', method: 'PUT', data })
+  },
+  calendarDays(year) {
+    return request({ url: `/api/v1/admin/calendar?year=${encodeURIComponent(year)}` })
+  },
+  saveCalendarDay(data) {
+    return request({ url: '/api/v1/admin/calendar/day', method: 'PUT', data })
+  },
+  deleteCalendarDay(date) {
+    return request({ url: `/api/v1/admin/calendar/day?date=${encodeURIComponent(date)}`, method: 'DELETE' })
+  },
+  syncCalendar() {
+    return request({ url: '/api/v1/admin/calendar/sync', method: 'POST', timeout: 30000 })
   }
 }
 

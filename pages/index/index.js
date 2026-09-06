@@ -1,5 +1,6 @@
 const { isApiConfigured, isDevelopment } = require('../../config/env')
 const me = require('../../services/me')
+const onboard = require('../../utils/onboard')
 const { BRAND_DEEP } = require('../../utils/theme')
 
 function emptyReminders() {
@@ -83,10 +84,22 @@ Page({
       shortcuts
     })
     if (user) {
-      await this.refreshUser(user)
+      const profile = await this.refreshUser(user)
+      // 登录后资料完备性闸口：必填系统字段缺失时先引导补齐，再回到首页。
+      if (this.needsOnboard(profile)) {
+        wx.redirectTo({ url: '/pages/onboard/index' })
+        return
+      }
       await this.applyHomeMenu()
     }
     this.loadReminders(this.data.user || user)
+  },
+
+  // 服务端不可用或账号未激活时不引导，交给既有的连接/注册流程处理。
+  needsOnboard(profile) {
+    const app = getApp()
+    if (!profile || profile.status !== 'active' || app.globalData.apiStatus !== 'ready') return false
+    return onboard.missingRequiredOf(profile).length > 0 && !onboard.isSkipped()
   },
 
   // 根据角色计算默认菜单(不含个性化)。
@@ -213,7 +226,7 @@ Page({
 
   noopMenu() {},
 
-  // 从服务端刷新当前用户状态/姓名，避免会话缓存与数据库不一致。
+  // 从服务端刷新当前用户状态/姓名，避免会话缓存与数据库不一致；返回完整资料供完备性检查。
   async refreshUser(user) {
     try {
       const profile = await me.get()
@@ -224,9 +237,11 @@ Page({
       })
       getApp().globalData.user = refreshed
       this.setData({ user: refreshed })
+      return profile
     } catch (error) {
       // 待激活账号由请求层统一跳转注册页，这里无需处理。
-      if (error.code === 'ACCOUNT_PENDING') return
+      if (error.code === 'ACCOUNT_PENDING') return null
+      return null
     }
   },
 

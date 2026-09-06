@@ -14,6 +14,8 @@ import { situationRoutes } from "./routes/situation.js";
 import { contactRoutes } from "./routes/contacts.js";
 import { wxpusherRoutes } from "./routes/wxpusher.js";
 import { aiRoutes } from "./routes/ai.js";
+import { calendarRoutes } from "./routes/calendar.js";
+import { loadCalendarCache } from "./business/calendar.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -94,6 +96,10 @@ export async function buildApp() {
   await app.register(adminRoutes, { prefix: "/api/v1/admin" });
   await app.register(wxpusherRoutes, { prefix: "/api/v1/wxpusher" });
   await app.register(aiRoutes, { prefix: "/api/v1/ai" });
+  await app.register(calendarRoutes, { prefix: "/api/v1/calendar" });
+
+  // 日历缓存:isWorkdayDate 等同步判定依赖,构建应用时加载一次,变更时写失效。
+  await loadCalendarCache();
 
   app.addHook("onClose", async () => {
     await db.end();

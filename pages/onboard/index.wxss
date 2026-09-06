@@ -1,0 +1,36 @@
+page {
+  min-height: 100vh;
+  background: var(--c-bg);
+}
+
+.onboard-page { padding-top: 32rpx; padding-bottom: 60rpx; }
+
+.onboard-head { display: flex; flex-direction: column; align-items: flex-start; padding: 16rpx 8rpx 30rpx; }
+.onboard-progress { color: var(--c-text-muted); font-size: 23rpx; }
+.onboard-title { margin-top: 10rpx; font-size: 40rpx; font-weight: 700; }
+.onboard-sub { margin-top: 12rpx; color: var(--c-text-muted); font-size: 24rpx; line-height: 1.7; }
+.onboard-dots { display: flex; flex-direction: row; margin-top: 22rpx; }
+.dot { width: 44rpx; height: 8rpx; margin-right: 12rpx; border-radius: 4rpx; background: #e2e8f0; }
+.dot--active { background: var(--brand); }
+
+.step-card { padding: 36rpx 32rpx 40rpx; }
+.field { margin-top: 26rpx; }
+.field:first-child { margin-top: 0; }
+.field-label { display: block; margin-bottom: 14rpx; color: #455267; font-size: 25rpx; font-weight: 500; }
+.required { color: #ef4444; }
+.field-input { width: 100%; min-height: 82rpx; padding: 20rpx 22rpx; border: 1rpx solid #dce3ec; border-radius: var(--r-md); color: #172033; background: var(--c-bg-subtle); font-size: 28rpx; box-sizing: border-box; }
+.field-picker { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+.picker-arrow { color: #94a3b8; font-size: 30rpx; }
+.field-help { display: block; margin-top: 14rpx; color: #8a9099; font-size: 22rpx; line-height: 1.7; }
+.step-button { width: 100%; height: 88rpx; margin: 44rpx 0 0; }
+
+.signature-canvas { width: 100%; height: 220rpx; margin-top: 22rpx; border: 2rpx dashed #cbd5e1; border-radius: var(--r-md); background: #fff; box-sizing: border-box; }
+.signature-actions { display: flex; flex-direction: row; margin-top: 20rpx; }
+.signature-actions button { flex: 1; margin: 0; }
+.signature-actions button + button { margin-left: 18rpx; }
+
+.skip-link { display: block; margin-top: 30rpx; color: #8a9099; font-size: 24rpx; text-align: center; }
+
+.onboard-state { display: flex; flex-direction: column; align-items: center; padding: 140rpx 40rpx 0; }
+.onboard-state-text { color: var(--c-text-muted); font-size: 26rpx; }
+.onboard-retry { margin-top: 30rpx; padding: 0 60rpx; }

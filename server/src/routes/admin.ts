@@ -3,6 +3,8 @@ import { z } from "zod";
 import { allowRoles, loadActiveActor } from "../authz.js";
 import { db } from "../db.js";
 import { isValidDate } from "../business/leave-policy.js";
+import { beijingTodayIso } from "../business/beijing-date.js";
+import { listCalendarDays, loadCalendarCache, syncCalendar } from "../business/calendar.js";
 import {
   buildRecordsWorkbook,
   type LeaveRow,
@@ -206,5 +208,55 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
     return readAdminAiConfig();
   });
+
+  // 法定节假日日历维护:手工覆盖优先级最高(同步永不覆盖 manual 行)。
+  const calendarDaySchema = z.object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    dayType: z.enum(["holiday", "makeup"]),
+    name: z.string().trim().max(50).optional(),
+  });
+
+  app.get("/calendar", superAdminHooks, async (request) => {
+    const parsed = z.object({
+      year: z.string().regex(/^\d{4}$/).optional(),
+    }).safeParse(request.query);
+    const year = parsed.success && parsed.data.year
+      ? Number(parsed.data.year)
+      : Number(beijingTodayIso().slice(0, 4));
+    const days = await listCalendarDays(year);
+    return { year, days };
+  });
+
+  app.put("/calendar/day", superAdminHooks, async (request, reply) => {
+    const parsed = calendarDaySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ code: "INVALID_CALENDAR_DAY", message: "日历数据无效" });
+    }
+    const { date, dayType, name } = parsed.data;
+    await db.query(
+      `INSERT INTO calendar_days (date, day_type, name, source)
+       VALUES ($1, $2, $3, 'manual')
+       ON CONFLICT (date) DO UPDATE
+       SET day_type = EXCLUDED.day_type, name = EXCLUDED.name, source = 'manual', updated_at = now()`,
+      [date, dayType, name ?? ""],
+    );
+    await loadCalendarCache();
+    return { success: true, date, dayType, name: name ?? "" };
+  });
+
+  app.delete("/calendar/day", superAdminHooks, async (request, reply) => {
+    const parsed = z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }).safeParse(request.query);
+    if (!parsed.success) {
+      return reply.code(400).send({ code: "INVALID_CALENDAR_DAY", message: "日历数据无效" });
+    }
+    const result = await db.query("DELETE FROM calendar_days WHERE date = $1 RETURNING date", [parsed.data.date]);
+    await loadCalendarCache();
+    return { success: true, removed: result.rowCount ?? 0 };
+  });
+
+  // 公告发布后可手动触发拉取(平时由每日定时任务维护)。
+  app.post("/calendar/sync", superAdminHooks, async () => syncCalendar(app.log));
 };
 

@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "docker compose run --rm api node scripts/migrate.mjs",
     "migrate:check": "docker compose run --rm api node scripts/migrate.mjs --check",
-    "test": "NODE_ENV=test DATABASE_URL=postgresql://127.0.0.1:5432/crewflow_test node --import tsx --test --test-concurrency=1 test/**/*.test.ts"
+    "test": "NODE_ENV=test DATABASE_URL=postgresql://127.0.0.1:5432/crewflow_test node --import tsx --test --test-concurrency=1 test/**/*.test.ts",
+    "test:api": "NODE_ENV=test DATABASE_URL=postgresql://127.0.0.1:5432/crewflow_test playwright test"
   },
   "engines": {
     "node": ">=20"
@@ -28,6 +29,7 @@
     "zod": "^4.0.17"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.3.0",
     "@types/pdfkit": "^0.17.6",
     "@types/pg": "^8.15.5",

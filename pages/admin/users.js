@@ -133,6 +133,7 @@ Page({
   // 按日期区间导出考勤记录(仅超级管理员,后端二次校验角色)。
   openExport() { this.setData({ showExport: true }) },
   openAiConfig() { wx.navigateTo({ url: '/pages/admin/ai/ai' }) },
+  openCalendar() { wx.navigateTo({ url: '/pages/admin/calendar/calendar' }) },
   closeExport() { if (!this.data.exporting) this.setData({ showExport: false }) },
   onExportStartChange(event) { this.setData({ exportStart: event.detail.value }) },
   onExportEndChange(event) { this.setData({ exportEnd: event.detail.value }) },

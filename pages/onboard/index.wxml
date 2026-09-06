@@ -1,0 +1,63 @@
+<navigation-bar title="完善必要信息" back="{{false}}" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<view class="page-shell onboard-page" wx:if="{{!loading && !loadError}}">
+  <view class="onboard-head" wx:if="{{steps.length}}">
+    <text class="onboard-progress">第 {{stepIndex + 1}} / {{steps.length}} 步</text>
+    <text class="onboard-title">{{steps[stepIndex].title}}</text>
+    <text class="onboard-sub">{{steps[stepIndex].description}}</text>
+    <view class="onboard-dots">
+      <view class="dot {{index <= stepIndex ? 'dot--active' : ''}}" wx:for="{{steps}}" wx:key="key"></view>
+    </view>
+  </view>
+
+  <view class="step-card card" wx:if="{{currentStep === 'basic'}}">
+    <view class="field">
+      <text class="field-label">中文姓名 <text class="required">*</text></text>
+      <input class="field-input" value="{{form.name}}" data-field="name" bindinput="onInput" maxlength="80" placeholder="请输入中文姓名" />
+    </view>
+    <view class="field">
+      <text class="field-label">人员类型 <text class="required">*</text></text>
+      <picker range="{{personnelTypes}}" range-key="label" value="{{personnelTypeIndex}}" bindchange="onPersonnelTypeChange">
+        <view class="field-input field-picker">{{personnelTypes[personnelTypeIndex].label}}<text class="picker-arrow">›</text></view>
+      </picker>
+    </view>
+    <view class="field" wx:if="{{form.personnelType !== 'bank'}}">
+      <text class="field-label">工作代理人（非行员） <text class="required">*</text></text>
+      <picker range="{{people}}" range-key="name" value="{{selectedAgentIndex}}" bindchange="onAgentChange">
+        <view class="field-input field-picker">{{selectedAgentIndex >= 0 ? people[selectedAgentIndex].name : '请选择工作代理人'}}<text class="picker-arrow">›</text></view>
+      </picker>
+      <text class="field-help" wx:if="{{!people.length}}">暂无可选代理人，请联系管理员先添加同事账号。</text>
+    </view>
+    <button class="primary-button step-button" loading="{{saving}}" bindtap="saveBasic">保存并继续</button>
+  </view>
+
+  <view class="step-card card" wx:elif="{{currentStep === 'agent'}}">
+    <view class="field">
+      <text class="field-label">工作代理人（非行员） <text class="required">*</text></text>
+      <picker range="{{people}}" range-key="name" value="{{selectedAgentIndex}}" bindchange="onAgentChange">
+        <view class="field-input field-picker">{{selectedAgentIndex >= 0 ? people[selectedAgentIndex].name : '请选择工作代理人'}}<text class="picker-arrow">›</text></view>
+      </picker>
+      <text class="field-help" wx:if="{{!people.length}}">暂无可选代理人，请联系管理员先添加同事账号。</text>
+      <text class="field-help" wx:else>提交请假申请时，将由代理人代为处理你的工作。</text>
+    </view>
+    <button class="primary-button step-button" loading="{{saving}}" bindtap="saveAgent">保存并继续</button>
+  </view>
+
+  <view class="step-card card" wx:elif="{{currentStep === 'signature'}}">
+    <text class="field-help">作为审批人，请在下方手写签名，审批时将使用该签名。</text>
+    <canvas class="signature-canvas" canvas-id="signatureCanvas" disable-scroll="true" catchtouchstart="onSignatureStart" catchtouchmove="onSignatureMove" catchtouchend="onSignatureEnd" catchtouchcancel="onSignatureEnd"></canvas>
+    <view class="signature-actions">
+      <button class="secondary-button" bindtap="clearSignature">清空重写</button>
+      <button class="primary-button" loading="{{savingSignature}}" bindtap="saveSignature">保存签名</button>
+    </view>
+  </view>
+
+  <!-- 非行员且暂无可选代理人时服务端不允许保存资料，保留出口避免卡死在引导页。 -->
+  <text class="skip-link" wx:if="{{currentStep !== 'basic' || (form.personnelType !== 'bank' && !people.length)}}" bindtap="skipStep">暂不设置，稍后再说</text>
+</view>
+<view class="onboard-state" wx:if="{{loading}}">
+  <text class="onboard-state-text">正在加载…</text>
+</view>
+<view class="onboard-state" wx:if="{{loadError}}">
+  <text class="onboard-state-text">信息加载失败，请检查网络后重试</text>
+  <button class="secondary-button onboard-retry" bindtap="loadProfile">重新加载</button>
+</view>

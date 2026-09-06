@@ -135,6 +135,14 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ code: "USER_NOT_FOUND", message: "用户不存在" });
     }
 
+    // 系统必填字段完备性：前端据此在登录后引导用户补齐，规则与业务校验保持一致。
+    const missingRequired: string[] = [];
+    if (!user.name) missingRequired.push("name");
+    if (user.personnel_type !== "bank" && !user.agent_user_id) missingRequired.push("agent");
+    if ((user.role === "admin" || user.role === "super_admin") && !user.signature_updated_at) {
+      missingRequired.push("signature");
+    }
+
     return {
       id: user.id,
       name: user.name,
@@ -164,6 +172,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       },
       signatureConfigured: Boolean(user.signature_updated_at),
       signatureUpdatedAt: user.signature_updated_at,
+      missingRequired,
       homeMenuConfig: user.home_menu_config ?? [],
       aiAgentEnabled: user.ai_agent_enabled,
     };

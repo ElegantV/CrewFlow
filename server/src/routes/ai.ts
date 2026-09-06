@@ -2,7 +2,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { allowRoles, loadActiveActor } from "../authz.js";
 import { config } from "../config.js";
-import { MAKEUP_WORKDAYS, STATUTORY_HOLIDAYS } from "../business/leave-policy.js";
+import { calendarExceptions } from "../business/calendar.js";
 import { db } from "../db.js";
 
 const chatSchema = z.object({
@@ -56,7 +56,7 @@ async function loadAiConfig(): Promise<AiConfig> {
   };
 }
 
-// 节假日名称按起始月份映射,与 STATUTORY_HOLIDAYS 的 2026 年数据一一对应。
+// 节假日名称按起始月份映射,与 holiday-cn 同步入库的日期数据配合使用。
 const HOLIDAY_NAMES: Record<number, string> = {
   1: "元旦", 2: "春节", 4: "清明节", 5: "劳动节", 6: "端午节", 9: "中秋节", 10: "国庆节",
 };
@@ -78,10 +78,11 @@ function monthDay(iso: string) {
 }
 
 // 把法定节假日按连续日期聚合为区间并给出名称;跳过已过去的区间,标注下一个即将到来的节假日。
+// 数据来自 calendar_days( holiday-cn 同步 + 管理员手工覆盖)。
 function describeHolidaySchedule(todayIso: string) {
-  const sorted = [...STATUTORY_HOLIDAYS].sort();
+  const { holidays, makeups } = calendarExceptions();
   const ranges: Array<{ start: string; end: string }> = [];
-  for (const iso of sorted) {
+  for (const iso of holidays) {
     const last = ranges[ranges.length - 1];
     const prevDay = new Date(`${last?.end ?? iso}T00:00:00Z`);
     prevDay.setUTCDate(prevDay.getUTCDate() + 1);
@@ -92,7 +93,7 @@ function describeHolidaySchedule(todayIso: string) {
   const holidayLine = ranges
     .map((range) => `${HOLIDAY_NAMES[Number(range.start.split("-")[1])] ?? "法定节假日"}：${monthDay(range.start)}${range.end !== range.start ? `至${monthDay(range.end)}` : ""}`)
     .join("；");
-  const makeupLine = `调休上班日：${[...MAKEUP_WORKDAYS].sort().map(monthDay).join("、")}`;
+  const makeupLine = makeups.length ? `\n调休上班日：${makeups.map(monthDay).join("、")}。` : "";
   const next = ranges.find((range) => range.end >= todayIso);
   let nextLine = "";
   if (next) {
@@ -102,7 +103,7 @@ function describeHolidaySchedule(todayIso: string) {
     const name = HOLIDAY_NAMES[Number(next.start.split("-")[1])] ?? "法定节假日";
     nextLine = `下一个法定节假日是${name}（${monthDay(next.start)}${next.end !== next.start ? `至${monthDay(next.end)}` : ""}），还有 ${days} 天。`;
   }
-  return `以下是国务院办公厅公布的 2026 年法定节假日安排，回答日期类问题时必须以此为准：\n法定节假日：${holidayLine}。\n${makeupLine}。\n${nextLine}`;
+  return `以下是国务院办公厅公布的法定节假日安排（含调休上班日），回答日期类问题时必须以此为准：\n法定节假日：${holidayLine}。${makeupLine}\n${nextLine}`;
 }
 
 // 系统提示词:回答严格限定在本小程序的考勤日程领域,无关问题礼貌拒绝,并强制控制篇幅。

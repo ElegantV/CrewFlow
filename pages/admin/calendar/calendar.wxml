@@ -1,0 +1,37 @@
+<navigation-bar title="节假日历" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<scroll-view class="scrollarea" scroll-y>
+  <view class="page-shell">
+    <view class="year-bar">
+      <view class="year-nav" bindtap="prevYear">‹</view>
+      <text class="year-text">{{year}} 年</text>
+      <view class="year-nav" bindtap="nextYear">›</view>
+    </view>
+
+    <view class="day-list">
+      <view class="day-card card" wx:for="{{days}}" wx:key="date" data-date="{{item.date}}" bindtap="removeDay">
+        <view class="day-head">
+          <text class="day-date">{{item.date}}</text>
+          <text class="tag tag--{{item.dayType}}">{{item.typeLabel}}</text>
+        </view>
+        <text class="meta">{{item.name || '—'}} · 来源：{{item.sourceLabel}}</text>
+      </view>
+      <view class="empty" wx:if="{{!days.length && !loading}}">
+        <text class="empty-text">该年度暂无数据，可点击「同步官方数据」拉取，或手工添加。</text>
+      </view>
+    </view>
+
+    <button class="primary-button action-button" loading="{{syncing}}" bindtap="syncNow">同步官方数据</button>
+    <button class="secondary-button action-button" bindtap="openAdd">手工添加 / 覆盖</button>
+    <text class="hint">手工数据优先于自动同步（同步不会覆盖手工行）；点击列表项可删除，删除后该日期恢复默认判定（周一至周五上班）。</text>
+  </view>
+</scroll-view>
+
+<view class="modal-mask" wx:if="{{showAdd}}" bindtap="closeAdd">
+  <view class="form-card" catchtap="noop">
+    <text class="form-title">添加日历日期</text>
+    <view class="field"><text class="label">日期</text><picker mode="date" value="{{form.date}}" bindchange="onDateChange"><view class="control">{{form.date || '请选择'}}</view></picker></view>
+    <view class="field"><text class="label">类型</text><picker range="{{dayTypes}}" range-key="label" value="{{dayTypeIndex}}" bindchange="onDayTypeChange"><view class="control">{{dayTypes[dayTypeIndex].label}}</view></picker></view>
+    <view class="field"><text class="label">名称（选填）</text><input class="control" value="{{form.name}}" bindinput="onNameInput" maxlength="50" placeholder="如：春节、公司统一调休" /></view>
+    <view class="actions"><button class="secondary" bindtap="closeAdd">取消</button><button class="primary-button" loading="{{saving}}" bindtap="saveDay">保存</button></view>
+  </view>
+</view>

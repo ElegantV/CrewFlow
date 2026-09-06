@@ -9,9 +9,11 @@
     "pages/profile/index",
     "pages/approval/index",
     "pages/register/index",
+    "pages/onboard/index",
     "pages/ledger/index",
     "pages/admin/users",
     "pages/admin/ai/ai",
+    "pages/admin/calendar/calendar",
     "pages/dev/users"
   ],
   "window": {

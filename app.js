@@ -59,6 +59,8 @@ App({
       this.globalData.user = session.user
       this.globalData.apiStatus = 'ready'
       this.globalData.bootstrapError = null
+      // 节假日历:登录后异步拉取当年数据,失败不影响主流程(前端保留静态兜底)。
+      require('./services/calendar').ensureYear(new Date().getFullYear()).catch(() => {})
       return session.user
     } catch (error) {
       this.globalData.apiStatus = 'unavailable'

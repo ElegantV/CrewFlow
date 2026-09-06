@@ -1,3 +1,5 @@
+import { calendarDayType } from "./calendar.js";
+
 export const leavePolicies = {
   comp_time: { label: "调休", minimumHours: 4, incrementHours: 4, consumesTimeoff: true },
   public_out: { label: "公出", minimumHours: 4, incrementHours: 4 },
@@ -42,35 +44,17 @@ export function isValidDate(value: string) {
   return !Number.isNaN(date.getTime()) && formatDate(date) === value;
 }
 
-// 2026 年法定节假日与调休上班日，来源：国务院办公厅 国办发明电〔2025〕7号。
-// 与前端 config/holidays.js 保持一致，每年国务院公布新安排后需同步更新。
-export const STATUTORY_HOLIDAYS = new Set<string>([
-  "2026-01-01", "2026-01-02", "2026-01-03",
-  "2026-02-15", "2026-02-16", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20", "2026-02-21", "2026-02-22", "2026-02-23",
-  "2026-04-04", "2026-04-05", "2026-04-06",
-  "2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05",
-  "2026-06-19", "2026-06-20", "2026-06-21",
-  "2026-09-25", "2026-09-26", "2026-09-27",
-  "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07",
-]);
-
-export const MAKEUP_WORKDAYS = new Set<string>([
-  "2026-01-04",
-  "2026-02-14", "2026-02-28",
-  "2026-05-09",
-  "2026-09-20",
-  "2026-10-10",
-]);
-
-// 工作日判定：调休上班日算工作日；法定节假日不算；其余周一至周五算工作日。
+// 工作日判定：优先查 calendar_days 缓存（调休补班算工作日，法定假不算），
+// 无记录的日期按周一至周五为工作日的默认规则。日历数据由 holiday-cn 同步
+// 与管理员手工覆盖维护，不再在代码里维护年度静态表。
 function isWorkday(value: Date) {
   const key = formatDate(value);
-  if (MAKEUP_WORKDAYS.has(key)) return true;
-  if (STATUTORY_HOLIDAYS.has(key)) return false;
+  const dayType = calendarDayType(key);
+  if (dayType === "makeup") return true;
+  if (dayType === "holiday") return false;
   const day = value.getUTCDay();
   return day !== 0 && day !== 6;
 }
-
 // 供看板等场景复用的工作日判定(数据库 generate_series 日期按 UTC 解析)。
 export function isWorkdayDate(isoDate: string) {
   return isWorkday(new Date(`${isoDate}T00:00:00Z`));

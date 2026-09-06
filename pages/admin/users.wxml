@@ -13,6 +13,7 @@
     </view>
     <button class="primary-button export-button" bindtap="openExport">导出考勤记录</button>
     <button class="secondary-button export-button" bindtap="openAiConfig">AI 设置</button>
+    <button class="secondary-button export-button" bindtap="openCalendar">节假日历</button>
   </view>
 </scroll-view>
 
