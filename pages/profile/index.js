@@ -305,16 +305,36 @@ Page({
     }
   },
 
+  onReady() {
+    this.setupSignatureCanvas()
+  },
+
+  // 签名画布用 Canvas 2D 接口:旧接口导出图片需经 canvasToTempFilePath 落临时文件再读,
+  // 真机调试模式下 FileSystemManager 读不到这类临时文件(报"签名读取失败");
+  // 2D 画布直接 toDataURL 导出 base64,不落临时文件,各运行环境行为一致。
+  setupSignatureCanvas() {
+    wx.createSelectorQuery().in(this).select('#signatureCanvas').fields({ node: true, size: true }).exec(result => {
+      const info = result && result[0]
+      if (!info || !info.node) return
+      const canvas = info.node
+      const windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
+      const dpr = windowInfo.pixelRatio || 2
+      canvas.width = info.width * dpr
+      canvas.height = info.height * dpr
+      const context = canvas.getContext('2d')
+      context.scale(dpr, dpr)
+      context.strokeStyle = '#111827'
+      context.lineWidth = 4
+      context.lineCap = 'round'
+      context.lineJoin = 'round'
+      this.signatureCanvas = canvas
+      this.signatureContext = context
+    })
+  },
+
   onSignatureStart(event) {
     const point = event.touches && event.touches[0]
-    if (!point) return
-    if (!this.signatureContext) {
-      this.signatureContext = wx.createCanvasContext('signatureCanvas', this)
-      this.signatureContext.setStrokeStyle('#111827')
-      this.signatureContext.setLineWidth(4)
-      this.signatureContext.setLineCap('round')
-      this.signatureContext.setLineJoin('round')
-    }
+    if (!point || !this.signatureContext) return
     this.lastSignaturePoint = { x: point.x, y: point.y }
   },
 
@@ -325,7 +345,6 @@ Page({
     this.signatureContext.moveTo(this.lastSignaturePoint.x, this.lastSignaturePoint.y)
     this.signatureContext.lineTo(point.x, point.y)
     this.signatureContext.stroke()
-    this.signatureContext.draw(true)
     this.lastSignaturePoint = { x: point.x, y: point.y }
     if (!this.data.signatureDirty) this.setData({ signatureDirty: true })
   },
@@ -335,45 +354,35 @@ Page({
   },
 
   clearSignature() {
-    const context = this.signatureContext || wx.createCanvasContext('signatureCanvas', this)
-    context.clearRect(0, 0, 1000, 400)
-    context.draw()
-    this.signatureContext = context
+    if (!this.signatureContext || !this.signatureCanvas) return
+    const context = this.signatureContext
+    // clearRect 受 dpr 缩放影响,先复位变换,按物理像素清空整个画布。
+    context.save()
+    context.setTransform(1, 0, 0, 1, 0, 0)
+    context.clearRect(0, 0, this.signatureCanvas.width, this.signatureCanvas.height)
+    context.restore()
     this.lastSignaturePoint = null
     this.setData({ signatureDirty: false })
   },
 
-  saveSignature() {
+  async saveSignature() {
     if (!this.data.signatureDirty || this.data.savingSignature) {
       wx.showToast({ title: '请先在签名框内手写签名', icon: 'none' })
       return
     }
+    if (!this.signatureCanvas) {
+      wx.showToast({ title: '签名画布未就绪，请重新进入页面', icon: 'none' })
+      return
+    }
     this.setData({ savingSignature: true })
-    wx.canvasToTempFilePath({
-      canvasId: 'signatureCanvas', fileType: 'png', quality: 1, destWidth: 1200, destHeight: 400,
-      success: result => {
-        wx.getFileSystemManager().readFile({
-          filePath: result.tempFilePath, encoding: 'base64',
-          success: async file => {
-            try {
-              await me.setSignature(`data:image/png;base64,${file.data}`)
-              this.setData({ savingSignature: false, signatureDirty: false, 'profile.signatureConfigured': true })
-              wx.showToast({ title: '审批签名已保存', icon: 'success' })
-            } catch (error) {
-              this.setData({ savingSignature: false })
-              wx.showToast({ title: error.message || '签名保存失败', icon: 'none' })
-            }
-          },
-          fail: () => {
-            this.setData({ savingSignature: false })
-            wx.showToast({ title: '签名读取失败', icon: 'none' })
-          }
-        })
-      },
-      fail: () => {
-        this.setData({ savingSignature: false })
-        wx.showToast({ title: '签名生成失败', icon: 'none' })
-      }
-    }, this)
+    try {
+      const dataUrl = this.signatureCanvas.toDataURL('image/png')
+      await me.setSignature(dataUrl)
+      this.setData({ savingSignature: false, signatureDirty: false, 'profile.signatureConfigured': true })
+      wx.showToast({ title: '审批签名已保存', icon: 'success' })
+    } catch (error) {
+      this.setData({ savingSignature: false })
+      wx.showToast({ title: error.message || '签名保存失败', icon: 'none' })
+    }
   }
 })

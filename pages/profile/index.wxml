@@ -142,7 +142,7 @@
         <text class="signature-state {{profile.signatureConfigured ? 'signature-state--saved' : ''}}">{{profile.signatureConfigured ? '已保存' : '未设置'}}</text>
       </view>
       <text class="field-help">通过申请时保存当次签名快照，并用于申请人下载的 PDF。</text>
-      <canvas class="signature-canvas" canvas-id="signatureCanvas" disable-scroll="true" catchtouchstart="onSignatureStart" catchtouchmove="onSignatureMove" catchtouchend="onSignatureEnd" catchtouchcancel="onSignatureEnd"></canvas>
+      <canvas class="signature-canvas" id="signatureCanvas" type="2d" disable-scroll="true" catchtouchstart="onSignatureStart" catchtouchmove="onSignatureMove" catchtouchend="onSignatureEnd" catchtouchcancel="onSignatureEnd"></canvas>
       <view class="signature-actions">
         <button class="secondary-button" bindtap="clearSignature">清空重写</button>
         <button class="primary-button" loading="{{savingSignature}}" bindtap="saveSignature">保存签名</button>
