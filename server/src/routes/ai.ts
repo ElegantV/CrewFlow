@@ -433,7 +433,29 @@ export const adminAiConfigSchema = z.object({
   maxTokens: z.coerce.number().int().min(50).max(4000).optional(),
   maxReplyChars: z.coerce.number().int().min(30).max(1000).optional(),
   systemPrompt: z.string().max(2000).optional(),
-});
+  // 防 SSRF:服务端会带着 API Key 请求该地址,必须限定公网 HTTPS 域名——
+  // 禁止 IP 字面量/localhost/无点主机名,IP 字面量再排除内网段,
+  // 防止把 Key 送去内网探测或任意外部服务器。
+}).refine((value) => {
+  if (!value.apiUrl) return true;
+  try {
+    const url = new URL(value.apiUrl);
+    if (url.protocol !== "https:") return false;
+    const host = url.hostname;
+    if (!host.includes(".") || /^(localhost|.*\.local)$/i.test(host)) return false;
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
+      const [a = 0, b = 0] = host.split(".").map(Number);
+      const privateIp = a === 0 || a === 10 || a === 127
+        || (a === 172 && b >= 16 && b <= 31)
+        || (a === 192 && b === 168)
+        || (a === 169 && b === 254);
+      if (privateIp) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}, { message: "AI API 地址必须是公网 HTTPS 域名" });
 
 export async function readAdminAiConfig() {
   const ai = await loadAiConfig();

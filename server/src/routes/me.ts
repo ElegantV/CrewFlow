@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { loadActiveActor } from "../authz.js";
+import { beijingTodayIso } from "../business/beijing-date.js";
 import { leavePolicies, type LeaveType } from "../business/leave-policy.js";
 import { db } from "../db.js";
 
@@ -39,7 +40,7 @@ const profileSchema = z.object({
   emergencyContactPhone: nullableText(30),
 }).refine(value => value.personnelType === "bank" || value.agentUserId !== null, {
   path: ["agentUserId"], message: "非行员必须维护工作代理人",
-}).refine(value => !value.workStartDate || value.workStartDate <= new Date().toISOString().slice(0, 10), {
+}).refine(value => !value.workStartDate || value.workStartDate <= beijingTodayIso(), {
   path: ["workStartDate"], message: "工作开始时间不能晚于今天",
 });
 
@@ -49,9 +50,9 @@ const avatarSchema = z.object({ imageData: z.string().max(1_000_000) });
 function annualLeaveDays(workStartDate: string | null) {
   if (!workStartDate) return { workYears: 0, annualLeaveDays: 0 };
   const [year = 0, month = 1, day = 1] = workStartDate.split("-").map(Number);
-  const now = new Date();
-  let workYears = now.getFullYear() - year;
-  if (now.getMonth() + 1 < month || (now.getMonth() + 1 === month && now.getDate() < day)) workYears -= 1;
+  const [nowYear = 0, nowMonth = 1, nowDay = 1] = beijingTodayIso().split("-").map(Number);
+  let workYears = nowYear - year;
+  if (nowMonth < month || (nowMonth === month && nowDay < day)) workYears -= 1;
   workYears = Math.max(0, workYears);
   let annualLeaveDays = 0;
   if (workYears >= 1) {
@@ -311,8 +312,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     if (!parsed.success) {
       return reply.code(400).send({ code: "INVALID_MONTH", message: "月份格式无效" });
     }
-    const now = new Date();
-    const month = parsed.data.month ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const month = parsed.data.month ?? beijingTodayIso().slice(0, 7);
     const [year = 0, value = 0] = month.split("-").map(Number);
     const lastDay = new Date(Date.UTC(year, value, 0)).getUTCDate();
     const rangeStart = `${month}-01`;

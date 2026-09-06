@@ -126,6 +126,10 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
     if (endDate < parsed.data.startDate) {
       return reply.code(400).send({ code: "INVALID_DATE_RANGE", message: "结束日期不能早于开始日期" });
     }
+    // 单次申请上限一年:业务上不存在此类假期,同时防止超大区间把看板按天展开、导出拖垮。
+    if (Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${parsed.data.startDate}T00:00:00Z`) > 365 * 86_400_000) {
+      return reply.code(400).send({ code: "LEAVE_RANGE_TOO_LONG", message: "单次请假不能超过一年" });
+    }
     if (!validatePeriodRange(parsed.data.startDate, endDate, startPeriod, endPeriod)) {
       return reply.code(400).send({
         code: "INVALID_PERIOD_RANGE",

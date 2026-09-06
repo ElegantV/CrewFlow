@@ -72,14 +72,14 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       role: "user" | "admin" | "super_admin";
       status: "pending" | "active" | "disabled";
     }>(
+      // ON CONFLICT 只补 unionid,不改 role/status:bootstrap 超管被停用后,
+      // 不能靠重新登录自动复活为 super_admin/active,否则停用操作对其无效。
       `INSERT INTO users (openid, unionid, role, status)
        VALUES ($1, $2,
          CASE WHEN $3 OR ($4 AND NOT EXISTS (SELECT 1 FROM users)) THEN 'super_admin' ELSE 'user' END,
          CASE WHEN $3 OR ($4 AND NOT EXISTS (SELECT 1 FROM users)) THEN 'active' ELSE 'pending' END)
        ON CONFLICT (openid) DO UPDATE
        SET unionid = COALESCE(EXCLUDED.unionid, users.unionid),
-           role = CASE WHEN $3 THEN 'super_admin' ELSE users.role END,
-           status = CASE WHEN $3 THEN 'active' ELSE users.status END,
            updated_at = now()
        RETURNING id, name, employee_no, role, status`,
       [
