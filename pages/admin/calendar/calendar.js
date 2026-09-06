@@ -1,4 +1,4 @@
-const admin = require('../../services/admin')
+const admin = require('../../../services/admin')
 
 const TYPE_LABELS = {
   holiday: '法定节假日',
