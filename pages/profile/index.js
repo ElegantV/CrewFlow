@@ -308,66 +308,31 @@ Page({
     }
   },
 
-  onReady() {
-    this.setupSignatureCanvas()
-  },
-
-  // 签名画布用 Canvas 2D 接口:旧接口导出图片需经 canvasToTempFilePath 落临时文件再读,
-  // 真机调试模式下 FileSystemManager 读不到这类临时文件(报"签名读取失败");
-  // 2D 画布直接 toDataURL 导出 base64,不落临时文件,各运行环境行为一致。
-  setupSignatureCanvas() {
-    wx.createSelectorQuery().in(this).select('#signatureCanvas').fields({ node: true, size: true, rect: true }).exec(result => {
-      const info = result && result[0]
-      if (!info || !info.node) return
-      if (this.signatureCanvas === info.node) return
-      const canvas = info.node
-      const windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
-      const dpr = windowInfo.pixelRatio || 2
-      canvas.width = info.width * dpr
-      canvas.height = info.height * dpr
-      const context = canvas.getContext('2d')
-      context.scale(dpr, dpr)
-      context.strokeStyle = '#111827'
-      context.lineWidth = 4
-      context.lineCap = 'round'
-      context.lineJoin = 'round'
-      this.signatureCanvas = canvas
-      this.signatureContext = context
-      // 缓存画布在视口中的偏移,触摸事件缺 canvas 相对坐标时兜底换算。
-      this.canvasRect = { left: info.left || 0, top: info.top || 0 }
-    })
-  },
-
-  // 不同基础库下 canvas 触摸事件坐标字段不一致:优先 canvas 相对坐标 x/y,
-  // 缺失时用视口坐标减画布偏移换算。
-  signaturePoint(touch) {
-    if (!touch) return null
-    const offset = this.canvasRect || { left: 0, top: 0 }
-    return {
-      x: typeof touch.x === 'number' ? touch.x : touch.clientX - offset.left,
-      y: typeof touch.y === 'number' ? touch.y : touch.clientY - offset.top
-    }
-  },
-
   onSignatureStart(event) {
-    const point = this.signaturePoint(event.touches && event.touches[0])
+    const point = event.touches && event.touches[0]
     if (!point) return
     if (!this.signatureContext) {
-      // 画布节点尚未就绪时兜底重试;就绪后下一笔即可正常书写。
-      this.setupSignatureCanvas()
-      return
+      // 懒初始化:签名区随资料加载渲染,首次触摸时画布已就绪。
+      // 保持旧版 Canvas 接口:Canvas 2D 在 macOS 开发者工具 WebView 渲染层
+      // 存在 this._getData 崩溃(触摸即报错),各基础库表现不一致。
+      this.signatureContext = wx.createCanvasContext('signatureCanvas', this)
+      this.signatureContext.setStrokeStyle('#111827')
+      this.signatureContext.setLineWidth(4)
+      this.signatureContext.setLineCap('round')
+      this.signatureContext.setLineJoin('round')
     }
-    this.lastSignaturePoint = point
+    this.lastSignaturePoint = { x: point.x, y: point.y }
   },
 
   onSignatureMove(event) {
-    const point = this.signaturePoint(event.touches && event.touches[0])
+    const point = event.touches && event.touches[0]
     if (!point || !this.lastSignaturePoint || !this.signatureContext) return
     this.signatureContext.beginPath()
     this.signatureContext.moveTo(this.lastSignaturePoint.x, this.lastSignaturePoint.y)
     this.signatureContext.lineTo(point.x, point.y)
     this.signatureContext.stroke()
-    this.lastSignaturePoint = point
+    this.signatureContext.draw(true)
+    this.lastSignaturePoint = { x: point.x, y: point.y }
     if (!this.data.signatureDirty) this.setData({ signatureDirty: true })
   },
 
@@ -376,35 +341,50 @@ Page({
   },
 
   clearSignature() {
-    if (!this.signatureContext || !this.signatureCanvas) return
-    const context = this.signatureContext
-    // clearRect 受 dpr 缩放影响,先复位变换,按物理像素清空整个画布。
-    context.save()
-    context.setTransform(1, 0, 0, 1, 0, 0)
-    context.clearRect(0, 0, this.signatureCanvas.width, this.signatureCanvas.height)
-    context.restore()
+    const context = this.signatureContext || wx.createCanvasContext('signatureCanvas', this)
+    context.clearRect(0, 0, 1000, 400)
+    context.draw()
+    this.signatureContext = context
     this.lastSignaturePoint = null
     this.setData({ signatureDirty: false })
   },
 
-  async saveSignature() {
+  saveSignature() {
     if (!this.data.signatureDirty || this.data.savingSignature) {
       wx.showToast({ title: '请先在签名框内手写签名', icon: 'none' })
       return
     }
-    if (!this.signatureCanvas) {
-      wx.showToast({ title: '签名画布未就绪，请重新进入页面', icon: 'none' })
-      return
-    }
     this.setData({ savingSignature: true })
-    try {
-      const dataUrl = this.signatureCanvas.toDataURL('image/png')
-      await me.setSignature(dataUrl)
-      this.setData({ savingSignature: false, signatureDirty: false, 'profile.signatureConfigured': true })
-      wx.showToast({ title: '审批签名已保存', icon: 'success' })
-    } catch (error) {
-      this.setData({ savingSignature: false })
-      wx.showToast({ title: error.message || '签名保存失败', icon: 'none' })
-    }
+    wx.canvasToTempFilePath({
+      canvasId: 'signatureCanvas', fileType: 'png', quality: 1, destWidth: 1200, destHeight: 400,
+      success: result => {
+        wx.getFileSystemManager().readFile({
+          filePath: result.tempFilePath, encoding: 'base64',
+          success: async file => {
+            try {
+              await me.setSignature(`data:image/png;base64,${file.data}`)
+              this.setData({ savingSignature: false, signatureDirty: false, 'profile.signatureConfigured': true })
+              wx.showToast({ title: '审批签名已保存', icon: 'success' })
+            } catch (error) {
+              this.setData({ savingSignature: false })
+              wx.showToast({ title: error.message || '签名保存失败', icon: 'none' })
+            }
+          },
+          fail: () => {
+            // 真机调试模式下临时文件是 http://tmp 虚拟路径,FileSystemManager 读不到;
+            // 预览版/体验版/正式版不受影响。签名是一次性设置,给出明确引导即可。
+            this.setData({ savingSignature: false })
+            wx.showToast({
+              title: '真机调试模式暂不支持保存签名，请用「预览」扫码后保存',
+              icon: 'none', duration: 3000
+            })
+          }
+        })
+      },
+      fail: () => {
+        this.setData({ savingSignature: false })
+        wx.showToast({ title: '签名生成失败', icon: 'none' })
+      }
+    }, this)
   }
 })
