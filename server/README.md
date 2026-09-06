@@ -93,15 +93,39 @@ PDF 默认使用 macOS 自带的华文黑体；Docker 镜像会安装 Noto CJK �
 
 不要把 `.env`、微信 `AppSecret` 或数据库密码提交到版本库。
 
+### 数据库备份
+
+数据库承载请假、审批、签名等敏感记录，上线即应配置定时备份（`scripts/backup-database.sh`，
+需在装有 Docker Compose 的服务器上执行）：
+
+```bash
+# 手动执行一次
+./scripts/backup-database.sh
+
+# 每天凌晨 02:30 自动备份、保留 14 天（crontab -e 添加）
+30 2 * * * cd /部署目录/server && ./scripts/backup-database.sh >> backups/backup.log 2>&1
+```
+
+恢复：`gunzip -c backups/crewflow-xxxx.sql.gz | docker compose exec -T db psql --username crewflow --dbname crewflow`。
+每次版本升级后建议做一次恢复演练，确认备份确实可用；备份目录可再同步一份到异机/对象存储。
+
+### 管理员账号换绑微信号
+
+「绑定已有用户」按姓名+手机号认领账号，不构成强身份证明，因此服务端限制：
+停用账号不可绑定，且只能认领普通用户账号——禁止凭姓名+手机号接管管理员/超级管理员。
+管理员更换微信号后，由超级管理员在服务器上更新该账号的 openid（或调整角色）。
+
 ### 上线自检清单
 
 正式版提审前逐项确认：
 
 - [ ] `config/env.js` 的 `PRODUCTION_API_ORIGIN` 已改为 HTTPS 域名，且不带结尾斜杠
 - [ ] 域名已完成 ICP 备案，并已加入小程序后台的 request / downloadFile 合法域名
-- [ ] 服务器安全组放行 443；3000 端口**不应对公网开放**（只由 Caddy 本机反代）
+- [ ] 服务器安全组放行 443；3000 端口不应对公网开放（compose 已默认绑定 127.0.0.1，
+      若自行调整端口映射需保持只由 Caddy 本机反代）
 - [ ] `.env` 中 `NODE_ENV=production`，`JWT_SECRET` 至少 32 位随机字符串
 - [ ] `npm run migrate:check` 返回「已是最新」，没有未执行的迁移
+- [ ] 已配置数据库定时备份（`scripts/backup-database.sh` + crontab），并手动验证过一次备份可恢复
 - [ ] `curl https://你的域名/health` 返回 `{"status":"ok"}`
 - [ ] 真机预览走一遍：登录 → 登记加班 → 请调休假 → 审批通过 → 下载 PDF
 - [ ] 管理员已在「个人信息」中保存手写签名，否则审批通过时无法固化签名
