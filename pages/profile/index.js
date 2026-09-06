@@ -187,6 +187,9 @@ Page({
         itlIndex: Math.max(0, this.data.itlOptions.findIndex(item => item.value === itlStatus)),
         annualLeave: profile.annualLeave || calculateAnnualLeave(form.workStartDate),
         isManager: profile.role === 'admin' || profile.role === 'super_admin'
+      }, () => {
+        // 签名画布在 isManager 为 true 后才渲染,渲染完成后才能查到节点。
+        if (this.data.isManager) this.setupSignatureCanvas()
       })
     } catch (error) {
       wx.showToast({ title: error.message || '个人信息加载失败', icon: 'none' })
@@ -313,9 +316,10 @@ Page({
   // 真机调试模式下 FileSystemManager 读不到这类临时文件(报"签名读取失败");
   // 2D 画布直接 toDataURL 导出 base64,不落临时文件,各运行环境行为一致。
   setupSignatureCanvas() {
-    wx.createSelectorQuery().in(this).select('#signatureCanvas').fields({ node: true, size: true }).exec(result => {
+    wx.createSelectorQuery().in(this).select('#signatureCanvas').fields({ node: true, size: true, rect: true }).exec(result => {
       const info = result && result[0]
       if (!info || !info.node) return
+      if (this.signatureCanvas === info.node) return
       const canvas = info.node
       const windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
       const dpr = windowInfo.pixelRatio || 2
@@ -329,23 +333,41 @@ Page({
       context.lineJoin = 'round'
       this.signatureCanvas = canvas
       this.signatureContext = context
+      // 缓存画布在视口中的偏移,触摸事件缺 canvas 相对坐标时兜底换算。
+      this.canvasRect = { left: info.left || 0, top: info.top || 0 }
     })
   },
 
+  // 不同基础库下 canvas 触摸事件坐标字段不一致:优先 canvas 相对坐标 x/y,
+  // 缺失时用视口坐标减画布偏移换算。
+  signaturePoint(touch) {
+    if (!touch) return null
+    const offset = this.canvasRect || { left: 0, top: 0 }
+    return {
+      x: typeof touch.x === 'number' ? touch.x : touch.clientX - offset.left,
+      y: typeof touch.y === 'number' ? touch.y : touch.clientY - offset.top
+    }
+  },
+
   onSignatureStart(event) {
-    const point = event.touches && event.touches[0]
-    if (!point || !this.signatureContext) return
-    this.lastSignaturePoint = { x: point.x, y: point.y }
+    const point = this.signaturePoint(event.touches && event.touches[0])
+    if (!point) return
+    if (!this.signatureContext) {
+      // 画布节点尚未就绪时兜底重试;就绪后下一笔即可正常书写。
+      this.setupSignatureCanvas()
+      return
+    }
+    this.lastSignaturePoint = point
   },
 
   onSignatureMove(event) {
-    const point = event.touches && event.touches[0]
+    const point = this.signaturePoint(event.touches && event.touches[0])
     if (!point || !this.lastSignaturePoint || !this.signatureContext) return
     this.signatureContext.beginPath()
     this.signatureContext.moveTo(this.lastSignaturePoint.x, this.lastSignaturePoint.y)
     this.signatureContext.lineTo(point.x, point.y)
     this.signatureContext.stroke()
-    this.lastSignaturePoint = { x: point.x, y: point.y }
+    this.lastSignaturePoint = point
     if (!this.data.signatureDirty) this.setData({ signatureDirty: true })
   },
 
