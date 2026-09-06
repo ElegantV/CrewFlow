@@ -58,6 +58,7 @@
           class="prompt-input"
           value="{{input}}"
           placeholder="例如：8月13号请一天调休假"
+          maxlength="500"
           confirm-type="send"
           cursor-color="#45C98A"
           bindinput="onInput"

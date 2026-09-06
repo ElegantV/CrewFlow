@@ -156,8 +156,19 @@ export const aiRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(403).send({ code: "AI_DISABLED", message: "请先开启 AI 深度问答" });
     }
 
-    const parsed = chatSchema.safeParse(request.body);
+    // 宽容清洗而非直接拒绝:历史消息可能带出空文本/超长内容,剔除无效条目、截断超长,
+    // 清洗后为空才返回 400,并记录请求体摘要便于定位客户端问题。
+    const rawMessages = Array.isArray((request.body as any)?.messages) ? (request.body as any).messages : [];
+    const sanitized = rawMessages
+      .filter((item: any) => item && (item.role === "user" || item.role === "assistant") && typeof item.content === "string")
+      .map((item: any) => ({ role: item.role, content: String(item.content).trim().slice(0, 2000) }))
+      .filter((item: { content: string }) => item.content.length > 0);
+    const parsed = chatSchema.safeParse({ messages: sanitized });
     if (!parsed.success) {
+      request.log.warn(
+        { bodyPreview: JSON.stringify(request.body)?.slice(0, 600), issues: parsed.error.issues },
+        "AI chat payload rejected",
+      );
       return reply.code(400).send({ code: "INVALID_CHAT", message: "对话内容无效" });
     }
 

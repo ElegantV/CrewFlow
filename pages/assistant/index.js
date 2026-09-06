@@ -488,7 +488,7 @@ Page({
   async askAi(text) {
     this.setData({ running: true })
     const history = this.data.messages
-      .filter(item => item.tone !== 'error')
+      .filter(item => item.tone !== 'error' && typeof item.text === 'string' && item.text.trim())
       .slice(-10)
       .map(item => ({ role: item.role, content: item.text }))
     const placeholderId = this.appendMessage('assistant', '正在思考…', 'running')
