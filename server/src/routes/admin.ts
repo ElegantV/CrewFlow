@@ -7,6 +7,7 @@ import {
   type LeaveRow,
   type OvertimeRow,
 } from "../business/export-records.js";
+import { adminAiConfigSchema, readAdminAiConfig } from "./ai.js";
 
 const updateUserSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
@@ -170,6 +171,37 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
       .header("Content-Disposition", `attachment; filename="records.xlsx"; filename*=UTF-8''${encodeURIComponent(filename)}`)
       .send(Buffer.from(buffer));
+  });
+
+  // AI 深度问答配置:模型/Key/回复字数/提示词,Key 只返回脱敏形式,空 Key 表示沿用 .env 默认值。
+  app.get("/ai-config", superAdminHooks, async () => readAdminAiConfig());
+
+  app.put("/ai-config", superAdminHooks, async (request, reply) => {
+    const parsed = adminAiConfigSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ code: "INVALID_AI_CONFIG", message: "AI 配置无效" });
+    }
+    const value = parsed.data;
+    // 未传 apiKey(或传空)表示保留现有 Key,避免每次保存都要重新粘贴。
+    if (value.apiKey !== undefined && value.apiKey !== "") {
+      await db.query("UPDATE ai_config SET api_key = $1, updated_at = now() WHERE id = 1", [value.apiKey]);
+    }
+    if (value.model !== undefined) {
+      await db.query("UPDATE ai_config SET model = $1, updated_at = now() WHERE id = 1", [value.model]);
+    }
+    if (value.apiUrl !== undefined) {
+      await db.query("UPDATE ai_config SET api_url = $1, updated_at = now() WHERE id = 1", [value.apiUrl]);
+    }
+    if (value.maxTokens !== undefined) {
+      await db.query("UPDATE ai_config SET max_tokens = $1, updated_at = now() WHERE id = 1", [value.maxTokens]);
+    }
+    if (value.maxReplyChars !== undefined) {
+      await db.query("UPDATE ai_config SET max_reply_chars = $1, updated_at = now() WHERE id = 1", [value.maxReplyChars]);
+    }
+    if (value.systemPrompt !== undefined) {
+      await db.query("UPDATE ai_config SET system_prompt = $1, updated_at = now() WHERE id = 1", [value.systemPrompt]);
+    }
+    return readAdminAiConfig();
   });
 };
 

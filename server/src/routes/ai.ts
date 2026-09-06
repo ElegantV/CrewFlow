@@ -1,6 +1,6 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { loadActiveActor } from "../authz.js";
+import { allowRoles, loadActiveActor } from "../authz.js";
 import { config } from "../config.js";
 import { db } from "../db.js";
 
@@ -17,28 +17,134 @@ const upstreamChoiceSchema = z.object({
   })).min(1),
 });
 
-// 大模型输出只作为回答文本返回给前端展示,永远不在这里解析成指令或直接执行任何操作;
-// 系统功能(请假/加班/审批等)仍由小程序端的规则引擎走既有业务接口。
-function buildSystemPrompt(name: string | null, role: string) {
+const upstreamDeltaSchema = z.object({
+  choices: z.array(z.object({
+    delta: z.object({ content: z.string().optional() }).optional(),
+  })).min(1),
+});
+
+type AiConfig = {
+  apiUrl: string;
+  apiKey: string;
+  model: string;
+  maxTokens: number;
+  maxReplyChars: number;
+  systemPrompt: string;
+};
+
+// 配置存于 ai_config 单行表,空字段沿用 .env 默认值;管理员可在小程序内修改,免登服务器。
+async function loadAiConfig(): Promise<AiConfig> {
+  const result = await db.query<{
+    model: string;
+    api_url: string;
+    api_key: string;
+    max_tokens: number;
+    max_reply_chars: number;
+    system_prompt: string;
+  }>(
+    "SELECT model, api_url, api_key, max_tokens, max_reply_chars, system_prompt FROM ai_config WHERE id = 1",
+  );
+  const row = result.rows[0];
+  return {
+    apiUrl: row?.api_url || config.AI_API_URL,
+    apiKey: row?.api_key || config.AI_API_KEY,
+    model: row?.model || config.AI_MODEL,
+    maxTokens: row?.max_tokens || 400,
+    maxReplyChars: row?.max_reply_chars || 120,
+    systemPrompt: row?.system_prompt || "",
+  };
+}
+
+// 系统提示词:回答严格限定在本小程序的考勤日程领域,无关问题礼貌拒绝,并强制控制篇幅。
+// 管理员可通过 ai_config.system_prompt 整体覆盖默认提示词。
+function buildSystemPrompt(name: string | null, role: string, ai: AiConfig) {
   const roleLabel = role === "super_admin" ? "超级管理员" : role === "admin" ? "管理员" : "普通用户";
-  return [
-    "你是「简序日程助手」，一个企业考勤与日程小程序里的 AI 问答助手。",
-    "用户已主动开启深度问答，你可以回答工作相关或任何其他领域的复杂问题。",
-    `当前用户：${name || "未命名用户"}（${roleLabel}）。可以自然地在回答中引用其姓名，但不要编造其考勤、请假、审批等内部数据——你没有查询这些数据的工具。`,
-    "如果用户要求办理请假、加班、审批等系统操作，请引导用户直接用简短指令（如「8月13号请一天调休假」）在对话里发送，系统会自动识别并执行；不要声称自己已经执行了任何操作。",
-    "用简体中文回答，语气简洁专业，纯文本输出，不要使用 Markdown 标记。",
+  const scope = ai.systemPrompt.trim() || [
+    "你只回答与本小程序功能相关的问题：请假、调休、加班、审批流程、通讯录、个人考勤与日程。",
+    "与小程序功能无关的问题（天气、新闻、闲聊、其他领域知识等），礼貌说明你只能协助考勤日程相关事宜，并用一句话引导回正题。",
   ].join("\n");
+  return [
+    `你是「简序日程助手」，一个企业考勤与日程小程序的 AI 助手。当前用户：${name || "未命名用户"}（${roleLabel}）。`,
+    scope,
+    "不要编造用户的考勤、请假、审批等内部数据——你没有查询这些数据的工具。",
+    "如果用户想办理业务（请假、加班、审批等），引导他们直接发送简短指令（如「8月13号请一天调休假」），系统会自动识别执行；不要声称自己执行了任何操作。",
+    `回答必须非常简洁：不超过 ${ai.maxReplyChars} 字，直接给结论，不写铺垫、不列长清单、不使用 Markdown 标记。`,
+  ].join("\n");
+}
+
+// 硬性截断:即使模型超长也保证返回不超过 maxReplyChars。
+function truncateReply(text: string, maxChars: number) {
+  const clean = text.trim();
+  if (clean.length <= maxChars) return clean;
+  return clean.slice(0, maxChars).trimEnd() + "…";
+}
+
+function wantsStream(request: FastifyRequest) {
+  return String(request.headers.accept || "").includes("text/event-stream");
+}
+
+function startSse(reply: FastifyReply) {
+  reply.hijack();
+  reply.raw.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache",
+    connection: "keep-alive",
+  });
+  return {
+    send(payload: Record<string, unknown>) {
+      reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`);
+    },
+    end() {
+      reply.raw.end();
+    },
+    onAbort(handler: () => void) {
+      reply.raw.on("close", () => {
+        if (!reply.raw.writableEnded) handler();
+      });
+    },
+  };
+}
+
+// 解析上游 OpenAI 兼容 SSE:逐行提取 data: 帧里的 delta.content,遇 [DONE] 结束。
+async function* upstreamDeltas(response: Response) {
+  const body = response.body;
+  if (!body) return;
+  const reader = body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+      for (const frame of frames) {
+        const line = frame.trim();
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === "[DONE]") continue;
+        const parsed = upstreamDeltaSchema.safeParse(JSON.parse(payload));
+        const text = parsed.success ? parsed.data.choices[0]?.delta?.content : undefined;
+        if (text) yield text;
+      }
+    }
+  } finally {
+    reader.cancel().catch(() => {});
+  }
 }
 
 export const aiRoutes: FastifyPluginAsync = async (app) => {
   const protectedHooks = { onRequest: [app.authenticate, loadActiveActor] };
+  const adminHooks = { onRequest: [app.authenticate, loadActiveActor, allowRoles("super_admin")] };
 
   app.post("/chat", {
     ...protectedHooks,
     // AI 调用有真实成本,单独收紧限流;全局 300/分钟 的兜底仍然生效。
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
   }, async (request, reply) => {
-    if (!config.AI_API_KEY) {
+    const ai = await loadAiConfig();
+    if (!ai.apiKey) {
       return reply.code(503).send({ code: "AI_NOT_CONFIGURED", message: "AI 问答未配置，请联系管理员" });
     }
 
@@ -47,7 +153,7 @@ export const aiRoutes: FastifyPluginAsync = async (app) => {
       [request.actor!.id],
     );
     if (!enabled.rows[0]?.ai_agent_enabled) {
-      return reply.code(403).send({ code: "AI_DISABLED", message: "请先在「个人信息」中开启 AI 深度问答" });
+      return reply.code(403).send({ code: "AI_DISABLED", message: "请先开启 AI 深度问答" });
     }
 
     const parsed = chatSchema.safeParse(request.body);
@@ -61,21 +167,76 @@ export const aiRoutes: FastifyPluginAsync = async (app) => {
     );
     const user = profile.rows[0]!;
 
+    const stream = wantsStream(request);
+    const abortController = new AbortController();
+    if (stream) {
+      const sse = startSse(reply);
+      sse.onAbort(() => abortController.abort());
+      try {
+        const upstream = await fetch(ai.apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${ai.apiKey}`,
+            Accept: "text/event-stream",
+          },
+          body: JSON.stringify({
+            model: ai.model,
+            messages: [
+              { role: "system", content: buildSystemPrompt(user.name, user.role, ai) },
+              ...parsed.data.messages,
+            ],
+            max_tokens: ai.maxTokens,
+            stream: true,
+          }),
+          signal: abortController.signal,
+        });
+        if (!upstream.ok) {
+          const detail = await upstream.text().catch(() => "");
+          request.log.warn({ status: upstream.status, detail: detail.slice(0, 500) }, "AI upstream returned error");
+          sse.send({ type: "error", message: "AI 服务暂时不可用，请稍后重试" });
+          sse.end();
+          return;
+        }
+        let full = "";
+        for await (const delta of upstreamDeltas(upstream)) {
+          full += delta;
+          sse.send({ type: "delta", text: delta });
+          if (full.length >= ai.maxReplyChars + 50) {
+            abortController.abort();
+            break;
+          }
+        }
+        const replyText = truncateReply(full, ai.maxReplyChars);
+        if (replyText) sse.send({ type: "result", text: replyText });
+        else sse.send({ type: "error", message: "AI 未返回有效回答，请稍后重试" });
+      } catch (error) {
+        if (!abortController.signal.aborted) {
+          request.log.warn({ err: error }, "AI upstream request failed");
+          sse.send({ type: "error", message: "AI 服务暂时不可用，请稍后重试" });
+        }
+      } finally {
+        if (!reply.raw.writableEnded) sse.end();
+      }
+      return;
+    }
+
+    // 非流式 JSON 模式:兼容测试与降级场景。
     let response: Response;
     try {
-      response = await fetch(config.AI_API_URL, {
+      response = await fetch(ai.apiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${config.AI_API_KEY}`,
+          Authorization: `Bearer ${ai.apiKey}`,
         },
         body: JSON.stringify({
-          model: config.AI_MODEL,
+          model: ai.model,
           messages: [
-            { role: "system", content: buildSystemPrompt(user.name, user.role) },
+            { role: "system", content: buildSystemPrompt(user.name, user.role, ai) },
             ...parsed.data.messages,
           ],
-          max_tokens: 1024,
+          max_tokens: ai.maxTokens,
         }),
         signal: AbortSignal.timeout(45_000),
       });
@@ -100,6 +261,28 @@ export const aiRoutes: FastifyPluginAsync = async (app) => {
       request.log.warn("AI upstream response missing content");
       return reply.code(502).send({ code: "AI_UPSTREAM_ERROR", message: "AI 未返回有效回答，请稍后重试" });
     }
-    return { reply: content };
+    return { reply: truncateReply(content, ai.maxReplyChars) };
   });
 };
+
+export const adminAiConfigSchema = z.object({
+  model: z.string().trim().max(80).optional(),
+  apiUrl: z.string().trim().max(300).url().or(z.literal("")).optional(),
+  apiKey: z.string().trim().max(500).optional(),
+  maxTokens: z.coerce.number().int().min(50).max(4000).optional(),
+  maxReplyChars: z.coerce.number().int().min(30).max(1000).optional(),
+  systemPrompt: z.string().max(2000).optional(),
+});
+
+export async function readAdminAiConfig() {
+  const ai = await loadAiConfig();
+  return {
+    model: ai.model,
+    apiUrl: ai.apiUrl,
+    maxTokens: ai.maxTokens,
+    maxReplyChars: ai.maxReplyChars,
+    systemPrompt: ai.systemPrompt,
+    hasKey: Boolean(ai.apiKey),
+    keyMasked: ai.apiKey ? `***${ai.apiKey.slice(-4)}` : "",
+  };
+}

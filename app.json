@@ -11,6 +11,7 @@
     "pages/register/index",
     "pages/ledger/index",
     "pages/admin/users",
+    "pages/admin/ai/ai",
     "pages/dev/users"
   ],
   "window": {

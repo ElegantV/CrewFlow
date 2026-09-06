@@ -483,7 +483,8 @@ Page({
     return /(什么|怎么|怎样|如何|为什么|是否|能不能|多少|几|哪些|区别|政策|制度|规定|流程|条件|吗[?？]?|[?？])/.test(stripped)
   },
 
-  // AI 深度问答:大模型输出只作为回答文本展示,不解析为指令,系统操作永远走上面的规则执行路径。
+  // AI 深度问答:流式接收回答实时上屏;大模型输出只作为回答文本展示,不解析为指令,
+  // 系统操作永远走上面的规则执行路径。
   async askAi(text) {
     this.setData({ running: true })
     const history = this.data.messages
@@ -491,12 +492,29 @@ Page({
       .slice(-10)
       .map(item => ({ role: item.role, content: item.text }))
     const placeholderId = this.appendMessage('assistant', '正在思考…', 'running')
+    this.aiPartialText = ''
+    let received = false
     try {
-      const result = await ai.chat(history.concat({ role: 'user', content: text }))
+      const result = await ai.chatStream(
+        history.concat({ role: 'user', content: text }),
+        {
+          onDelta: deltaText => {
+            received = true
+            this.replaceMessage(placeholderId, this.aiPartialText + deltaText, 'running')
+            this.aiPartialText += deltaText
+          }
+        }
+      )
       this.replaceMessage(placeholderId, result.reply)
     } catch (error) {
-      this.replaceMessage(placeholderId, error.message || 'AI 暂时不可用，请稍后重试。', 'error')
+      if (received) {
+        // 流式已上屏但收尾失败(如超长截断后连接异常):保留已显示内容,仅追加提示。
+        this.replaceMessage(placeholderId, `${this.aiPartialText}\n（回答可能不完整）`, 'error')
+      } else {
+        this.replaceMessage(placeholderId, error.message || 'AI 暂时不可用，请稍后重试。', 'error')
+      }
     } finally {
+      this.aiPartialText = ''
       this.setData({ running: false })
       setTimeout(() => this.setData({ scrollIntoView: `message-${this.data.messages.length - 1}` }), 30)
     }

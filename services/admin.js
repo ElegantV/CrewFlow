@@ -14,6 +14,12 @@ module.exports = {
       url: `/api/v1/admin/records/export?${params.join('&')}`,
       timeout: 60000
     })
+  },
+  getAiConfig() {
+    return request({ url: '/api/v1/admin/ai-config' })
+  },
+  saveAiConfig(data) {
+    return request({ url: '/api/v1/admin/ai-config', method: 'PUT', data })
   }
 }
 

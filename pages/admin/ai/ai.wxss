@@ -1,0 +1,14 @@
+.ai-config-scroll { height: 100vh; background: #F7F8FA; }
+.page-shell { padding: 24rpx 28rpx 60rpx; }
+.card { padding: 28rpx; margin-bottom: 24rpx; border-radius: var(--r-lg); background: #fff; box-shadow: 0 5rpx 18rpx rgba(30, 45, 70, .05); }
+.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8rpx; }
+.section-title { color: #172033; font-size: 30rpx; font-weight: 700; }
+.section-tag { padding: 6rpx 13rpx; border-radius: var(--r-pill); color: #66758a; background: #f1f4f8; font-size: 20rpx; }
+.field { margin-top: 25rpx; }
+.field-label { display: block; margin-bottom: 11rpx; color: #455267; font-size: 24rpx; font-weight: 500; }
+.field-control { width: 100%; min-height: 82rpx; padding: 20rpx 22rpx; border: 1rpx solid #dce3ec; border-radius: var(--r-md); color: #172033; background: var(--c-bg-subtle); font-size: 27rpx; box-sizing: border-box; }
+.field-textarea { min-height: 200rpx; }
+.field-help { display: block; margin-top: 10rpx; color: #9aa2af; font-size: 21rpx; line-height: 1.5; }
+.primary-button { margin-top: 12rpx; padding: 24rpx 0; border-radius: var(--r-md); color: #fff; background: var(--brand-deep); font-size: 29rpx; }
+.save-button { width: 100%; }
+.loading-state { display: flex; justify-content: center; padding: 200rpx 0; color: #9aa2af; font-size: 26rpx; }

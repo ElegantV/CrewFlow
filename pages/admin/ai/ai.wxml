@@ -1,0 +1,39 @@
+<navigation-bar title="AI 设置" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<scroll-view class="ai-config-scroll" scroll-y>
+  <view class="page-shell" wx:if="{{loaded}}">
+    <view class="card section-card">
+      <view class="section-head"><text class="section-title">模型与密钥</text><text class="section-tag">全局生效</text></view>
+      <view class="field">
+        <text class="field-label">模型 ID</text>
+        <input class="field-control" value="{{form.model}}" data-field="model" bindinput="onInput" placeholder="留空使用默认：Deepseek-v4-flash（注意大小写）" />
+      </view>
+      <view class="field">
+        <text class="field-label">API Key（微信「AI 能力」签发）</text>
+        <input class="field-control" password value="{{form.apiKey}}" data-field="apiKey" bindinput="onInput" placeholder="{{keyPlaceholder}}" />
+        <text class="field-help">留空表示保持现有 Key 不变。{{keyMasked ? '当前已配置：' + keyMasked : '尚未配置，将使用服务端 .env 中的默认 Key。'}}</text>
+      </view>
+    </view>
+
+    <view class="card section-card">
+      <view class="section-head"><text class="section-title">回复约束</text><text class="section-tag">立即生效</text></view>
+      <view class="field">
+        <text class="field-label">单条回复字数上限</text>
+        <input class="field-control" type="number" value="{{form.maxReplyChars}}" data-field="maxReplyChars" bindinput="onInput" />
+        <text class="field-help">服务端双重限制：提示词要求模型简洁回答 + 超出部分强制截断（30~1000 字）。</text>
+      </view>
+      <view class="field">
+        <text class="field-label">单次最大 Token（进阶）</text>
+        <input class="field-control" type="number" value="{{form.maxTokens}}" data-field="maxTokens" bindinput="onInput" />
+      </view>
+    </view>
+
+    <view class="card section-card">
+      <view class="section-head"><text class="section-title">系统提示词</text><text class="section-tag">可选</text></view>
+      <textarea class="field-control field-textarea" value="{{form.systemPrompt}}" data-field="systemPrompt" bindinput="onInput" maxlength="2000" placeholder="留空使用默认：仅回答请假/加班/调休/审批/通讯录等小程序功能相关问题，无关问题礼貌拒绝并引导回正题。"></textarea>
+      <text class="field-help">填写后将整体覆盖默认的领域限定与引导策略；身份说明和字数约束始终由系统追加，不受此处影响。</text>
+    </view>
+
+    <button class="primary-button save-button" loading="{{saving}}" bindtap="save">保存配置</button>
+  </view>
+  <view class="loading-state" wx:else>正在加载 AI 配置…</view>
+</scroll-view>
