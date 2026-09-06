@@ -2,7 +2,9 @@ import "dotenv/config";
 import { z } from "zod";
 
 const schema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  // 默认 production:漏配环境变量时宁可将 dev 测试登录、自动超管等开发特性全部关死,
+  // 也不能因默认值而意外暴露;本地开发由 npm run dev 脚本显式注入 development。
+  NODE_ENV: z.enum(["development", "test", "production"]).default("production"),
   HOST: z.string().default("0.0.0.0"),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   DATABASE_URL: z.string().min(1),

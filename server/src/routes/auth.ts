@@ -152,7 +152,12 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // 首次登录绑定已有用户：按 姓名+手机号 匹配，把当前 openid 挂到匹配账号上。
-  app.post("/bind", { onRequest: [app.authenticate] }, async (request, reply) => {
+  // 安全约束：姓名+手机号可从通讯录零成本获得，不构成身份证明，因此——
+  //   1. 停用账号禁止绑定（否则可借未过期 token 绑到他人账号逃逸封禁）；
+  //   2. 只能绑定普通用户账号，禁止借绑定接管 admin/super_admin 权限；
+  // 管理员目标与未匹配到一律返回 404，避免泄露“该手机号对应管理员账号”。
+  // 管理员更换微信号需由超级管理员在服务端处理，不走此接口。
+  app.post("/bind", { onRequest: [app.authenticate], ...loginRateLimit }, async (request, reply) => {
     const parsed = bindSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ code: "INVALID_BIND", message: "请完整填写姓名和手机号" });
@@ -168,6 +173,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     if (user.status === "active") {
       return { success: true, alreadyBound: true };
     }
+    if (user.status === "disabled") {
+      return reply.code(403).send({ code: "ACCOUNT_DISABLED", message: "账号已停用" });
+    }
     const match = await db.query<{
       id: string;
       role: "user" | "admin" | "super_admin";
@@ -178,6 +186,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       `SELECT id, role, status, name, employee_no
        FROM users
        WHERE name = $1 AND mobile = $2 AND id <> $3
+         AND status = 'active' AND role = 'user'
        ORDER BY created_at
        LIMIT 1`,
       [parsed.data.name, parsed.data.mobile, user.id],
