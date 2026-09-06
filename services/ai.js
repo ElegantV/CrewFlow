@@ -65,7 +65,7 @@ function requestFailed(response) {
 
 // 流式聊天:enableChunked 分片接收 SSE,delta 事件实时回调,resolve 于 result 事件。
 // 旧基础库不支持 onChunkReceived 时自动降级为一次性 JSON。
-function chatStream({ messages }, { onDelta } = {}) {
+function chatStream(messages, { onDelta } = {}) {
   return new Promise((resolve, reject) => {
     const requestTask = wx.request({
       url: `${getApiBaseUrl()}/api/v1/ai/chat`,
