@@ -104,11 +104,12 @@
       </view>
     </view>
 
-    <view class="setup-tip" wx:if="{{!apiConfigured || apiStatus === 'unavailable'}}">
+    <view class="setup-tip" wx:if="{{!apiConfigured || apiStatus === 'unavailable' || apiStatus === 'auth_required'}}">
       <text class="setup-tip__title">尚未连接后端</text>
       <text class="setup-tip__content" wx:if="{{!apiConfigured}}">请在 config/env.js 中填写云服务器的 HTTPS API 地址。</text>
+      <text class="setup-tip__content" wx:elif="{{apiStatus === 'auth_required'}}">登录状态已失效，点击下方按钮重新登录。</text>
       <text class="setup-tip__content" wx:else>请确认 API 服务已启动，并检查 config/env.js 中的地址。</text>
-      <button class="retry-button" wx:if="{{apiStatus === 'unavailable'}}" bindtap="retryConnection">重新连接</button>
+      <button class="retry-button" wx:if="{{apiStatus === 'unavailable' || apiStatus === 'auth_required'}}" bindtap="retryConnection">{{apiStatus === 'auth_required' ? '重新登录' : '重新连接'}}</button>
     </view>
   </view>
 </scroll-view>

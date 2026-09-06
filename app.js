@@ -11,6 +11,36 @@ App({
 
   onLaunch() {
     this.ready = this.bootstrap()
+    this.watchUpdate()
+  },
+
+  // 热更新机制下用户可能长期停留在旧版本,下载完成后提示重启应用。
+  watchUpdate() {
+    if (!wx.getUpdateManager) return
+    const manager = wx.getUpdateManager()
+    manager.onUpdateReady(() => {
+      wx.showModal({
+        title: '更新提示',
+        content: '新版本已经准备好，是否重启应用？',
+        success: (res) => { if (res.confirm) manager.applyUpdate() }
+      })
+    })
+  },
+
+  // 线上 JS 异常目前没有其他上报通道,统一写入实时日志(小程序后台可查)便于排障。
+  logRealtimeError(tag, detail) {
+    try {
+      if (wx.getRealtimeLogManager) wx.getRealtimeLogManager().error(tag, detail)
+    } catch (e) { /* 实时日志不可用时忽略 */ }
+    console.error(tag, detail)
+  },
+
+  onError(message) {
+    this.logRealtimeError('app onError', message)
+  },
+
+  onUnhandledRejection(res) {
+    this.logRealtimeError('app onUnhandledRejection', res && res.reason)
   },
 
   async bootstrap() {
