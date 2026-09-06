@@ -51,13 +51,12 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
     }
     const rangeStart = `${startMonth}-01`;
     const rangeEndMonth = `${endMonth}-01`;
-    const [leaveResult, overtimeResult] = await Promise.all([
+    const [leaveResult, overtimeResult, peopleResult] = await Promise.all([
       db.query<{
         id: string;
         date: string;
+        person_id: string;
         name: string | null;
-        avatar_data: Buffer | null;
-        avatar_mime_type: string | null;
         system_name: string | null;
         department: string | null;
         leave_type: LeaveType;
@@ -68,8 +67,7 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
         requested_hours: string;
         status: string;
       }>(
-        `SELECT leave.id, day::date::text AS date, person.name,
-                person.avatar_data, person.avatar_mime_type,
+        `SELECT leave.id, day::date::text AS date, leave.applicant_id AS person_id, person.name,
                 person.bank_project AS system_name, person.department,
                 leave.leave_type, leave.start_date::text, leave.end_date::text,
                 leave.start_period, leave.end_period, leave.requested_hours::text,
@@ -85,16 +83,14 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
       db.query<{
         id: string;
         date: string;
+        person_id: string;
         name: string | null;
-        avatar_data: Buffer | null;
-        avatar_mime_type: string | null;
         system_name: string | null;
         department: string | null;
         hours: string;
         content: string;
       }>(
-        `SELECT duty.id, duty.duty_date::text AS date, person.name,
-                person.avatar_data, person.avatar_mime_type,
+        `SELECT duty.id, duty.duty_date::text AS date, duty.user_id AS person_id, person.name,
                 person.bank_project AS system_name, person.department,
                 duty.hours::text, duty.content
          FROM duty_records duty
@@ -105,6 +101,27 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
          ORDER BY duty.duty_date, person.name NULLS LAST`,
         [rangeStart, rangeEndMonth],
       ),
+      // 头像按人去重单独返回:此前每行展开记录都重复携带头像 bytea(单张可达数百 KB),
+      // 跨 25 个月、多行长假时响应体积会爆炸;行上只带 person_id,前端按 id 取头像。
+      db.query<{
+        id: string;
+        name: string | null;
+        avatar_data: Buffer | null;
+        avatar_mime_type: string | null;
+      }>(
+        `SELECT DISTINCT person.id, person.name, person.avatar_data, person.avatar_mime_type
+         FROM users person
+         WHERE person.id IN (
+           SELECT applicant_id FROM leave_requests
+           WHERE status IN ('pending', 'approved')
+             AND start_date < ($2::date + interval '1 month') AND end_date >= $1::date
+           UNION
+           SELECT user_id FROM duty_records
+           WHERE duty_date >= $1::date AND duty_date < ($2::date + interval '1 month')
+             AND status <> 'revoked'
+         )`,
+        [rangeStart, rangeEndMonth],
+      ),
     ]);
 
     // 口径与请假计算一致:法定节假日不计入展示,调休上班日计入。
@@ -113,8 +130,8 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
       .map(item => ({
       id: item.id,
       date: item.date,
+      personId: item.person_id,
       name: item.name ?? "未命名用户",
-      avatar: avatarDataUrl(item.avatar_data, item.avatar_mime_type),
       systemName: item.system_name ?? item.department ?? "未配置所属系统",
       leaveType: item.leave_type,
       leaveTypeLabel: leavePolicies[item.leave_type].label,
@@ -125,11 +142,16 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
     const overtime = overtimeResult.rows.map(item => ({
       id: item.id,
       date: item.date,
+      personId: item.person_id,
       name: item.name ?? "未命名用户",
-      avatar: avatarDataUrl(item.avatar_data, item.avatar_mime_type),
       systemName: item.system_name ?? item.department ?? "未配置所属系统",
       hours: Number(item.hours),
       content: item.content,
+    }));
+    const people = peopleResult.rows.map(item => ({
+      id: item.id,
+      name: item.name ?? "未命名用户",
+      avatar: avatarDataUrl(item.avatar_data, item.avatar_mime_type),
     }));
     const dayMap = new Map<string, { date: string; leaveCount: number; overtimeCount: number }>();
     for (const item of leaves) {
@@ -146,6 +168,7 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
       startMonth,
       endMonth,
       days: Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date)),
+      people,
       leaves,
       overtime,
     };

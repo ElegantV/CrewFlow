@@ -43,13 +43,19 @@ Page({
       const dayMap = {}
       ;(result.days || []).forEach(item => { dayMap[item.date] = item })
       const months = this.buildMonths(rangeStart, rangeEnd, dayMap, selectedDate)
+      // 头像按人去重返回(people),行上只带 personId,这里回填成 wxml 直接可用的 avatar 字段。
+      const avatarById = {}
+      ;(result.people || []).forEach(person => { avatarById[person.id] = person.avatar || '' })
+      const decorate = item => Object.assign({}, item, { avatar: avatarById[item.personId] || '' })
+      const allLeaves = (result.leaves || []).map(decorate)
+      const allOvertime = (result.overtime || []).map(decorate)
       this.setData({
         dayMap,
         months,
-        allLeaves: result.leaves || [],
-        allOvertime: result.overtime || [],
-        leaves: (result.leaves || []).filter(item => item.date === selectedDate),
-        overtime: (result.overtime || []).filter(item => item.date === selectedDate),
+        allLeaves,
+        allOvertime,
+        leaves: allLeaves.filter(item => item.date === selectedDate),
+        overtime: allOvertime.filter(item => item.date === selectedDate),
         selectedDate,
         scrollIntoView: `month-${selectedDate.slice(0, 7)}`,
         loading: false
