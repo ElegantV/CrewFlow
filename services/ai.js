@@ -136,4 +136,28 @@ function chat(messages) {
   })
 }
 
-module.exports = { chatStream, chat }
+// 意图分类:开启深度问答后每条消息先经此判定 command(走规则引擎)还是 chat(直接回答)。
+// 仅用于路由,系统操作仍由规则引擎执行。
+function classify(text) {
+  return new Promise((resolve, reject) => {
+    wx.request({
+      url: `${getApiBaseUrl()}/api/v1/ai/classify`,
+      method: 'POST',
+      data: { text },
+      header: Object.assign({ 'content-type': 'application/json' }, authHeader()),
+      timeout: 15000,
+      success(response) {
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          resolve(response.data || {})
+          return
+        }
+        requestFailed(response).then(reject, reject)
+      },
+      fail() {
+        reject(new Error('网络异常，AI 暂时不可用'))
+      }
+    })
+  })
+}
+
+module.exports = { chatStream, chat, classify }

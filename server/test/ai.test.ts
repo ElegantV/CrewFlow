@@ -235,6 +235,57 @@ test("上游返回空内容时返回 502", async () => {
   }
 });
 
+test("意图分类:返回受控 route,异常输出一律 502", async () => {
+  await enableAi(normalUser.id);
+  const originalFetch = globalThis.fetch;
+  try {
+    // 正常:模型输出带代码块包裹的 JSON,应解析出 chat
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: '```json\n{"route":"chat"}\n```' } }] }), { status: 200 })) as typeof fetch;
+    const chatRoute = await app.inject({
+      method: "POST",
+      url: "/api/v1/ai/classify",
+      headers: auth(normalUser),
+      payload: { text: "撤销加班有什么限制吗" },
+    });
+    assert.equal(chatRoute.statusCode, 200);
+    assert.equal(chatRoute.json().route, "chat");
+
+    // 白名单外取值 → 502(客户端将退回规则引擎)
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: '{"route":"banana"}' } }] }), { status: 200 })) as typeof fetch;
+    const invalidRoute = await app.inject({
+      method: "POST",
+      url: "/api/v1/ai/classify",
+      headers: auth(normalUser),
+      payload: { text: "你好" },
+    });
+    assert.equal(invalidRoute.statusCode, 502);
+
+    // 非 JSON 输出 → 502
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "抱歉我不明白" } }] }), { status: 200 })) as typeof fetch;
+    const garbage = await app.inject({
+      method: "POST",
+      url: "/api/v1/ai/classify",
+      headers: auth(normalUser),
+      payload: { text: "你好" },
+    });
+    assert.equal(garbage.statusCode, 502);
+
+    // 超长文本 → 400
+    const tooLong = await app.inject({
+      method: "POST",
+      url: "/api/v1/ai/classify",
+      headers: auth(normalUser),
+      payload: { text: "啊".repeat(501) },
+    });
+    assert.equal(tooLong.statusCode, 400);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("普通用户无权读取 AI 配置,超级管理员可读取且 Key 脱敏", async () => {
   const forbidden = await app.inject({ method: "GET", url: "/api/v1/admin/ai-config", headers: auth(normalUser) });
   assert.equal(forbidden.statusCode, 403);

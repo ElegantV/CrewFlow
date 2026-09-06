@@ -32,7 +32,7 @@ const wechatResponseSchema = z.object({
 export const authRoutes: FastifyPluginAsync = async (app) => {
   // 登录入口专项限流:同一 IP 每分钟最多 10 次,防暴力刷接口。
   const loginRateLimit = {
-    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    config: { rateLimit: { max: 10, timeWindow: "1 minute", groupId: "auth-login" } },
   };
 
   app.post("/wechat", loginRateLimit, async (request, reply) => {

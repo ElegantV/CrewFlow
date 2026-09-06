@@ -140,8 +140,8 @@ export const aiRoutes: FastifyPluginAsync = async (app) => {
 
   app.post("/chat", {
     ...protectedHooks,
-    // AI 调用有真实成本,单独收紧限流;全局 300/分钟 的兜底仍然生效。
-    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    // AI 调用有真实成本,单独收紧限流;groupId 隔离计数器,避免与登录等其他限流路由互吃额度。
+    config: { rateLimit: { max: 10, timeWindow: "1 minute", groupId: "ai-chat" } },
   }, async (request, reply) => {
     const ai = await loadAiConfig();
     if (!ai.apiKey) {
@@ -274,7 +274,100 @@ export const aiRoutes: FastifyPluginAsync = async (app) => {
     }
     return { reply: truncateReply(content, ai.maxReplyChars) };
   });
+
+  app.post("/classify", {
+    ...protectedHooks,
+    // 每条开启深度问答的消息都会先分类一次,限流比 /chat 稍宽,计数器独立于 /chat。
+    config: { rateLimit: { max: 30, timeWindow: "1 minute", groupId: "ai-classify" } },
+  }, async (request, reply) => {
+    const ai = await loadAiConfig();
+    if (!ai.apiKey) {
+      return reply.code(503).send({ code: "AI_NOT_CONFIGURED", message: "AI 问答未配置，请联系管理员" });
+    }
+
+    const enabled = await db.query<{ ai_agent_enabled: boolean }>(
+      "SELECT ai_agent_enabled FROM users WHERE id = $1",
+      [request.actor!.id],
+    );
+    if (!enabled.rows[0]?.ai_agent_enabled) {
+      return reply.code(403).send({ code: "AI_DISABLED", message: "请先开启 AI 深度问答" });
+    }
+
+    const parsed = z.object({ text: z.string().trim().min(1).max(500) }).safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ code: "INVALID_CHAT", message: "消息内容无效" });
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(ai.apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${ai.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: ai.model,
+          messages: [
+            { role: "system", content: CLASSIFY_SYSTEM_PROMPT },
+            { role: "user", content: parsed.data.text },
+          ],
+          max_tokens: 60,
+        }),
+        signal: AbortSignal.timeout(8_000),
+      });
+    } catch (error) {
+      request.log.warn({ err: error }, "AI classify request failed");
+      return reply.code(504).send({ code: "AI_UPSTREAM_TIMEOUT", message: "AI 服务暂时不可用，请稍后重试" });
+    }
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      request.log.warn({ status: response.status, detail: detail.slice(0, 300) }, "AI classify upstream error");
+      return reply.code(502).send({ code: "AI_UPSTREAM_ERROR", message: "AI 服务暂时不可用，请稍后重试" });
+    }
+
+    const payload = upstreamChoiceSchema.safeParse(await response.json().catch(() => null));
+    const content = payload.success ? payload.data.choices[0]?.message?.content?.trim() : "";
+    const route = content ? parseClassifyReply(content) : null;
+    if (!route) {
+      request.log.warn({ content: content?.slice(0, 200) }, "AI classify returned unusable reply");
+      return reply.code(502).send({ code: "AI_UPSTREAM_ERROR", message: "AI 服务暂时不可用，请稍后重试" });
+    }
+    return { route };
+  });
 };
+
+// 意图分类器:开启深度问答后,每条消息先经此判定 command(走规则引擎执行)还是 chat(直接回答)。
+// 分类结果只是路由信号,系统操作始终由规则引擎与业务接口执行。
+const CLASSIFY_SYSTEM_PROMPT = [
+  "你是企业考勤小程序「简序日程助手」的意图分类器。只输出一行 JSON，不输出任何其他文字、不用代码块包裹。",
+  '输出格式：{"route":"command"} 或 {"route":"chat"}。',
+  '- "command"：用户想执行系统操作或查询系统内数据。系统能力包括：创建/撤销请假申请、登记/撤销加班、查询自己的调休余额/加班记录/请假记录、按姓名查询某员工当天的请假与加班情况、查询通讯录电话、处理审批（通过/驳回/查看）、设置工作代理人、打开某功能页面。',
+  '- "chat"：政策与知识咨询（如撤销规则、加班费算法、节假日安排）、闲聊、与系统无关的问题，以及用户想查但系统做不到的事（如查询他人的完整加班记录、工资、统计报表）。',
+  '示例：',
+  '- 「8月13号请一天调休假」→ {"route":"command"}',
+  '- 「查一下我的调休余额」→ {"route":"command"}',
+  '- 「张三今天是否请假」→ {"route":"command"}（系统支持按姓名查员工当天请假情况）',
+  '- 「张三的电话」→ {"route":"command"}（通讯录支持按姓名查）',
+  '- 「撤销上周一的加班」→ {"route":"command"}',
+  '- 「查询张三的加班记录」→ {"route":"chat"}（系统查不了他人的完整加班记录）',
+  '- 「撤销加班有什么限制吗」→ {"route":"chat"}（政策咨询）',
+  '- 「下一个法定节假日是什么」→ {"route":"chat"}',
+  '- 「加班费怎么计算」→ {"route":"chat"}',
+].join("\n");
+
+function parseClassifyReply(content: string): "command" | "chat" | null {
+  const cleaned = content.replace(/```(?:json)?/g, "").trim();
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[0]);
+    return parsed.route === "command" || parsed.route === "chat" ? parsed.route : null;
+  } catch {
+    return null;
+  }
+}
 
 export const adminAiConfigSchema = z.object({
   model: z.string().trim().max(80).optional(),

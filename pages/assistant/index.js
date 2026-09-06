@@ -147,6 +147,33 @@ Page({
       this.handleResult(result)
       return
     }
+    if (this.data.aiAgentEnabled) {
+      // 开启深度问答:先由大模型做轻量意图分类,command 走规则引擎,chat 直接回答。
+      this.routeByAgent(text)
+      return
+    }
+    this.runRuleFlow(text)
+  },
+
+  // 分类结果只用于路由;分类失败时退回规则引擎,保证指令功能始终可用。
+  async routeByAgent(text) {
+    this.setData({ running: true })
+    let route = ''
+    try {
+      const result = await ai.classify(text)
+      route = result && (result.route === 'command' || result.route === 'chat') ? result.route : ''
+    } catch (error) {
+      route = ''
+    }
+    this.setData({ running: false })
+    if (route === 'chat') {
+      this.askAi(text)
+      return
+    }
+    this.runRuleFlow(text)
+  },
+
+  runRuleFlow(text) {
     const results = command.splitTasks(text)
       .map(part => command.parseCommand(part) || parser.parsePrompt(part, { availableTypes: this.data.types }))
       .filter(result => result && result.status !== 'invalid')
