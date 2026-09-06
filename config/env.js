@@ -8,15 +8,21 @@
 // 修改后请用微信开发者工具的「真机调试」验证一次，再提交审核。
 const PRODUCTION_API_ORIGIN = 'https://api.example.com'
 
-// 开发直连地址：绕过域名校验，方便连云端 ECS 调试。
-// 2026-08-31 起由试用机 182.92.211.27 迁移至 99 元/年实例 101.201.100.221。
-const DEVELOPMENT_API_ORIGIN = 'http://101.201.100.221:3000'
+// 开发调试地址:经 SSH 隧道连云端 ECS(ECS 3000 只绑回环,公网不可达)。
+// 当前 ECS NODE_ENV=development(仅经回环可达,dev 测试登录接口只暴露给隧道),
+// 可切换测试身份;⚠️ 提审/上线前必须把 ECS .env 改回 NODE_ENV=production 并重启 api。
+// 隧道启动命令(本机执行,断开后重跑即可):
+//   nohup ssh -N -o ServerAliveInterval=30 -L 0.0.0.0:3100:127.0.0.1:3000 \
+//     -i ~/.ssh/aliyun_182 root@101.201.100.221 > /tmp/crewflow-tunnel.log 2>&1 &
+// 192.168.1.14 是本机局域网 IP,IP 变化后需同步更新。
+const DEVELOPMENT_API_ORIGIN = 'http://127.0.0.1:3100'
+const DEVICE_API_ORIGIN = 'http://192.168.1.14:3100'
 
 const environments = {
   develop: {
-    // 开发者工具与真机都直连云端，本地无需再启动后端服务。
+    // 开发者工具(本机)走回环,真机走本机局域网地址,均经 SSH 隧道到达 ECS。
     apiBaseUrl: DEVELOPMENT_API_ORIGIN,
-    deviceApiBaseUrl: DEVELOPMENT_API_ORIGIN
+    deviceApiBaseUrl: DEVICE_API_ORIGIN
   },
   trial: {
     apiBaseUrl: PRODUCTION_API_ORIGIN
