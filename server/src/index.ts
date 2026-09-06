@@ -9,6 +9,20 @@ process.on("unhandledRejection", (reason) => {
   app.log.error({ err: reason }, "Unhandled promise rejection");
 });
 
+// 优雅停机:容器滚动发布收到 SIGTERM 后停止接新请求,等在途请求完成,
+// 并经 onClose 钩子关闭 DB 连接池,而不是被硬切。
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => {
+    app.log.info({ signal }, "收到停机信号,开始优雅关闭");
+    app.close()
+      .then(() => process.exit(0))
+      .catch((error) => {
+        app.log.error(error);
+        process.exit(1);
+      });
+  });
+}
+
 try {
   await app.listen({ host: config.HOST, port: config.PORT });
 } catch (error) {

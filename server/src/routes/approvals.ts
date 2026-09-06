@@ -127,6 +127,21 @@ export const approvalRoutes: FastifyPluginAsync = async (app) => {
     let approvalResult: ApprovalResultSnapshot | null = null;
     try {
       await client.query("BEGIN");
+      // 加锁顺序与「撤销请假」(routes/leaves.ts cancel:先锁 leave_requests 再动
+      // approval_records)保持一致:先锁请假单、再锁审批记录。此前单条 SQL
+      // `FOR UPDATE OF a, l` 的实际加锁顺序由连接计划决定,与撤销路径相反,
+      // 两端并发操作会形成 AB-BA 死锁,一方收到 500。
+      const leaveLock = await client.query<{ id: string }>(
+        `SELECT l.id
+         FROM leave_requests l
+         WHERE l.id = (SELECT a.leave_request_id FROM approval_records a WHERE a.id = $1)
+         FOR UPDATE`,
+        [id.data],
+      );
+      if (!leaveLock.rows[0]) {
+        await client.query("ROLLBACK");
+        return reply.code(404).send({ code: "APPROVAL_NOT_FOUND", message: "审批任务不存在" });
+      }
       const result = await client.query<{
         approval_status: string;
         approver_id: string;
@@ -140,7 +155,7 @@ export const approvalRoutes: FastifyPluginAsync = async (app) => {
          FROM approval_records a
          JOIN leave_requests l ON l.id = a.leave_request_id
          WHERE a.id = $1
-         FOR UPDATE OF a, l`,
+         FOR UPDATE OF a`,
         [id.data],
       );
       const approval = result.rows[0];

@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { loadActiveActor } from "../authz.js";
 import { config } from "../config.js";
@@ -11,7 +12,9 @@ import {
 } from "../wxpusher.js";
 
 function randomToken() {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  // 密码学随机:二维码拉取接口是公开的,token 可预测即可拉取他人绑定二维码,
+  // Math.random+时间戳的组合熵不足且可缩小猜测空间。
+  return randomBytes(12).toString("base64url");
 }
 
 export const wxpusherRoutes: FastifyPluginAsync = async (app) => {

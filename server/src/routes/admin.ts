@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { allowRoles, loadActiveActor } from "../authz.js";
 import { db } from "../db.js";
+import { isValidDate } from "../business/leave-policy.js";
 import {
   buildRecordsWorkbook,
   type LeaveRow,
@@ -112,7 +113,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       userId: z.string().uuid().optional(),
     }).safeParse(request.query);
-    if (!parsed.success || parsed.data.start > parsed.data.end) {
+    // isValidDate 做 round-trip 校验:regex 放得过宽,2026-02-30 之类的日期
+    // 会穿到这里,最终 Postgres ::date 转换直接 500。
+    if (!parsed.success || !isValidDate(parsed.data.start) || !isValidDate(parsed.data.end) || parsed.data.start > parsed.data.end) {
       return reply.code(400).send({ code: "INVALID_RANGE", message: "请选择有效的起止日期" });
     }
     if (parsed.data.end < parsed.data.start || Date.parse(parsed.data.end) - Date.parse(parsed.data.start) > 366 * 86400_000) {
