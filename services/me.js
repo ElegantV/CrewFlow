@@ -7,6 +7,12 @@ module.exports = {
   people() {
     return request({ url: '/api/v1/me/people' })
   },
+  managers() {
+    return request({ url: '/api/v1/me/managers' })
+  },
+  setManager(managerUserId) {
+    return request({ url: '/api/v1/me/manager', method: 'PUT', data: { managerUserId } })
+  },
   saveProfile(data) {
     return request({ url: '/api/v1/me/profile', method: 'PUT', data })
   },

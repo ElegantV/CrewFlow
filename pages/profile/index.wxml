@@ -56,8 +56,11 @@
       </view>
       <view class="field">
         <text class="field-label">对应审批人（管理员）</text>
-        <view class="field-control field-control--readonly">{{profile.manager ? profile.manager.name : '由超级管理员配置'}}</view>
-        <text class="field-help">审批关系由超级管理员维护，个人不可自行更改。</text>
+        <picker range="{{managers}}" range-key="name" value="{{selectedManagerIndex}}" bindchange="onManagerChange">
+          <view class="field-control field-picker">{{selectedManagerIndex >= 0 ? managers[selectedManagerIndex].name : (profile.manager ? profile.manager.name : '请选择审批人')}}<text class="picker-arrow">›</text></view>
+        </picker>
+        <text class="field-help" wx:if="{{!managers.length}}">暂无可选审批人，请联系超级管理员分配审批关系。</text>
+        <text class="field-help" wx:else>请假申请将提交给所选的审批管理员处理。</text>
       </view>
       <view class="field" wx:if="{{form.personnelType !== 'bank'}}">
         <text class="field-label">工作代理人（非行员） <text class="required">*</text></text>

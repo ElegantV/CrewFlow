@@ -9,6 +9,10 @@ const agentSchema = z.object({
   agentUserId: z.string().uuid().nullable(),
 });
 
+const managerSchema = z.object({
+  managerUserId: z.string().uuid().nullable(),
+});
+
 const signatureSchema = z.object({
   imageData: z.string().max(700_000).nullable(),
 });
@@ -123,6 +127,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     // 系统必填字段完备性：前端据此在登录后引导用户补齐，规则与业务校验保持一致。
     const missingRequired: string[] = [];
     if (!user.name) missingRequired.push("name");
+    if (user.role === "user" && !user.manager_id) missingRequired.push("manager");
     if (user.personnel_type !== "bank" && !user.agent_user_id) missingRequired.push("agent");
     if ((user.role === "admin" || user.role === "super_admin") && !user.signature_updated_at) {
       missingRequired.push("signature");
@@ -237,6 +242,44 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
 
     await db.query("UPDATE users SET agent_user_id = $1, updated_at = now() WHERE id = $2", [
       parsed.data.agentUserId,
+      request.actor!.id,
+    ]);
+    return { success: true };
+  });
+
+  app.get("/managers", protectedHooks, async (request) => {
+    const result = await db.query<{ id: string; name: string | null; employee_no: string | null }>(
+      `SELECT id, name, employee_no
+       FROM users
+       WHERE status = 'active' AND role IN ('admin', 'super_admin') AND id <> $1
+       ORDER BY name NULLS LAST, employee_no NULLS LAST`,
+      [request.actor!.id],
+    );
+    return {
+      managers: result.rows.map((manager) => ({
+        id: manager.id,
+        name: manager.name,
+        employeeNo: manager.employee_no,
+      })),
+    };
+  });
+
+  app.put("/manager", protectedHooks, async (request, reply) => {
+    const parsed = managerSchema.safeParse(request.body);
+    if (!parsed.success || parsed.data.managerUserId === request.actor!.id) {
+      return reply.code(400).send({ code: "INVALID_MANAGER", message: "审批人设置无效" });
+    }
+    if (parsed.data.managerUserId) {
+      const manager = await db.query(
+        "SELECT 1 FROM users WHERE id = $1 AND status = 'active' AND role IN ('admin', 'super_admin')",
+        [parsed.data.managerUserId],
+      );
+      if (!manager.rowCount) {
+        return reply.code(404).send({ code: "MANAGER_NOT_FOUND", message: "审批人不存在或不是管理员" });
+      }
+    }
+    await db.query("UPDATE users SET manager_id = $1, updated_at = now() WHERE id = $2", [
+      parsed.data.managerUserId,
       request.actor!.id,
     ]);
     return { success: true };

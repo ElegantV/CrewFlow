@@ -36,6 +36,8 @@ Page({
     input: '',
     running: false,
     recording: false,
+    voiceMode: false,
+    focusKeyboard: false,
     types: fallbackTypes,
     pending: null,
     aiAgentEnabled: false,
@@ -76,9 +78,15 @@ Page({
     }
     recognitionManager.onStop = res => {
       const text = String(res && res.result || '').trim()
-      this.setData({ recording: false, input: text })
       this.inputDraft = text
-      if (text) wx.showToast({ title: '识别完成，可确认后发送', icon: 'none' })
+      const patch = { recording: false, input: text }
+      if (text) {
+        // 识别出文字后切回键盘模式,便于确认/修改后发送。
+        patch.voiceMode = false
+        patch.focusKeyboard = true
+        wx.showToast({ title: '识别完成，可确认后发送', icon: 'none' })
+      }
+      this.setData(patch)
     }
     recognitionManager.onError = res => {
       this.setData({ recording: false })
@@ -86,19 +94,34 @@ Page({
     }
   },
 
-  toggleVoice() {
-    if (this.data.running) return
+  // 长按录制、松开结束（与微信发语音一致）：按下即 start，抬起即 stop。
+  onVoiceStart() {
+    if (this.data.running || this.data.recording || !this.data.voiceMode) return
     if (!voiceReady) {
       wx.showToast({ title: '语音输入未配置，请在公众平台添加「微信同声传译」插件', icon: 'none' })
-      return
-    }
-    if (this.data.recording) {
-      recognitionManager.stop()
       return
     }
     this.inputDraft = ''
     this.setData({ recording: true, input: '' })
     recognitionManager.start({ lang: 'zh_CN', duration: 60000 })
+  },
+
+  onVoiceEnd() {
+    if (!this.data.recording) return
+    recognitionManager.stop()
+  },
+
+  // 键盘 / 语音两种输入模式互切：语音模式下输入框变为"按住 说话"。
+  // focusKeyboard 只在切回键盘时置 true 唤起输入法，随后在 blur 时复位，
+  // 避免在聚焦状态下翻转为 false 造成"键盘弹出又收起"。
+  toggleVoiceMode() {
+    if (this.data.running || this.data.recording) return
+    const voiceMode = !this.data.voiceMode
+    this.setData({ voiceMode, focusKeyboard: !voiceMode })
+  },
+
+  onKeyboardBlur() {
+    if (this.data.focusKeyboard) this.setData({ focusKeyboard: false })
   },
 
   // 深度问答开关:整行点击切换,自绘开关样式随 aiAgentEnabled 数据变化。
@@ -143,7 +166,9 @@ Page({
     this.inputDraft = ''
     this.setData({ input: '' })
     if (this.data.pending && this.data.pending.allowText) {
-      const result = command.applyChoice(this.data.pending, text, text)
+      const result = this.data.pending.intent
+        ? command.applyChoice(this.data.pending, text, text)
+        : parser.applyChoice(this.data.pending, text, { availableTypes: this.data.types })
       this.handleResult(result)
       return
     }

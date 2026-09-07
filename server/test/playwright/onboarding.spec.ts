@@ -33,6 +33,10 @@ let vendorAgent: SeededUser; // 可被选为代理人的在册厂商人员
 let bankReady: SeededUser; // 行员,资料齐全
 let adminNoSig: SeededUser; // 行员管理员,缺审批签名
 let adminSig: SeededUser; // 行员管理员,用于验证签名设置流程
+let superAdmin: SeededUser; // 超级管理员,可被选为审批人
+let delCleanTarget: SeededUser; // 无关联数据,可被超级管理员删除
+let delEntangledTarget: SeededUser; // 被他人设为负责人,删除应被拒绝
+let delSub: SeededUser; // 依赖 delEntangledTarget 作为负责人的普通用户
 
 test.beforeAll(async () => {
   app = await getTestApp();
@@ -44,6 +48,12 @@ test.beforeAll(async () => {
   bankReady = await insertUser("pw-onboard-bank", "行员甲", "user", "bank");
   adminNoSig = await insertUser("pw-onboard-admin-1", "管理员未签", "admin", "bank");
   adminSig = await insertUser("pw-onboard-admin-2", "管理员已签", "admin", "bank");
+  superAdmin = await insertUser("pw-onboard-admin-3", "超级管理员", "super_admin", "bank");
+  await db.query("UPDATE users SET manager_id = $1 WHERE id = $2", [superAdmin.id, bankReady.id]);
+  delCleanTarget = await insertUser("pw-onboard-del-clean", null, "user", "digital");
+  delEntangledTarget = await insertUser("pw-onboard-del-entangled", "关联用户", "user", "vendor");
+  delSub = await insertUser("pw-onboard-del-sub", "下属用户", "user", "vendor");
+  await db.query("UPDATE users SET manager_id = $1 WHERE id = $2", [delEntangledTarget.id, delSub.id]);
 });
 
 let api: APIRequestContext;
@@ -66,9 +76,9 @@ async function getMe(user: SeededUser) {
   return (await response.json()) as { missingRequired: string[] };
 }
 
-test("新用户返回缺失姓名与代理人", async () => {
+test("新用户返回缺失姓名、审批人与代理人", async () => {
   const profile = await getMe(vendorNew);
-  expect(profile.missingRequired).toEqual(["name", "agent"]);
+  expect(profile.missingRequired).toEqual(["name", "manager", "agent"]);
 });
 
 test("资料齐全的行员返回空数组", async () => {
@@ -104,7 +114,16 @@ test("设置代理人后提交完整资料,missingRequired 逐级收敛", async 
   expect(bound.ok()).toBeTruthy();
 
   const afterAgent = await getMe(vendorNew);
-  expect(afterAgent.missingRequired).toEqual(["name"]);
+  expect(afterAgent.missingRequired).toEqual(["name", "manager"]);
+
+  const setManager = await api.put("/api/v1/me/manager", {
+    headers: auth(vendorNew),
+    data: { managerUserId: superAdmin.id },
+  });
+  expect(setManager.ok()).toBeTruthy();
+
+  const afterManager = await getMe(vendorNew);
+  expect(afterManager.missingRequired).toEqual(["name"]);
 
   const saved = await api.put("/api/v1/me/profile", {
     headers: auth(vendorNew),
@@ -119,6 +138,25 @@ test("设置代理人后提交完整资料,missingRequired 逐级收敛", async 
 
   const afterProfile = await getMe(vendorNew);
   expect(afterProfile.missingRequired).toEqual([]);
+});
+
+test("审批人接口校验:非管理员不可选,可选列表仅含管理员", async () => {
+  const list = await api.get("/api/v1/me/managers", { headers: auth(vendorNew) });
+  expect(list.ok()).toBeTruthy();
+  const body = (await list.json()) as { managers: Array<{ id: string; name: string | null }> };
+  expect(body.managers.map(item => item.id)).toEqual([adminNoSig.id, adminSig.id, superAdmin.id]);
+
+  const notAdmin = await api.put("/api/v1/me/manager", {
+    headers: auth(vendorNew),
+    data: { managerUserId: vendorAgent.id },
+  });
+  expect(notAdmin.status()).toBe(404);
+
+  const self = await api.put("/api/v1/me/manager", {
+    headers: auth(vendorNew),
+    data: { managerUserId: vendorNew.id },
+  });
+  expect(self.status()).toBe(400);
 });
 
 test("普通用户不可维护审批签名,管理员设置后缺失项消除", async () => {
@@ -145,4 +183,29 @@ test("普通用户不可维护审批签名,管理员设置后缺失项消除", a
   expect(fetched.ok()).toBeTruthy();
   const body = (await fetched.json()) as { imageData: string | null };
   expect(body.imageData).toMatch(/^data:image\/png;base64,/);
+});
+
+test("普通用户无权限删除用户", async () => {
+  const response = await api.delete(`/api/v1/admin/users/${delCleanTarget.id}`, { headers: auth(vendorNew) });
+  expect(response.status()).toBe(403);
+});
+
+test("超级管理员不能删除自己", async () => {
+  const response = await api.delete(`/api/v1/admin/users/${superAdmin.id}`, { headers: auth(superAdmin) });
+  expect(response.status()).toBe(400);
+});
+
+test("被他人设为负责人的用户禁止删除", async () => {
+  const response = await api.delete(`/api/v1/admin/users/${delEntangledTarget.id}`, { headers: auth(superAdmin) });
+  expect(response.status()).toBe(409);
+});
+
+test("超级管理员删除干净用户后微信可重新注册", async () => {
+  const response = await api.delete(`/api/v1/admin/users/${delCleanTarget.id}`, { headers: auth(superAdmin) });
+  expect(response.ok()).toBeTruthy();
+
+  const list = await api.get("/api/v1/admin/users", { headers: auth(superAdmin) });
+  expect(list.ok()).toBeTruthy();
+  const body = (await list.json()) as { users: Array<{ id: string }> };
+  expect(body.users.some(item => item.id === delCleanTarget.id)).toBeFalsy();
 });

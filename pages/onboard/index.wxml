@@ -42,6 +42,18 @@
     <button class="primary-button step-button" loading="{{saving}}" bindtap="saveAgent">保存并继续</button>
   </view>
 
+  <view class="step-card card" wx:elif="{{currentStep === 'manager'}}">
+    <view class="field">
+      <text class="field-label">审批人（管理员） <text class="required">*</text></text>
+      <picker range="{{managers}}" range-key="name" value="{{selectedManagerIndex}}" bindchange="onManagerChange">
+        <view class="field-input field-picker">{{selectedManagerIndex >= 0 ? managers[selectedManagerIndex].name : '请选择审批人'}}<text class="picker-arrow">›</text></view>
+      </picker>
+      <text class="field-help" wx:if="{{!managers.length}}">暂无可选审批人，请联系超级管理员先分配审批关系。</text>
+      <text class="field-help" wx:else>请假申请将提交给所选的审批管理员处理。</text>
+    </view>
+    <button class="primary-button step-button" loading="{{saving}}" bindtap="saveManager">保存并继续</button>
+  </view>
+
   <view class="step-card card" wx:elif="{{currentStep === 'signature'}}">
     <text class="field-help">作为审批人，请在下方手写签名，审批时将使用该签名。</text>
     <canvas class="signature-canvas" canvas-id="signatureCanvas" disable-scroll="true" catchtouchstart="onSignatureStart" catchtouchmove="onSignatureMove" catchtouchend="onSignatureEnd" catchtouchcancel="onSignatureEnd"></canvas>

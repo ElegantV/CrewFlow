@@ -8,6 +8,7 @@ function missingRequiredOf(profile) {
   if (Array.isArray(profile.missingRequired)) return profile.missingRequired
   const missing = []
   if (!profile.name) missing.push('name')
+  if (profile.role === 'user' && !(profile.manager && profile.manager.id)) missing.push('manager')
   if (profile.personnelType !== 'bank' && !(profile.agent && profile.agent.id)) missing.push('agent')
   if ((profile.role === 'admin' || profile.role === 'super_admin') && !profile.signatureConfigured) missing.push('signature')
   return missing

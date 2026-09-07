@@ -20,6 +20,7 @@ Page({
     statuses,
     editing: false,
     saving: false,
+    deleting: false,
     roleIndex: 0,
     statusIndex: 0,
     managerIndex: 0,
@@ -74,7 +75,7 @@ Page({
   },
 
   close() {
-    if (!this.data.saving) this.setData({ editing: false })
+    if (!this.data.saving && !this.data.deleting) this.setData({ editing: false })
   },
 
   // 输入期间不 setData 回写受控组件，避免 Skyline 打断中文输入法的拼音组合态。
@@ -114,6 +115,31 @@ Page({
       this.setData({ saving: false })
       wx.showToast({ title: error.message || '保存失败', icon: 'none' })
     }
+  },
+
+  // 删除并重置:清空该用户业务数据并解绑微信,使其下次进入走全新注册流程。
+  remove() {
+    const user = this.data.users.find(item => item.id === this.data.form.id)
+    if (!user) return
+    wx.showModal({
+      title: '删除并重置该用户？',
+      content: `将删除「${user.name || '待命名用户'}」的全部请假、加班等数据并解绑微信，之后该微信号首次进入会重新注册。此操作不可恢复。`,
+      confirmText: '删除',
+      confirmColor: '#dc2626',
+      success: async result => {
+        if (!result.confirm) return
+        this.setData({ deleting: true })
+        try {
+          await admin.deleteUser(this.data.form.id)
+          this.setData({ deleting: false, editing: false })
+          wx.showToast({ title: '用户已删除', icon: 'success' })
+          await this.loadData()
+        } catch (error) {
+          this.setData({ deleting: false })
+          wx.showToast({ title: error.message || '删除失败', icon: 'none', duration: 3000 })
+        }
+      }
+    })
   },
 
   noop() {}

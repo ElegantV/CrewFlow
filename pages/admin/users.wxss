@@ -20,3 +20,6 @@ page { height: 100vh; display: flex; flex-direction: column; }
 .actions button + button { margin-left: 20rpx; }
 .secondary { border-radius: var(--r-md); color: var(--c-text-on-neutral); background: var(--c-neutral-bg); }
 .secondary::after { border: 0; }
+.danger { border-radius: var(--r-md); color: #fff; background: var(--c-danger-strong, #dc2626); }
+.danger::after { border: 0; }
+.danger-help { display: block; margin-top: 18rpx; color: var(--c-danger); font-size: 21rpx; line-height: 1.6; }

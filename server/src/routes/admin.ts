@@ -108,6 +108,87 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return { success: true };
   });
 
+  // 销毁用户:删除其全部业务数据并解绑微信,使该微信号下次登录走全新注册流程(用于重置/测试)。
+  app.delete("/users/:id", superAdminHooks, async (request, reply) => {
+    const id = z.string().uuid().safeParse((request.params as { id?: string }).id);
+    if (!id.success) {
+      return reply.code(400).send({ code: "INVALID_USER", message: "用户参数无效" });
+    }
+    if (id.data === request.actor!.id) {
+      return reply.code(400).send({ code: "CANNOT_DELETE_SELF", message: "不能删除当前登录的超级管理员账号" });
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      const target = await client.query<{ name: string | null; openid: string }>(
+        "SELECT name, openid FROM users WHERE id = $1 FOR UPDATE",
+        [id.data],
+      );
+      const user = target.rows[0];
+      if (!user) {
+        await client.query("ROLLBACK");
+        return reply.code(404).send({ code: "USER_NOT_FOUND", message: "用户不存在" });
+      }
+
+      // 该用户已被他人引用(他人审批单、负责人、代理人、他人请假单代理人)时拒绝删除,避免破坏他人数据。
+      const entangled = await client.query(
+        `SELECT 1 FROM (
+           SELECT approval.approver_id AS uid
+           FROM approval_records approval JOIN leave_requests leave ON leave.id = approval.leave_request_id
+           WHERE approval.approver_id = $1 AND leave.applicant_id <> $1
+           UNION SELECT manager_id FROM users WHERE manager_id = $1
+           UNION SELECT agent_user_id FROM users WHERE agent_user_id = $1
+           UNION SELECT agent_user_id FROM leave_requests WHERE agent_user_id = $1
+         ) refs LIMIT 1`,
+        [id.data],
+      );
+      if (entangled.rowCount) {
+        await client.query("ROLLBACK");
+        return reply.code(409).send({
+          code: "USER_ENTANGLED",
+          message: "该用户已作为审批人/负责人/代理人与其他用户关联，无法删除。请先在用户管理中解除其关联。",
+        });
+      }
+
+      // 按外键依赖自子表向父表删除,最后删除用户本身。
+      await client.query(
+        "DELETE FROM notification_send_log WHERE user_id = $1 OR leave_request_id IN (SELECT id FROM leave_requests WHERE applicant_id = $1)",
+        [id.data],
+      );
+      await client.query("DELETE FROM notification_subscriptions WHERE user_id = $1", [id.data]);
+      await client.query("DELETE FROM wxpusher_bindings WHERE user_id = $1", [id.data]);
+      await client.query(
+        "DELETE FROM timeoff_allocations WHERE leave_request_id IN (SELECT id FROM leave_requests WHERE applicant_id = $1) OR duty_record_id IN (SELECT id FROM duty_records WHERE user_id = $1)",
+        [id.data],
+      );
+      await client.query(
+        "DELETE FROM timeoff_ledger WHERE user_id = $1 OR duty_record_id IN (SELECT id FROM duty_records WHERE user_id = $1) OR leave_request_id IN (SELECT id FROM leave_requests WHERE applicant_id = $1)",
+        [id.data],
+      );
+      await client.query(
+        "DELETE FROM approval_records WHERE leave_request_id IN (SELECT id FROM leave_requests WHERE applicant_id = $1)",
+        [id.data],
+      );
+      await client.query("DELETE FROM leave_requests WHERE applicant_id = $1", [id.data]);
+      await client.query("DELETE FROM duty_records WHERE user_id = $1", [id.data]);
+      await client.query("UPDATE audit_logs SET actor_id = NULL WHERE actor_id = $1", [id.data]);
+      await client.query(
+        `INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, details)
+         VALUES ($1, 'user.delete', 'user', $2, $3::jsonb)`,
+        [request.actor!.id, id.data, JSON.stringify({ name: user.name, openid: user.openid })],
+      );
+      await client.query("DELETE FROM users WHERE id = $1", [id.data]);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+    return { success: true };
+  });
+
   // 按日期区间导出全部加班/请假记录为 Excel(仅超级管理员),可通过 userId 筛选单个用户。
   app.get("/records/export", superAdminHooks, async (request, reply) => {
     const parsed = z.object({

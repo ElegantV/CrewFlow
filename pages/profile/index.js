@@ -28,6 +28,8 @@ Page({
     form: null,
     people: [],
     selectedAgentIndex: -1,
+    managers: [],
+    selectedManagerIndex: -1,
     personnelTypes: [
       { value: 'bank', label: '行员' },
       { value: 'digital', label: '数科' },
@@ -157,9 +159,12 @@ Page({
       const profile = await me.get()
       const peopleResult = await me.people()
       const people = peopleResult.people || []
-      const personnelType = profile.personnelType || 'vendor'
+      const managersResult = await me.managers()
+      const managers = managersResult.managers || []
+      const personnelType = profile.personnelType || 'digital'
       const itlStatus = profile.itlStatus || 'no'
       const selectedAgentIndex = profile.agent ? people.findIndex(person => person.id === profile.agent.id) : -1
+      const selectedManagerIndex = profile.manager ? managers.findIndex(manager => manager.id === profile.manager.id) : -1
       const form = {
         name: profile.name || '',
         accountName: profile.accountName || profile.employeeNo || '',
@@ -184,6 +189,8 @@ Page({
         form,
         people,
         selectedAgentIndex,
+        managers,
+        selectedManagerIndex,
         personnelTypeIndex: Math.max(0, this.data.personnelTypes.findIndex(item => item.value === personnelType)),
         itlIndex: Math.max(0, this.data.itlOptions.findIndex(item => item.value === itlStatus)),
         annualLeave: profile.annualLeave || calculateAnnualLeave(form.workStartDate),
@@ -231,6 +238,10 @@ Page({
 
   onAgentChange(event) {
     this.setData({ selectedAgentIndex: Number(event.detail.value) })
+  },
+
+  onManagerChange(event) {
+    this.setData({ selectedManagerIndex: Number(event.detail.value) })
   },
 
   onWorkStartDateChange(event) {
@@ -312,6 +323,11 @@ Page({
         emergencyContactName: form.emergencyContactName || null,
         emergencyContactPhone: form.emergencyContactPhone || null
       })
+      const manager = this.data.managers[this.data.selectedManagerIndex]
+      const currentManagerId = this.data.profile.manager && this.data.profile.manager.id
+      if (manager && manager.id !== currentManagerId) {
+        await me.setManager(manager.id)
+      }
       this.setData({ saving: false })
       wx.showToast({ title: '个人信息已保存', icon: 'success' })
       await this.loadData()

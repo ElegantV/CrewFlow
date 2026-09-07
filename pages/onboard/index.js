@@ -3,6 +3,7 @@ const onboard = require('../../utils/onboard')
 
 const STEP_META = {
   basic: { title: '基本信息', description: '填写姓名并选择人员类型' },
+  manager: { title: '审批人', description: '指定审批你的请假申请的直属管理员' },
   agent: { title: '工作代理人', description: '非行员发起请假前需指定代理人' },
   signature: { title: '审批签名', description: '审批申请时需要使用手写签名' }
 }
@@ -15,15 +16,17 @@ Page({
     steps: [],
     stepIndex: 0,
     currentStep: 'basic',
-    form: { name: '', personnelType: 'vendor' },
+    form: { name: '', personnelType: 'digital' },
     personnelTypes: [
       { value: 'bank', label: '行员' },
       { value: 'digital', label: '数科' },
       { value: 'vendor', label: '厂商' }
     ],
-    personnelTypeIndex: 2,
+    personnelTypeIndex: 1,
     people: [],
     selectedAgentIndex: -1,
+    managers: [],
+    selectedManagerIndex: -1,
     saving: false,
     signatureDirty: false,
     savingSignature: false
@@ -47,9 +50,10 @@ Page({
       // 姓名已有但代理人缺失时单独出代理人步骤。
       const keys = []
       if (missing.includes('name')) keys.push('basic')
+      if (missing.includes('manager')) keys.push('manager')
       else if (missing.includes('agent')) keys.push('agent')
       if (missing.includes('signature')) keys.push('signature')
-      const form = { name: profile.name || '', personnelType: profile.personnelType || 'vendor' }
+      const form = { name: profile.name || '', personnelType: profile.personnelType || 'digital' }
       this.setData({
         loading: false,
         profile,
@@ -60,6 +64,7 @@ Page({
         personnelTypeIndex: Math.max(0, this.data.personnelTypes.findIndex(item => item.value === form.personnelType))
       })
       this.loadPeople(profile)
+      this.loadManagers(profile)
     } catch (error) {
       this.setData({ loading: false, loadError: true })
     }
@@ -78,6 +83,19 @@ Page({
     }
   },
 
+  async loadManagers(profile) {
+    const current = profile || this.data.profile
+    if (!current) return
+    try {
+      const result = await me.managers()
+      const managers = result.managers || []
+      const selectedManagerIndex = current.manager ? managers.findIndex(manager => manager.id === current.manager.id) : -1
+      this.setData({ managers, selectedManagerIndex })
+    } catch (error) {
+      this.setData({ managers: [] })
+    }
+  },
+
   onInput(event) {
     const field = event.currentTarget.dataset.field
     if (field && this.data.form) this.data.form[field] = event.detail.value
@@ -90,6 +108,10 @@ Page({
 
   onAgentChange(event) {
     this.setData({ selectedAgentIndex: Number(event.detail.value) })
+  },
+
+  onManagerChange(event) {
+    this.setData({ selectedManagerIndex: Number(event.detail.value) })
   },
 
   // PUT /profile 是整行更新，这里带上已加载的资料一起提交，避免把其他字段清成空。
@@ -146,6 +168,25 @@ Page({
     this.setData({ saving: true })
     try {
       await me.setAgent(agent.id)
+      this.setData({ saving: false })
+      this.advance()
+    } catch (error) {
+      this.setData({ saving: false })
+      wx.showToast({ title: error.message || '保存失败', icon: 'none', duration: 3000 })
+    }
+  },
+
+  async saveManager() {
+    const { saving } = this.data
+    if (saving) return
+    const manager = this.data.managers[this.data.selectedManagerIndex]
+    if (!manager) {
+      wx.showToast({ title: '请选择审批人', icon: 'none' })
+      return
+    }
+    this.setData({ saving: true })
+    try {
+      await me.setManager(manager.id)
       this.setData({ saving: false })
       this.advance()
     } catch (error) {
@@ -252,10 +293,22 @@ Page({
     }
     this.setData({ stepIndex: next, currentStep: this.data.steps[next].key })
     if (this.data.steps[next].key === 'agent') this.loadPeople()
+    if (this.data.steps[next].key === 'manager') this.loadManagers()
   },
 
   finish() {
-    wx.showToast({ title: '信息已完善', icon: 'success' })
-    setTimeout(() => wx.reLaunch({ url: '/pages/index/index' }), 600)
+    wx.showModal({
+      title: '必要信息已完善',
+      content: '是否现在补充其余个人信息（联系方式、部门、账号等）？',
+      confirmText: '去完善',
+      cancelText: '稍后再说',
+      success: result => {
+        if (result.confirm) {
+          wx.reLaunch({ url: '/pages/profile/index' })
+        } else {
+          wx.reLaunch({ url: '/pages/index/index' })
+        }
+      }
+    })
   }
 })

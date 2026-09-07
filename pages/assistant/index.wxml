@@ -53,28 +53,38 @@
 
   <view class="composer">
     <view class="composer-row">
+      <button
+        class="mode-button"
+        bindtap="toggleVoiceMode"
+        disabled="{{running}}"
+        aria-label="{{voiceMode ? '切换为键盘输入' : '语音输入'}}"
+      ><image class="mode-icon" src="{{voiceMode ? '/assets/icons/keyboard.png' : '/assets/icons/mic.png'}}" mode="aspectFit"></image></button>
       <view class="input-wrap">
         <input
-          class="prompt-input"
+          class="prompt-input {{voiceMode ? 'prompt-input--hidden' : ''}}"
           value="{{input}}"
-          placeholder="例如：8月13号请一天调休假"
+          focus="{{focusKeyboard}}"
+          placeholder="{{pending && pending.field === 'reason' ? '请输入请假事由，如：家中有事' : '例如：8月13号请一天调休假'}}"
           maxlength="500"
           confirm-type="send"
           cursor-color="#45C98A"
           bindinput="onInput"
           bindconfirm="send"
+          bindblur="onKeyboardBlur"
           disabled="{{running}}"
         />
         <button
-          class="voice-button {{recording ? 'voice-button--recording' : ''}}"
-          bindtap="toggleVoice"
+          class="hold-talk {{voiceMode ? '' : 'hold-talk--hidden'}} {{recording ? 'hold-talk--recording' : ''}}"
+          bindtouchstart="onVoiceStart"
+          bindtouchend="onVoiceEnd"
+          bindtouchcancel="onVoiceEnd"
           disabled="{{running}}"
-          aria-label="{{recording ? '结束录音' : '语音输入'}}"
-        ><image class="voice-icon {{recording ? 'voice-icon--recording' : ''}}" src="{{recording ? '/assets/icons/stop.png' : '/assets/icons/mic.png'}}" mode="aspectFit"></image></button>
+          aria-label="{{recording ? '松开结束录音' : '按住说话'}}"
+        >{{recording ? '松开 结束' : '按住 说话'}}</button>
       </view>
-      <button class="send-button {{running ? 'send-button--disabled' : ''}}" bindtap="send" disabled="{{running}}">{{running ? '···' : '发送'}}</button>
+      <button wx:if="{{!voiceMode}}" class="send-button {{running ? 'send-button--disabled' : ''}}" bindtap="send" disabled="{{running}}">{{running ? '···' : '发送'}}</button>
     </view>
-    <text class="composer-hint" wx:if="{{!recording}}">{{aiAgentEnabled ? '未识别为指令的问题，将由 AI 深度问答回答' : 'AI 会执行真实操作，请确认指令中的日期和假别'}}</text>
-    <text class="composer-hint composer-hint--recording" wx:else>正在聆听，点击 ■ 结束</text>
+    <text class="composer-hint composer-hint--recording" wx:if="{{recording}}">正在聆听，松开结束</text>
+    <text class="composer-hint" wx:elif="{{!voiceMode}}">{{aiAgentEnabled ? '未识别为指令的问题，将由 AI 深度问答回答' : 'AI 会执行真实操作，请确认指令中的日期和假别'}}</text>
   </view>
 </view>

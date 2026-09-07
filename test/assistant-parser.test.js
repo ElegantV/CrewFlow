@@ -9,7 +9,7 @@ const types = [
 ]
 
 test('明确指令可直接转换成请假任务', () => {
-  const result = parser.parsePrompt('8月13号请一天调休假', { now, availableTypes: types })
+  const result = parser.parsePrompt('8月13号请一天调休假，事由：家中有事', { now, availableTypes: types })
   assert.equal(result.status, 'ready')
   assert.deepEqual(parser.toLeaveRequest(result.draft), {
     leaveType: 'comp_time',
@@ -17,8 +17,15 @@ test('明确指令可直接转换成请假任务', () => {
     endDate: '2026-08-13',
     startPeriod: 'day',
     endPeriod: 'day',
-    reason: '由简序日程 AI 助手提交'
+    reason: '家中有事'
   })
+})
+
+test('缺少事由时要求用户输入', () => {
+  const result = parser.parsePrompt('8月13号请一天调休假', { now, availableTypes: types })
+  assert.equal(result.status, 'clarify')
+  assert.equal(result.field, 'reason')
+  assert.equal(result.allowText, true)
 })
 
 test('假别不明确时要求用户选择', () => {
@@ -36,9 +43,13 @@ test('半天时段不明确时要求用户选择', () => {
 
 test('选择后继续完成同一任务', () => {
   const first = parser.parsePrompt('8月13号请一天假', { now, availableTypes: types })
-  const result = parser.applyChoice(first, 'comp_time', { now, availableTypes: types })
+  const second = parser.applyChoice(first, 'comp_time', { now, availableTypes: types })
+  assert.equal(second.status, 'clarify')
+  assert.equal(second.field, 'reason')
+  assert.equal(second.draft.leaveType, 'comp_time')
+  const result = parser.applyChoice(second, '家中有事', { now, availableTypes: types })
   assert.equal(result.status, 'ready')
-  assert.equal(result.draft.leaveType, 'comp_time')
+  assert.equal(result.draft.reason, '家中有事')
 })
 
 test('不存在的日期是无效信息', () => {

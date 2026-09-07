@@ -20,18 +20,21 @@ export async function notifyApproverPending(leaveRequestId: string) {
   try {
     const result = await db.query<{
       approver_id: string;
+      approver_name: string | null;
       applicant_name: string | null;
       leave_type: LeaveType;
       start_date: string;
       end_date: string;
       requested_days: string;
     }>(
-      `SELECT approval.approver_id, applicant.name AS applicant_name,
+      `SELECT approval.approver_id, approver.name AS approver_name,
+              applicant.name AS applicant_name,
               leave.leave_type, leave.start_date::text, leave.end_date::text,
               leave.requested_days::text
        FROM leave_requests leave
        JOIN users applicant ON applicant.id = leave.applicant_id
        JOIN approval_records approval ON approval.leave_request_id = leave.id AND approval.step_no = 1
+       JOIN users approver ON approver.id = approval.approver_id
        WHERE leave.id = $1`,
       [leaveRequestId],
     );
@@ -39,14 +42,22 @@ export async function notifyApproverPending(leaveRequestId: string) {
     if (!row) return;
 
     const uid = await findUid(row.approver_id);
-    if (!uid) return;
+    if (!uid) {
+      console.warn(
+        `wxpusher 待审批提醒跳过:审批管理员「${row.approver_name ?? row.approver_id}」未绑定微信推送`,
+      );
+      return;
+    }
 
     const label = leavePolicies[row.leave_type].label;
     const range = row.start_date === row.end_date ? row.start_date : `${row.start_date} 至 ${row.end_date}`;
     const content =
       `【审批提醒】${row.applicant_name ?? "员工"}申请${label}（${range}，共${row.requested_days}天），` +
       `请及时在简序日程小程序中审批。`;
-    await sendWxPusherMessage(content, [uid]);
+    const sent = await sendWxPusherMessage(content, [uid]);
+    if (sent.code !== 1000) {
+      console.error("wxpusher 待审批提醒发送失败", sent.code, sent.msg);
+    }
   } catch (error) {
     console.error("wxpusher 待审批提醒发送异常", error);
   }
@@ -76,7 +87,10 @@ export async function notifyApplicantDecision(leaveRequestId: string, status: "a
     if (!row) return;
 
     const uid = await findUid(row.applicant_id);
-    if (!uid) return;
+    if (!uid) {
+      console.warn(`wxpusher 审批结果提醒跳过:申请人「${row.applicant_name ?? row.applicant_id}」未绑定微信推送`);
+      return;
+    }
 
     const label = leavePolicies[row.leave_type].label;
     const range = row.start_date === row.end_date ? row.start_date : `${row.start_date} 至 ${row.end_date}`;
@@ -84,7 +98,10 @@ export async function notifyApplicantDecision(leaveRequestId: string, status: "a
     const content =
       `【审批结果】${row.applicant_name ?? "你"}申请的${label}（${range}，共${row.requested_days}天）${phrase}，` +
       `可到简序日程小程序查看详情。`;
-    await sendWxPusherMessage(content, [uid]);
+    const sent = await sendWxPusherMessage(content, [uid]);
+    if (sent.code !== 1000) {
+      console.error("wxpusher 审批结果提醒发送失败", sent.code, sent.msg);
+    }
   } catch (error) {
     console.error("wxpusher 审批结果提醒发送异常", error);
   }

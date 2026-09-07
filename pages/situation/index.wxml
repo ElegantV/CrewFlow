@@ -1,33 +1,33 @@
 <navigation-bar title="员工情况" color="#1F2329" background="#F7F8FA"></navigation-bar>
-<scroll-view class="scrollarea" scroll-y enhanced show-scrollbar="{{false}}">
+<scroll-view class="scrollarea" scroll-y>
   <view class="page-shell situation-page">
     <view class="calendar-card card">
       <view class="calendar-head">
         <view class="month-copy">
           <text class="month-title">请假加班日历</text>
-          <text class="scroll-hint">在日历内上下滚动查看月份</text>
+          <text class="scroll-hint">‹ › 切换月份 · 点击日期查看详情</text>
         </view>
         <button class="today-button" bindtap="goToday">今天</button>
+      </view>
+      <view class="month-nav">
+        <view class="calendar-nav" bindtap="prevMonth">‹</view>
+        <text class="calendar-title">{{calTitle}}</text>
+        <view class="calendar-nav" bindtap="nextMonth">›</view>
       </view>
       <view class="week-row">
         <text wx:for="{{weekdays}}" wx:key="*this" class="week-label">{{item}}</text>
       </view>
-      <scroll-view class="months-scroll" scroll-y enhanced show-scrollbar scroll-into-view="{{scrollIntoView}}">
-        <view id="{{monthItem.id}}" class="month-section" wx:for="{{months}}" wx:key="key" wx:for-item="monthItem">
-          <text class="month-section-title">{{monthItem.label}}</text>
-          <view class="month-grid">
-            <view wx:for="{{monthItem.cells}}" wx:key="key" wx:for-item="dayItem" class="calendar-cell {{dayItem.empty ? 'calendar-cell--empty' : ''}} {{dayItem.selected ? 'calendar-cell--selected' : ''}}" data-date="{{dayItem.date}}" bindtap="selectDate">
-              <block wx:if="{{!dayItem.empty}}">
-                <text class="day-number {{dayItem.isToday ? 'day-number--today' : ''}}">{{dayItem.day}}</text>
-                <view class="day-markers" wx:if="{{dayItem.hasActivity}}">
-                  <text class="day-marker day-marker--leave" wx:if="{{dayItem.leaveCount}}">假{{dayItem.leaveCount}}</text>
-                  <text class="day-marker day-marker--overtime" wx:if="{{dayItem.overtimeCount}}">班{{dayItem.overtimeCount}}</text>
-                </view>
-              </block>
+      <view class="month-grid">
+        <view wx:for="{{calCells}}" wx:key="key" class="calendar-cell {{item.empty ? 'calendar-cell--empty' : ''}} {{item.selected ? 'calendar-cell--selected' : ''}}" data-date="{{item.date}}" bindtap="selectDate">
+          <block wx:if="{{!item.empty}}">
+            <text class="day-number {{item.isToday ? 'day-number--today' : ''}}">{{item.day}}</text>
+            <view class="day-markers" wx:if="{{item.hasActivity}}">
+              <text class="day-marker day-marker--leave" wx:if="{{item.leaveCount}}">假{{item.leaveCount}}</text>
+              <text class="day-marker day-marker--overtime" wx:if="{{item.overtimeCount}}">班{{item.overtimeCount}}</text>
             </view>
-          </view>
+          </block>
         </view>
-      </scroll-view>
+      </view>
       <view class="legend"><view class="legend-item"><view class="legend-dot legend-dot--leave"></view><text>请假</text></view><view class="legend-item"><view class="legend-dot legend-dot--overtime"></view><text>加班</text></view></view>
     </view>
 

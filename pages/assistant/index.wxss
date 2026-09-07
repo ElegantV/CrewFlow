@@ -134,17 +134,16 @@ page {
   background: #f5f5f5;
 }
 .composer-row { display: flex; flex-direction: row; align-items: center; }
-.input-wrap { display: flex; flex: 3 1 0; min-width: 0; align-items: center; height: 82rpx; padding: 0 18rpx 0 24rpx; box-sizing: border-box; border: 1rpx solid #f0f0f0; border-radius: var(--r-sm); background: #fff; box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, .025); }
-.prompt-input { flex: 1; height: 82rpx; min-width: 0; color: #333; font-size: 27rpx; line-height: 82rpx; }
-.voice-button { display: flex; flex: 0 0 36rpx; align-items: center; justify-content: center; width: 36rpx; min-width: 36rpx; height: 36rpx; margin: 0; padding: 0; border-radius: var(--r-xs); background: transparent; line-height: 36rpx; }
-.voice-button::after { border: 0; }
-.voice-icon { width: 36rpx; height: 36rpx; filter: brightness(0); opacity: .58; }
-.voice-icon--recording { filter: none; opacity: 1; }
-.voice-button--recording { background: var(--c-danger-strong); animation: voice-pulse 1s ease-in-out infinite; }
-@keyframes voice-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
+.mode-button { display: flex; flex: 0 0 64rpx; align-items: center; justify-content: center; width: 64rpx; height: 64rpx; margin: 0 10rpx 0 0; padding: 0; border-radius: var(--r-sm); background: transparent; line-height: 64rpx; }
+.mode-button::after { border: 0; }
+.mode-icon { width: 40rpx; height: 40rpx; filter: brightness(0); opacity: .55; }
+.input-wrap { display: flex; flex: 3 1 0; min-width: 0; align-items: center; height: 82rpx; box-sizing: border-box; border: 1rpx solid #f0f0f0; border-radius: var(--r-sm); background: #fff; box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, .025); overflow: hidden; }
+.prompt-input { flex: 1; height: 82rpx; min-width: 0; padding: 0 24rpx; box-sizing: border-box; color: #333; font-size: 27rpx; line-height: 82rpx; }
+.hold-talk { display: flex; flex: 1; align-items: center; justify-content: center; height: 82rpx; margin: 0; padding: 0; box-sizing: border-box; border-radius: 0; color: #8a93a2; background: transparent; font-size: 27rpx; text-align: center; }
+.hold-talk::after { border: 0; }
+.hold-talk--recording { color: var(--c-danger); font-weight: 600; }
+.prompt-input--hidden { display: none; }
+.hold-talk--hidden { display: none; }
 .send-button { display: flex; flex: 1 1 0; min-width: 0; width: auto; height: 76rpx; margin: 0 0 0 14rpx; padding: 0; align-items: center; justify-content: center; box-sizing: border-box; border-radius: var(--r-sm); color: #fff; background: var(--brand-ai-from); font-size: 24rpx; line-height: 76rpx; }
 .send-button--disabled { background: #aebbd1; }
 .send-button::after { border: 0; }

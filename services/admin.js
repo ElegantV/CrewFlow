@@ -7,6 +7,9 @@ module.exports = {
   updateUser(id, data) {
     return request({ url: `/api/v1/admin/users/${id}`, method: 'PUT', data })
   },
+  deleteUser(id) {
+    return request({ url: `/api/v1/admin/users/${id}`, method: 'DELETE' })
+  },
   downloadRecords(start, end, userId) {
     const params = [`start=${start}`, `end=${end}`]
     if (userId) params.push(`userId=${userId}`)
