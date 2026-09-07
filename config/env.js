@@ -6,7 +6,7 @@
 //   3. 不要带结尾斜杠，也不要带路径。
 //
 // 修改后请用微信开发者工具的「真机调试」验证一次，再提交审核。
-const PRODUCTION_API_ORIGIN = 'https://api.example.com'
+const PRODUCTION_API_ORIGIN = 'https://api.ccherry.cn'
 
 // 开发调试地址:经 SSH 隧道连云端 ECS(ECS 3000 只绑回环,公网不可达)。
 // 当前 ECS NODE_ENV=development(仅经回环可达,dev 测试登录接口只暴露给隧道),

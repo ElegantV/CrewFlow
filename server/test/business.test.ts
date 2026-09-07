@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { buildApp } from "../src/app.js";
-import { calculateWorkingHours, isWorkdayDate } from "../src/business/leave-policy.js";
+import { addWorkdays, calculateWorkingHours, isWorkdayDate } from "../src/business/leave-policy.js";
 import { db } from "../src/db.js";
 
 const app = await buildApp();
@@ -58,6 +58,11 @@ before(async () => {
   await db.query(
     "UPDATE users SET manager_id = $1, agent_user_id = $2 WHERE id = $3",
     [adminUser.id, agentUser.id, normalUser.id],
+  );
+  // 工龄 3 年 → 年假 5 天（40 小时），用于年假额度校验用例。
+  await db.query(
+    "UPDATE users SET work_start_date = $1 WHERE id = $2",
+    ["2023-01-01", normalUser.id],
   );
   await db.query(
     `UPDATE users
@@ -278,6 +283,43 @@ test("overtime, FIFO timeoff, duplicate leave, cancellation and permissions", as
   });
   assert.equal(annualHalfDay.statusCode, 400);
   assert.equal(annualHalfDay.json().code, "INVALID_LEAVE_DURATION");
+
+  // 年假额度校验：工龄 3 年额度 5 天（40 小时），已用 0 → 申请 1 天成功。
+  // 日期选在远离其它用例的年底工作周，避免区间冲突；后续 leaveToApprove、
+  // conflictLeave 也各用 1 天年假，总消耗不超额度。
+  const annualStart = nextWeekday(today, 60);
+  const annualWithinQuota = await app.inject({
+    method: "POST",
+    url: "/api/v1/leaves",
+    headers: auth(normalUser),
+    payload: {
+      leaveType: "annual",
+      startDate: annualStart,
+      endDate: annualStart,
+      startPeriod: "day",
+      endPeriod: "day",
+    },
+  });
+  assert.equal(annualWithinQuota.statusCode, 201, annualWithinQuota.body);
+  assert.equal(annualWithinQuota.json().requestedHours, 8);
+
+  // 已用 1 天，剩余 4 天（32 小时），申请 5 天 → 409 额度不足。
+  const annualOverStart = addWorkdays(annualStart, 1);
+  const annualOverQuota = await app.inject({
+    method: "POST",
+    url: "/api/v1/leaves",
+    headers: auth(normalUser),
+    payload: {
+      leaveType: "annual",
+      startDate: annualOverStart,
+      endDate: addWorkdays(annualOverStart, 5),
+      startPeriod: "day",
+      endPeriod: "day",
+    },
+  });
+  assert.equal(annualOverQuota.statusCode, 409, annualOverQuota.body);
+  assert.equal(annualOverQuota.json().code, "ANNUAL_LEAVE_INSUFFICIENT");
+  assert.equal(annualOverQuota.json().remaining, 32);
 
   const reversedSameDayPeriod = await app.inject({
     method: "POST",

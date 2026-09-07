@@ -21,7 +21,9 @@
     "ignore": [
       { "type": "folder", "value": "server" },
       { "type": "folder", "value": "test" },
-      { "type": "folder", "value": "docs" }
+      { "type": "folder", "value": "docs" },
+      { "type": "folder", "value": "assets/appicon" },
+      { "type": "file", "value": "assets/icons/generate.js" }
     ],
     "include": []
   },

@@ -32,6 +32,22 @@ function clearAuthenticatedUser(markApiUnavailable = false) {
   }
 }
 
+// 网络瞬时失败只标记不可用、保留登录会话，避免一次抖动就清空 token 导致
+// 会话无法恢复；网络恢复后下一次请求成功会再置回 ready。
+function markApiUnavailable() {
+  const app = getAppSafely()
+  if (app && app.globalData && app.globalData.apiConfigured) {
+    app.globalData.apiStatus = 'unavailable'
+  }
+}
+
+function markApiReady() {
+  const app = getAppSafely()
+  if (app && app.globalData && app.globalData.apiConfigured && app.globalData.apiStatus === 'unavailable') {
+    app.globalData.apiStatus = 'ready'
+  }
+}
+
 function redirectToRegister() {
   try {
     const pages = getCurrentPages()
@@ -98,6 +114,7 @@ function request(options = {}) {
           success(response) {
             if (response.statusCode >= 200 && response.statusCode < 300) {
               apiUnavailableUntil = 0
+              markApiReady()
               resolve(response.data)
               return
             }
@@ -129,14 +146,8 @@ function request(options = {}) {
           fail(error) {
             // 短暂熔断，避免同一页面的并发请求重复报错；服务恢复后可快速重试。
             apiUnavailableUntil = Date.now() + 5 * 1000
-            if (!requestOptions.skipAuth) {
-              clearAuthenticatedUser(true)
-            } else {
-              const app = getAppSafely()
-              if (app && app.globalData && app.globalData.apiConfigured) {
-                app.globalData.apiStatus = 'unavailable'
-              }
-            }
+            // 网络失败只标记不可用，不清空会话（清空会导致 token 丢失、永久卡在未连接）。
+            markApiUnavailable()
             reject(Object.assign(unavailableError(), { cause: error }))
           }
         })
@@ -178,6 +189,7 @@ request.download = function download(options) {
           success(response) {
             if (response.statusCode >= 200 && response.statusCode < 300 && response.tempFilePath) {
               apiUnavailableUntil = 0
+              markApiReady()
               resolve(response.tempFilePath)
               return
             }
@@ -190,7 +202,7 @@ request.download = function download(options) {
           },
           fail(error) {
             apiUnavailableUntil = Date.now() + 5 * 1000
-            clearAuthenticatedUser(true)
+            markApiUnavailable()
             reject(Object.assign(unavailableError(), { cause: error }))
           }
         })

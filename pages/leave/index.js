@@ -30,6 +30,11 @@ const defaultLeaveType = {
   proofNotice: null
 }
 
+// 半天（4 小时）请假仅支持调休、公出、哺乳假三种类型。
+function supportsHalfDay(type) {
+  return !type || (type.minimumHours !== undefined ? type.minimumHours <= 4 : false)
+}
+
 function settled(promise) {
   return promise.then(value => ({ value }), error => ({ error }))
 }
@@ -49,6 +54,7 @@ Page({
     types: [defaultLeaveType],
     typeIndex: 0,
     currentType: defaultLeaveType,
+    halfDaySupported: true,
     profile: null,
     periods: [
       { value: 'day', label: '全天' },
@@ -111,6 +117,12 @@ Page({
       updates.types = types
       updates.currentType = types.find(item => item.value === this.data.form.leaveType) || types[0]
       updates.typeIndex = Math.max(0, types.findIndex(item => item.value === updates.currentType.value))
+      updates.halfDaySupported = supportsHalfDay(updates.currentType)
+      if (!updates.halfDaySupported) {
+        updates.sameDayPeriod = 'day'
+        updates['form.startPeriod'] = 'day'
+        updates['form.endPeriod'] = 'day'
+      }
     }
     if (profileResult.value) updates.profile = profileResult.value
     this.setData(updates)
@@ -288,11 +300,22 @@ Page({
   onTypeChange(event) {
     const typeIndex = Number(event.detail.value)
     const currentType = this.data.types[typeIndex]
-    this.setData({
+    const halfDaySupported = supportsHalfDay(currentType)
+    const updates = {
       typeIndex,
       currentType,
+      halfDaySupported,
       'form.leaveType': currentType.value
-    })
+    }
+    if (!halfDaySupported) {
+      // 不支持半天的类型强制全天，避免残留上/下午时段被提交后由服务端拒绝。
+      updates.sameDayPeriod = 'day'
+      updates['form.startPeriod'] = 'day'
+      updates['form.endPeriod'] = 'day'
+      updates.startPeriodIndex = 0
+      updates.endPeriodIndex = 0
+    }
+    this.setData(updates)
     if (currentType.fixedWorkdays) {
       this.setData({ rangeEnd: '' })
       this.buildCalendar(this.data.calMonth)

@@ -5,6 +5,7 @@ import { buildApprovalResult, type ApprovalResultSnapshot } from "../business/ap
 import { renderLeavePdf } from "../business/leave-pdf.js";
 import {
   addWorkdays,
+  annualLeaveDays,
   calculateWorkingHours,
   isValidDate,
   leavePolicies,
@@ -181,6 +182,38 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
         if (!agent.rowCount) {
           await client.query("ROLLBACK");
           return reply.code(409).send({ code: "AGENT_UNAVAILABLE", message: "工作代理人当前不可用或不是非行员" });
+        }
+      }
+
+      // 年假额度校验：额度按当年 work_start_date 计算，扣减当年已申请（待审批+已通过）的小时数。
+      // FOR UPDATE 锁用户行，串行化同用户的并发年假申请，避免双双越过额度。
+      if (parsed.data.leaveType === "annual") {
+        const annualUser = await client.query<{ work_start_date: string | null }>(
+          "SELECT work_start_date::text FROM users WHERE id = $1 FOR UPDATE",
+          [actor.id],
+        );
+        const workStartDate = annualUser.rows[0]?.work_start_date ?? null;
+        const usedResult = await client.query<{ used_hours: string }>(
+          `SELECT COALESCE(SUM(requested_hours), 0)::text AS used_hours
+           FROM leave_requests
+           WHERE applicant_id = $1
+             AND leave_type = 'annual'
+             AND status IN ('pending', 'approved')
+             AND start_date >= date_trunc('year', current_date)::date`,
+          [actor.id],
+        );
+        const quotaHours = annualLeaveDays(workStartDate).annualLeaveDays * 8;
+        const usedHours = Number(usedResult.rows[0]?.used_hours ?? 0);
+        const remaining = Math.max(0, quotaHours - usedHours);
+        if (requestedHours > remaining) {
+          await client.query("ROLLBACK");
+          return reply.code(409).send({
+            code: "ANNUAL_LEAVE_INSUFFICIENT",
+            message: `可用年假仅${remaining / 8}天（共${quotaHours / 8}天，已申请${usedHours / 8}天），不足${requestedHours / 8}天`,
+            quotaHours,
+            usedHours,
+            remaining,
+          });
         }
       }
 

@@ -1,4 +1,5 @@
 import { calendarDayType } from "./calendar.js";
+import { beijingTodayIso } from "./beijing-date.js";
 
 export const leavePolicies = {
   comp_time: { label: "调休", minimumHours: 4, incrementHours: 4, consumesTimeoff: true },
@@ -118,4 +119,19 @@ export function publicLeavePolicies() {
     proofNotice: "proof" in policy ? `申请时请准备${policy.proof}` : null,
     consumesTimeoff: "consumesTimeoff" in policy && policy.consumesTimeoff,
   }));
+}
+
+// 年假规则：满一年可休；工龄未满 5 年按 5 天；超过 5 年每多一年加一天，上限 15 天。
+export function annualLeaveDays(workStartDate: string | null) {
+  if (!workStartDate) return { workYears: 0, annualLeaveDays: 0 };
+  const [year = 0, month = 1, day = 1] = workStartDate.split("-").map(Number);
+  const [nowYear = 0, nowMonth = 1, nowDay = 1] = beijingTodayIso().split("-").map(Number);
+  let workYears = nowYear - year;
+  if (nowMonth < month || (nowMonth === month && nowDay < day)) workYears -= 1;
+  workYears = Math.max(0, workYears);
+  let annualLeaveDays = 0;
+  if (workYears >= 1) {
+    annualLeaveDays = workYears < 5 ? 5 : Math.min(workYears, 15);
+  }
+  return { workYears, annualLeaveDays: Math.floor(annualLeaveDays) };
 }

@@ -1,0 +1,38 @@
+<navigation-bar title="系统管理" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<scroll-view class="scrollarea" scroll-y>
+  <view class="page-shell">
+    <view class="system-grid">
+      <button class="admin-action card" bindtap="openUsers">
+        <view class="admin-action__icon admin-action__icon--users"><image class="admin-action__img" src="/assets/icons/contact.png" mode="aspectFit" /></view>
+        <text class="admin-action__title">用户管理</text>
+        <text class="admin-action__desc">角色、状态与审批管理员</text>
+      </button>
+      <button class="admin-action card" bindtap="openExport">
+        <view class="admin-action__icon admin-action__icon--export"><image class="admin-action__img" src="/assets/icons/ledger.png" mode="aspectFit" /></view>
+        <text class="admin-action__title">考勤导出</text>
+        <text class="admin-action__desc">按区间导出请假与加班</text>
+      </button>
+      <button class="admin-action card" bindtap="openAiConfig">
+        <view class="admin-action__icon admin-action__icon--ai"><image class="admin-action__img" src="/assets/icons/ai.png" mode="aspectFit" /></view>
+        <text class="admin-action__title">AI 设置</text>
+        <text class="admin-action__desc">模型、密钥与回复约束</text>
+      </button>
+      <button class="admin-action card" bindtap="openCalendar">
+        <view class="admin-action__icon admin-action__icon--calendar"><image class="admin-action__img" src="/assets/icons/fa/calendar.png" mode="aspectFit" /></view>
+        <text class="admin-action__title">节假日历</text>
+        <text class="admin-action__desc">节假日查看与人工维护</text>
+      </button>
+    </view>
+  </view>
+</scroll-view>
+
+<view class="modal-mask" wx:if="{{showExport}}" bindtap="closeExport">
+  <view class="form-card" catchtap="noop">
+    <text class="form-title">导出考勤记录</text>
+    <text class="export-hint">按请假开始日期与加班日期落在区间内的记录导出为 Excel（请假、加班各一个工作表），可选择单个用户</text>
+    <view class="field"><text class="label">用户</text><picker range="{{exportUsers}}" range-key="name" value="{{exportUserIndex}}" bindchange="onExportUserChange"><view class="control">{{exportUsers[exportUserIndex].name}}</view></picker></view>
+    <view class="field"><text class="label">开始日期</text><picker mode="date" value="{{exportStart}}" bindchange="onExportStartChange"><view class="control">{{exportStart || '请选择'}}</view></picker></view>
+    <view class="field"><text class="label">结束日期</text><picker mode="date" value="{{exportEnd}}" bindchange="onExportEndChange"><view class="control">{{exportEnd || '请选择'}}</view></picker></view>
+    <view class="actions"><button class="secondary" bindtap="closeExport">取消</button><button class="primary-button" loading="{{exporting}}" bindtap="exportRecords">导出</button></view>
+  </view>
+</view>

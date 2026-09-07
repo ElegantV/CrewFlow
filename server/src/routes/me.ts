@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { loadActiveActor } from "../authz.js";
 import { beijingTodayIso } from "../business/beijing-date.js";
-import { leavePolicies, type LeaveType } from "../business/leave-policy.js";
+import { leavePolicies, annualLeaveDays, type LeaveType } from "../business/leave-policy.js";
 import { db } from "../db.js";
 
 const agentSchema = z.object({
@@ -45,21 +45,6 @@ const profileSchema = z.object({
 });
 
 const avatarSchema = z.object({ imageData: z.string().max(1_000_000) });
-
-// 年假规则：满一年可休；工龄未满 5 年按 5 天；超过 5 年每多一年加一天，上限 15 天。
-function annualLeaveDays(workStartDate: string | null) {
-  if (!workStartDate) return { workYears: 0, annualLeaveDays: 0 };
-  const [year = 0, month = 1, day = 1] = workStartDate.split("-").map(Number);
-  const [nowYear = 0, nowMonth = 1, nowDay = 1] = beijingTodayIso().split("-").map(Number);
-  let workYears = nowYear - year;
-  if (nowMonth < month || (nowMonth === month && nowDay < day)) workYears -= 1;
-  workYears = Math.max(0, workYears);
-  let annualLeaveDays = 0;
-  if (workYears >= 1) {
-    annualLeaveDays = workYears < 5 ? 5 : Math.min(workYears, 15);
-  }
-  return { workYears, annualLeaveDays: Math.floor(annualLeaveDays) };
-}
 
 function avatarDataUrl(data: Buffer | null, mimeType: string | null) {
   return data && mimeType ? `data:${mimeType};base64,${data.toString("base64")}` : null;

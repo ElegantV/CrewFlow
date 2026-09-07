@@ -118,9 +118,10 @@ Page({
       })
     }
     if (user && user.role === 'super_admin') {
+      // key 保持 'admin':用户已保存的首页菜单配置(排序/隐藏)按 key 匹配,换 key 会丢个性化设置。
       shortcuts.push({
-        key: 'admin', icon: '/assets/icons/admin.png', title: '用户管理',
-        description: '配置角色、状态与审批管理员', url: '/pages/admin/users', accent: 'red'
+        key: 'admin', icon: '/assets/icons/admin.png', title: '系统管理',
+        description: '用户、AI、节假日与考勤导出', url: '/pages/admin/system/system', accent: 'red'
       })
     }
     if (isDevelopment()) {

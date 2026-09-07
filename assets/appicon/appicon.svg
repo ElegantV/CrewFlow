@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3D8BFF"/>
+      <stop offset="1" stop-color="#1256D6"/>
+    </linearGradient>
+    <linearGradient id="hdr" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#1677FF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景：微信端会裁成圆形，四角做满铺 -->
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <!-- 顶部柔光 -->
+  <circle cx="512" cy="120" r="560" fill="#FFFFFF" opacity="0.07"/>
+
+  <!-- 日历挂环 -->
+  <rect x="354" y="238" width="36" height="110" rx="18" fill="#FFFFFF"/>
+  <rect x="634" y="238" width="36" height="110" rx="18" fill="#FFFFFF"/>
+
+  <!-- 日历主体 -->
+  <path d="M272 372a72 72 0 0 1 72-72h336a72 72 0 0 1 72 72v316a72 72 0 0 1-72 72H344a72 72 0 0 1-72-72Z" fill="#FFFFFF"/>
+  <!-- 日历头（同色系深蓝） -->
+  <path d="M272 372a72 72 0 0 1 72-72h336a72 72 0 0 1 72 72v106H272Z" fill="url(#hdr)"/>
+  <!-- 头部分隔上的两枚高光铆钉 -->
+  <circle cx="372" cy="414" r="17" fill="#FFFFFF" opacity="0.9"/>
+  <circle cx="652" cy="414" r="17" fill="#FFFFFF" opacity="0.9"/>
+
+  <!-- 日历格点（弱化） -->
+  <g fill="#1677FF" opacity="0.16">
+    <circle cx="356" cy="530" r="16"/><circle cx="456" cy="530" r="16"/><circle cx="556" cy="530" r="16"/>
+    <circle cx="356" cy="630" r="16"/><circle cx="556" cy="630" r="16"/><circle cx="656" cy="630" r="16"/>
+  </g>
+
+  <!-- 对勾：审批通过 -->
+  <polyline points="372 600 478 690 672 470" fill="none" stroke="#1677FF" stroke-width="62" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -105,22 +105,24 @@
       <text class="field-label">请假时长</text>
       <view class="period-seg">
         <view class="period-seg__item {{sameDayPeriod === 'day' ? 'period-seg__item--active' : ''}}" data-value="day" bindtap="onSameDayPeriod">请一天</view>
-        <view class="period-seg__item {{sameDayPeriod === 'morning' ? 'period-seg__item--active' : ''}}" data-value="morning" bindtap="onSameDayPeriod">上午</view>
-        <view class="period-seg__item {{sameDayPeriod === 'afternoon' ? 'period-seg__item--active' : ''}}" data-value="afternoon" bindtap="onSameDayPeriod">下午</view>
+        <view wx:if="{{halfDaySupported}}" class="period-seg__item {{sameDayPeriod === 'morning' ? 'period-seg__item--active' : ''}}" data-value="morning" bindtap="onSameDayPeriod">上午</view>
+        <view wx:if="{{halfDaySupported}}" class="period-seg__item {{sameDayPeriod === 'afternoon' ? 'period-seg__item--active' : ''}}" data-value="afternoon" bindtap="onSameDayPeriod">下午</view>
       </view>
     </view>
     <view class="period-grid" wx:if="{{rangeStart && rangeEnd && rangeStart !== rangeEnd && !currentType.fixedWorkdays}}">
       <view class="field">
         <text class="field-label">开始时段</text>
-        <picker range="{{periods}}" range-key="label" value="{{startPeriodIndex}}" bindchange="onStartPeriodChange">
+        <picker wx:if="{{halfDaySupported}}" range="{{periods}}" range-key="label" value="{{startPeriodIndex}}" bindchange="onStartPeriodChange">
           <view class="field-control">{{periods[startPeriodIndex].label}}</view>
         </picker>
+        <view wx:else class="field-control">全天</view>
       </view>
       <view class="field">
         <text class="field-label">结束时段</text>
-        <picker range="{{periods}}" range-key="label" value="{{endPeriodIndex}}" bindchange="onEndPeriodChange">
+        <picker wx:if="{{halfDaySupported}}" range="{{periods}}" range-key="label" value="{{endPeriodIndex}}" bindchange="onEndPeriodChange">
           <view class="field-control">{{periods[endPeriodIndex].label}}</view>
         </picker>
+        <view wx:else class="field-control">全天</view>
       </view>
     </view>
     <view class="field" wx:if="{{profile && profile.personnelType !== 'bank'}}">

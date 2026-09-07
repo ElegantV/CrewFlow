@@ -12,6 +12,7 @@
     "pages/onboard/index",
     "pages/ledger/index",
     "pages/admin/users",
+    "pages/admin/system/system",
     "pages/admin/ai/ai",
     "pages/admin/calendar/calendar",
     "pages/dev/users"
