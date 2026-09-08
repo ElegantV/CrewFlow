@@ -4,10 +4,6 @@ const calendarService = require('../../services/calendar')
 const holidays = require('../../config/holidays')
 
 function pad(value) { return String(value).padStart(2, '0') }
-function today() {
-  const date = new Date()
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
 function monthKey(date) { return `${date.getFullYear()}-${pad(date.getMonth() + 1)}` }
 function shiftMonth(month, offset) {
   const [year, value] = month.split('-').map(Number)
@@ -35,6 +31,22 @@ function supportsHalfDay(type) {
   return !type || (type.minimumHours !== undefined ? type.minimumHours <= 4 : false)
 }
 
+// 多天请假的开始/结束时段规则：开始日只能全天或下午半天（上午半天不能作开始），
+// 结束日只能上午半天或全天（下午半天不能作结束）。
+const startPeriods = [
+  { value: 'day', label: '全天' },
+  { value: 'afternoon', label: '下午半天' }
+]
+const endPeriods = [
+  { value: 'morning', label: '上午半天' },
+  { value: 'day', label: '全天' }
+]
+
+function periodIndex(list, value) {
+  const index = list.findIndex(item => item.value === value)
+  return index >= 0 ? index : 0
+}
+
 function settled(promise) {
   return promise.then(value => ({ value }), error => ({ error }))
 }
@@ -44,6 +56,7 @@ Page({
     loading: true,
     submitting: false,
     showForm: false,
+    showDatePicker: false,
     showResult: false,
     resultLoading: false,
     downloading: false,
@@ -56,20 +69,16 @@ Page({
     currentType: defaultLeaveType,
     halfDaySupported: true,
     profile: null,
-    periods: [
-      { value: 'day', label: '全天' },
-      { value: 'morning', label: '上午半天' },
-      { value: 'afternoon', label: '下午半天' }
-    ],
+    startPeriods,
+    endPeriods,
     startPeriodIndex: 0,
-    endPeriodIndex: 0,
+    endPeriodIndex: 1,
     form: {
       leaveType: 'comp_time',
       startDate: '',
       endDate: '',
       startPeriod: 'day',
-      endPeriod: 'day',
-      reason: ''
+      endPeriod: 'day'
     },
     calMonth: '',
     calTitle: '',
@@ -78,15 +87,13 @@ Page({
     rangeStart: '',
     rangeEnd: '',
     sameDayPeriod: 'day',
-    rangeWorkdays: 0
+    rangeWorkdays: 0,
+    leaveDays: 0
   },
 
   onLoad() {
-    const date = today()
     const currentMonth = monthKey(new Date())
     this.setData({
-      'form.startDate': date,
-      'form.endDate': date,
       calMonth: currentMonth,
       calTitle: this.monthTitle(currentMonth)
     })
@@ -122,6 +129,8 @@ Page({
         updates.sameDayPeriod = 'day'
         updates['form.startPeriod'] = 'day'
         updates['form.endPeriod'] = 'day'
+        updates.startPeriodIndex = periodIndex(startPeriods, 'day')
+        updates.endPeriodIndex = periodIndex(endPeriods, 'day')
       }
     }
     if (profileResult.value) updates.profile = profileResult.value
@@ -253,30 +262,73 @@ Page({
       'form.endDate': endDate
     })
     this.refreshRange()
+    // 选择完成后自动收起日期选择器：固定工作日类型选开始日期即完成，其余选完开始+结束即完成。
+    if (fixed || (rangeStart && rangeEnd)) {
+      this.setData({ showDatePicker: false })
+    }
+  },
+
+  openDatePicker() {
+    this.setData({ showDatePicker: true })
+    this.buildCalendar(this.data.calMonth || monthKey(new Date()))
+  },
+
+  closeDatePicker() {
+    this.setData({ showDatePicker: false })
+  },
+
+  clearDateRange() {
+    this.setData({
+      rangeStart: '',
+      rangeEnd: '',
+      rangeWorkdays: 0,
+      leaveDays: 0,
+      'form.startDate': '',
+      'form.endDate': '',
+      'form.startPeriod': 'day',
+      'form.endPeriod': 'day',
+      startPeriodIndex: periodIndex(startPeriods, 'day'),
+      endPeriodIndex: periodIndex(endPeriods, 'day')
+    })
+    this.buildCalendar(this.data.calMonth)
   },
 
   refreshRange() {
-    const { rangeStart, rangeEnd } = this.data
+    const { rangeStart, rangeEnd, form } = this.data
     let rangeWorkdays = 0
+    let leaveDays = 0
+    let startPeriod = form.startPeriod
+    let endPeriod = form.endPeriod
     if (rangeStart && rangeEnd) {
       const sameDay = rangeStart === rangeEnd
       rangeWorkdays = sameDay ? 1 : holidays.countWorkdays(rangeStart, rangeEnd)
-      if (sameDay && this.data.sameDayPeriod) {
-        this.setData({
-          'form.startPeriod': this.data.sameDayPeriod,
-          'form.endPeriod': this.data.sameDayPeriod
-        })
-      } else if (!sameDay) {
+      if (sameDay) {
+        // 单日以整天为基数，时长由下方的请假时长（请一天/上午/下午）决定。
+        if (this.data.sameDayPeriod) {
+          startPeriod = this.data.sameDayPeriod
+          endPeriod = this.data.sameDayPeriod
+        }
+        leaveDays = 1
+      } else {
         // 多天默认全天，避免残留单日的上/下午时段导致小时数计算错误。
-        this.setData({
-          'form.startPeriod': 'day',
-          'form.endPeriod': 'day',
-          startPeriodIndex: 0,
-          endPeriodIndex: 0
-        })
+        startPeriod = 'day'
+        endPeriod = 'day'
+        // 多天实际请假天数 = 范围内工作日 − 边界日未休的半天。
+        leaveDays = rangeWorkdays
+        if (startPeriod === 'morning' || startPeriod === 'afternoon') leaveDays -= 0.5
+        if (endPeriod === 'morning' || endPeriod === 'afternoon') leaveDays -= 0.5
       }
+      this.setData({
+        'form.startPeriod': startPeriod,
+        'form.endPeriod': endPeriod,
+        startPeriodIndex: periodIndex(startPeriods, startPeriod),
+        endPeriodIndex: periodIndex(endPeriods, endPeriod),
+        rangeWorkdays,
+        leaveDays
+      })
+    } else {
+      this.setData({ rangeWorkdays, leaveDays })
     }
-    this.setData({ rangeWorkdays })
     this.buildCalendar(this.data.calMonth)
   },
 
@@ -312,33 +364,44 @@ Page({
       updates.sameDayPeriod = 'day'
       updates['form.startPeriod'] = 'day'
       updates['form.endPeriod'] = 'day'
-      updates.startPeriodIndex = 0
-      updates.endPeriodIndex = 0
+      updates.startPeriodIndex = periodIndex(startPeriods, 'day')
+      updates.endPeriodIndex = periodIndex(endPeriods, 'day')
     }
     this.setData(updates)
     if (currentType.fixedWorkdays) {
-      this.setData({ rangeEnd: '' })
+      this.setData({ rangeEnd: '', 'form.endDate': '' })
       this.buildCalendar(this.data.calMonth)
     }
   },
 
   onStartPeriodChange(event) {
     const index = Number(event.detail.value)
-    this.setData({ startPeriodIndex: index, 'form.startPeriod': this.data.periods[index].value })
+    this.setData({ startPeriodIndex: index, 'form.startPeriod': this.data.startPeriods[index].value })
+    this.recomputeLeaveDays()
   },
 
   onEndPeriodChange(event) {
     const index = Number(event.detail.value)
-    this.setData({ endPeriodIndex: index, 'form.endPeriod': this.data.periods[index].value })
+    this.setData({ endPeriodIndex: index, 'form.endPeriod': this.data.endPeriods[index].value })
+    this.recomputeLeaveDays()
   },
 
-  onReasonInput(event) {
-    this.data.form.reason = event.detail.value
+  recomputeLeaveDays() {
+    const { rangeStart, rangeEnd, form } = this.data
+    if (!rangeStart || !rangeEnd || rangeStart === rangeEnd) return
+    let leaveDays = holidays.countWorkdays(rangeStart, rangeEnd)
+    if (form.startPeriod === 'morning' || form.startPeriod === 'afternoon') leaveDays -= 0.5
+    if (form.endPeriod === 'morning' || form.endPeriod === 'afternoon') leaveDays -= 0.5
+    this.setData({ leaveDays })
   },
 
   async submit() {
     const form = this.data.form
     const fixedWorkdays = this.data.currentType && this.data.currentType.fixedWorkdays
+    if (!form.startDate || !form.endDate) {
+      wx.showToast({ title: '请选择请假日期', icon: 'none' })
+      return
+    }
     if (!fixedWorkdays && form.endDate < form.startDate) {
       wx.showToast({ title: '结束日期不能早于开始日期', icon: 'none' })
       return
@@ -357,7 +420,7 @@ Page({
     this.setData({ submitting: true })
     try {
       const result = await leave.create(this.data.form)
-      this.setData({ showForm: false, submitting: false, 'form.reason': '' })
+      this.setData({ showForm: false, submitting: false })
       wx.showToast({ title: `已提交${result.requestedDays}天`, icon: 'success' })
       if (result.warnings && result.warnings.length) {
         wx.showModal({

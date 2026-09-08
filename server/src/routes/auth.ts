@@ -11,14 +11,16 @@ const devLoginSchema = z.object({
   userId: z.string().uuid(),
 });
 
+const MOBILE_RE = /^1[3-9]\d{9}$/;
+
 const registerSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  mobile: z.string().trim().min(1).max(30),
+  mobile: z.string().trim().min(1).max(30).regex(MOBILE_RE, "手机号格式不正确"),
 });
 
 const bindSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  mobile: z.string().trim().min(1).max(30),
+  mobile: z.string().trim().min(1).max(30).regex(MOBILE_RE, "手机号格式不正确"),
 });
 
 const wechatResponseSchema = z.object({
@@ -121,7 +123,13 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post("/register", { onRequest: [app.authenticate] }, async (request, reply) => {
     const parsed = registerSchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.code(400).send({ code: "INVALID_REGISTER", message: "请完整填写姓名和手机号" });
+      const mobileInvalid = parsed.error.issues.some(
+        (issue) => issue.path[0] === "mobile" && issue.code === "invalid_format",
+      );
+      return reply.code(400).send({
+        code: mobileInvalid ? "INVALID_MOBILE" : "INVALID_REGISTER",
+        message: mobileInvalid ? "手机号格式不正确" : "请完整填写姓名和手机号",
+      });
     }
     const current = await db.query<{ id: string; openid: string; status: string }>(
       "SELECT id, openid, status FROM users WHERE id = $1",
@@ -160,7 +168,13 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post("/bind", { onRequest: [app.authenticate], ...loginRateLimit }, async (request, reply) => {
     const parsed = bindSchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.code(400).send({ code: "INVALID_BIND", message: "请完整填写姓名和手机号" });
+      const mobileInvalid = parsed.error.issues.some(
+        (issue) => issue.path[0] === "mobile" && issue.code === "invalid_format",
+      );
+      return reply.code(400).send({
+        code: mobileInvalid ? "INVALID_MOBILE" : "INVALID_BIND",
+        message: mobileInvalid ? "手机号格式不正确" : "请完整填写姓名和手机号",
+      });
     }
     const current = await db.query<{ id: string; openid: string; status: string }>(
       "SELECT id, openid, status FROM users WHERE id = $1",

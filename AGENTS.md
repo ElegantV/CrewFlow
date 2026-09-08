@@ -52,7 +52,8 @@ docker compose up -d                                      # 最后切流量
   `assets/appicon`（后台手动上传的头像设计稿，不进包）、`assets/icons/generate.js`（SVG→PNG 构建脚本）
 - 主包约 816K（<1.5M 限制）；图标均在 `assets/icons/`（<6K，无 >200K 资源）
 - 头像在「小程序后台 → 设置 → 头像」手动上传 `assets/appicon/appicon-1024.png`
-- 版本备注应写清本次增量改动，便于审核（见各版本上线记录）
+- 版本备注应写清本次增量改动，便于审核；每次提审/上传后同步更新 `CHANGELOG.md`
+- **版本记录流程**：每次 git 提交后，列出本次提交的版本备注与版本号，待用户确认后再写入 `CHANGELOG.md`（未经确认不得擅自写入）
 
 ## 已知关键逻辑（改动时注意）
 

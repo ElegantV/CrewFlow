@@ -25,7 +25,10 @@ export function validatePeriodRange(
   startPeriod: DayPeriod,
   endPeriod: DayPeriod,
 ) {
-  if (startDate !== endDate) return true;
+  if (startDate !== endDate) {
+    // 多天：开始日只能全天或下午半天（上午半天不能作为开始），结束日只能上午半天或全天（下午半天不能作为结束）。
+    return startPeriod !== "morning" && endPeriod !== "afternoon";
+  }
   if (startPeriod === "day" || endPeriod === "day") {
     return startPeriod === "day" && endPeriod === "day";
   }

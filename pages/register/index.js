@@ -1,5 +1,7 @@
 const auth = require('../../services/auth')
 
+const MOBILE_RE = /^1[3-9]\d{9}$/
+
 Page({
   data: {
     mode: 'register',
@@ -28,6 +30,10 @@ Page({
     const mobile = (this.data.form.mobile || '').trim()
     if (!name || !mobile) {
       wx.showToast({ title: '请填写姓名和手机号', icon: 'none' })
+      return
+    }
+    if (!MOBILE_RE.test(mobile)) {
+      wx.showToast({ title: '请输入正确的手机号', icon: 'none' })
       return
     }
     this.setData({ submitting: true })
@@ -60,6 +66,10 @@ Page({
     const mobile = (this.data.bindForm.mobile || '').trim()
     if (!name || !mobile) {
       wx.showToast({ title: '请填写姓名和手机号', icon: 'none' })
+      return
+    }
+    if (!MOBILE_RE.test(mobile)) {
+      wx.showToast({ title: '请输入正确的手机号', icon: 'none' })
       return
     }
     this.setData({ submitting: true })

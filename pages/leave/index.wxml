@@ -60,88 +60,108 @@
       <view class="form-content">
         <view class="sheet-handle"></view>
         <view class="sheet-head"><text class="form-title">请假申请</text><text class="sheet-close" bindtap="closeForm">关闭</text></view>
-    <view class="field">
-      <text class="field-label">请假类型</text>
-      <picker range="{{types}}" range-key="label" value="{{typeIndex}}" bindchange="onTypeChange">
-        <view class="field-control">{{currentType && currentType.label}}</view>
-      </picker>
-      <text class="field-help" wx:if="{{currentType && currentType.fixedWorkdays}}">一次性休完{{currentType.fixedWorkdays}}个工作日，结束日期自动计算。</text>
-      <text class="field-help" wx:else>最小{{currentType.minimumHours}}小时，按{{currentType.incrementHours}}小时递增。</text>
-    </view>
-    <view class="field">
-      <text class="field-label">请假日期</text>
-      <text class="field-hint" wx:if="{{!currentType.fixedWorkdays}}">点击选择开始日期，再次点击确定结束日期</text>
-      <view class="calendar card">
-        <view class="calendar-head">
-          <view class="calendar-nav" bindtap="prevMonth">‹</view>
-          <text class="calendar-title">{{calTitle}}</text>
-          <view class="calendar-nav" bindtap="nextMonth">›</view>
+        <view class="field">
+          <text class="field-label">请假类型</text>
+          <picker range="{{types}}" range-key="label" value="{{typeIndex}}" bindchange="onTypeChange">
+            <view class="field-control field-picker">{{currentType && currentType.label}}<text class="picker-arrow">›</text></view>
+          </picker>
+          <text class="field-help" wx:if="{{currentType && currentType.fixedWorkdays}}">一次性休完{{currentType.fixedWorkdays}}个工作日，结束日期自动计算。</text>
+          <text class="field-help" wx:else>最小{{currentType.minimumHours}}小时，按{{currentType.incrementHours}}小时递增。</text>
         </view>
-        <view class="calendar-week">
-          <text wx:for="{{weekdays}}" wx:key="*this" class="calendar-week-label">{{item}}</text>
+        <view class="field">
+          <text class="field-label">请假日期</text>
+          <view class="field-control field-picker" bindtap="openDatePicker">
+            <text wx:if="{{rangeStart && rangeEnd}}">{{rangeStart === rangeEnd ? rangeStart : rangeStart + ' 至 ' + rangeEnd}}</text>
+            <text wx:elif="{{rangeStart}}">{{rangeStart}}{{currentType.fixedWorkdays ? '' : ' · 请选择结束日期'}}</text>
+            <text wx:else class="field-placeholder">请选择开始日期</text>
+            <text class="picker-arrow">›</text>
+          </view>
+          <text class="field-help" wx:if="{{currentType && currentType.fixedWorkdays}}">点击选择开始日期，结束日期自动计算。</text>
+          <text class="field-help" wx:else>点击选择日期范围，同一天点击两次为单日请假。</text>
         </view>
-        <view class="calendar-grid">
-          <view
-            wx:for="{{calCells}}"
-            wx:key="key"
-            class="calendar-cell {{item.empty ? 'calendar-cell--empty' : ''}} {{item.rangeStart ? 'calendar-cell--start' : ''}} {{item.rangeEnd ? 'calendar-cell--end' : ''}} {{item.inRange ? 'calendar-cell--inrange' : ''}} {{item.isToday ? 'calendar-cell--today' : ''}}"
-            data-date="{{item.date}}"
-            bindtap="onCalendarTap"
-          >
-            <text wx:if="{{!item.empty}}" class="calendar-day {{item.isHoliday ? 'calendar-day--holiday' : ''}}">{{item.day}}</text>
+        <view class="field" wx:if="{{rangeStart && (rangeEnd || currentType.fixedWorkdays)}}">
+          <text class="field-label">请假天数</text>
+          <view class="field-control field-control--readonly">{{currentType.fixedWorkdays ? currentType.fixedWorkdays + ' 天工作日（一次性休完）' : leaveDays + ' 天' + (rangeStart === rangeEnd ? '' : (leaveDays % 1 === 0 ? '工作日（已扣除周末和节假日）' : '（含半天，已扣除周末和节假日）'))}}</view>
+        </view>
+        <view class="field" wx:if="{{rangeStart && rangeStart === rangeEnd && !currentType.fixedWorkdays && halfDaySupported}}">
+          <text class="field-label">请假时长</text>
+          <view class="period-seg">
+            <view class="period-seg__item {{sameDayPeriod === 'day' ? 'period-seg__item--active' : ''}}" data-value="day" bindtap="onSameDayPeriod">请一天</view>
+            <view class="period-seg__item {{sameDayPeriod === 'morning' ? 'period-seg__item--active' : ''}}" data-value="morning" bindtap="onSameDayPeriod">上午</view>
+            <view class="period-seg__item {{sameDayPeriod === 'afternoon' ? 'period-seg__item--active' : ''}}" data-value="afternoon" bindtap="onSameDayPeriod">下午</view>
           </view>
         </view>
-        <view class="calendar-hint">
-          <text wx:if="{{rangeStart && rangeEnd}}">{{rangeStart === rangeEnd ? '单日请假，请选择下方时长' : '已选择 ' + rangeStart + ' 至 ' + rangeEnd}}</text>
-          <text wx:elif="{{rangeStart}}">已选择开始日期 {{rangeStart}}，请再次点击结束日期</text>
+        <view class="period-grid" wx:if="{{rangeStart && rangeEnd && rangeStart !== rangeEnd && !currentType.fixedWorkdays && halfDaySupported}}">
+          <view class="field">
+            <text class="field-label">开始时段</text>
+            <picker range="{{startPeriods}}" range-key="label" value="{{startPeriodIndex}}" bindchange="onStartPeriodChange">
+              <view class="field-control">{{startPeriods[startPeriodIndex].label}}</view>
+            </picker>
+          </view>
+          <view class="field">
+            <text class="field-label">结束时段</text>
+            <picker range="{{endPeriods}}" range-key="label" value="{{endPeriodIndex}}" bindchange="onEndPeriodChange">
+              <view class="field-control">{{endPeriods[endPeriodIndex].label}}</view>
+            </picker>
+          </view>
         </view>
-      </view>
-    </view>
-    <view class="field" wx:if="{{rangeStart && (rangeEnd || currentType.fixedWorkdays)}}">
-      <text class="field-label">请假天数</text>
-      <view class="field-control field-control--readonly">{{currentType.fixedWorkdays ? currentType.fixedWorkdays + ' 天工作日（一次性休完）' : rangeWorkdays + ' 天工作日' + (rangeStart !== rangeEnd ? '（已扣除周末和节假日）' : '')}}</view>
-    </view>
-    <view class="field" wx:if="{{rangeStart && rangeStart === rangeEnd && !currentType.fixedWorkdays}}">
-      <text class="field-label">请假时长</text>
-      <view class="period-seg">
-        <view class="period-seg__item {{sameDayPeriod === 'day' ? 'period-seg__item--active' : ''}}" data-value="day" bindtap="onSameDayPeriod">请一天</view>
-        <view wx:if="{{halfDaySupported}}" class="period-seg__item {{sameDayPeriod === 'morning' ? 'period-seg__item--active' : ''}}" data-value="morning" bindtap="onSameDayPeriod">上午</view>
-        <view wx:if="{{halfDaySupported}}" class="period-seg__item {{sameDayPeriod === 'afternoon' ? 'period-seg__item--active' : ''}}" data-value="afternoon" bindtap="onSameDayPeriod">下午</view>
-      </view>
-    </view>
-    <view class="period-grid" wx:if="{{rangeStart && rangeEnd && rangeStart !== rangeEnd && !currentType.fixedWorkdays}}">
-      <view class="field">
-        <text class="field-label">开始时段</text>
-        <picker wx:if="{{halfDaySupported}}" range="{{periods}}" range-key="label" value="{{startPeriodIndex}}" bindchange="onStartPeriodChange">
-          <view class="field-control">{{periods[startPeriodIndex].label}}</view>
-        </picker>
-        <view wx:else class="field-control">全天</view>
-      </view>
-      <view class="field">
-        <text class="field-label">结束时段</text>
-        <picker wx:if="{{halfDaySupported}}" range="{{periods}}" range-key="label" value="{{endPeriodIndex}}" bindchange="onEndPeriodChange">
-          <view class="field-control">{{periods[endPeriodIndex].label}}</view>
-        </picker>
-        <view wx:else class="field-control">全天</view>
-      </view>
-    </view>
-    <view class="field" wx:if="{{profile && profile.personnelType !== 'bank'}}">
-      <text class="field-label">工作代理人</text>
-      <view class="field-control">{{profile && profile.agent && (profile.agent.name || '未命名用户')}}</view>
-    </view>
-    <view class="field">
-      <text class="field-label">事由</text>
-      <textarea class="field-textarea" maxlength="500" value="{{form.reason}}" placeholder="请填写请假事由" bindinput="onReasonInput"></textarea>
-    </view>
-    <view class="proof-notice" wx:if="{{currentType.proofNotice}}">
-      {{currentType.proofNotice}}。当前版本仅作提示，无需在小程序上传。
-    </view>
+        <view class="field" wx:if="{{profile && profile.personnelType !== 'bank'}}">
+          <text class="field-label">工作代理人</text>
+          <view class="field-control">{{profile && profile.agent && (profile.agent.name || '未命名用户')}}</view>
+        </view>
+        <view class="proof-notice" wx:if="{{currentType.proofNotice}}">
+          {{currentType.proofNotice}}。当前版本仅作提示，无需在小程序上传。
+        </view>
         <view class="form-actions">
           <button class="secondary-button" bindtap="closeForm">取消</button>
           <button class="primary-button" loading="{{submitting}}" bindtap="submit">提交申请</button>
         </view>
       </view>
     </scroll-view>
+  </view>
+</view>
+
+<view class="modal-mask datepicker-mask" wx:if="{{showDatePicker}}" bindtap="closeDatePicker">
+  <view class="datepicker-card" catchtap="noop">
+    <view class="datepicker-head">
+      <text class="form-title">选择请假日期</text>
+      <text class="sheet-close" bindtap="closeDatePicker">关闭</text>
+    </view>
+    <view class="datepicker-range">
+      <text class="datepicker-range-item {{rangeStart ? 'datepicker-range-item--active' : ''}}">{{rangeStart || '开始日期'}}</text>
+      <text class="datepicker-range-arrow">→</text>
+      <text class="datepicker-range-item {{rangeEnd ? 'datepicker-range-item--active' : ''}}">{{currentType.fixedWorkdays ? (rangeStart ? '自动计算' : '结束日期') : (rangeEnd || '结束日期')}}</text>
+    </view>
+    <view class="calendar card">
+      <view class="calendar-head">
+        <view class="calendar-nav" bindtap="prevMonth">‹</view>
+        <text class="calendar-title">{{calTitle}}</text>
+        <view class="calendar-nav" bindtap="nextMonth">›</view>
+      </view>
+      <view class="calendar-week">
+        <text wx:for="{{weekdays}}" wx:key="*this" class="calendar-week-label">{{item}}</text>
+      </view>
+      <view class="calendar-grid">
+        <view
+          wx:for="{{calCells}}"
+          wx:key="key"
+          class="calendar-cell {{item.empty ? 'calendar-cell--empty' : ''}} {{item.rangeStart ? 'calendar-cell--start' : ''}} {{item.rangeEnd ? 'calendar-cell--end' : ''}} {{item.inRange ? 'calendar-cell--inrange' : ''}} {{item.isToday ? 'calendar-cell--today' : ''}}"
+          data-date="{{item.date}}"
+          bindtap="onCalendarTap"
+        >
+          <text wx:if="{{!item.empty}}" class="calendar-day {{item.isHoliday ? 'calendar-day--holiday' : ''}}">{{item.day}}</text>
+        </view>
+      </view>
+      <view class="calendar-hint">
+        <text wx:if="{{rangeStart && rangeEnd}}">{{rangeStart === rangeEnd ? '单日请假' : '已选择 ' + rangeStart + ' 至 ' + rangeEnd}}</text>
+        <text wx:elif="{{rangeStart}}">{{currentType.fixedWorkdays ? '已选择开始日期 ' + rangeStart + '，结束日期自动计算' : '已选择开始日期 ' + rangeStart + '，请选择结束日期'}}</text>
+        <text wx:else>{{currentType.fixedWorkdays ? '点击选择开始日期' : '点击选择开始日期，再次点击同一日期为单日请假'}}</text>
+      </view>
+    </view>
+    <view class="datepicker-actions">
+      <button class="secondary-button" bindtap="clearDateRange">清除</button>
+      <button class="primary-button" bindtap="closeDatePicker">确定</button>
+    </view>
   </view>
 </view>
 

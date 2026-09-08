@@ -3,8 +3,7 @@ const onboard = require('../../utils/onboard')
 
 const STEP_META = {
   basic: { title: '基本信息', description: '填写姓名并选择人员类型' },
-  manager: { title: '审批人', description: '指定审批你的请假申请的直属管理员' },
-  agent: { title: '工作代理人', description: '非行员发起请假前需指定代理人' },
+  relations: { title: '审批人与代理人', description: '一次性选择审批管理员与工作代理人' },
   signature: { title: '审批签名', description: '审批申请时需要使用手写签名' }
 }
 
@@ -47,11 +46,10 @@ Page({
         return
       }
       // 姓名缺失时把代理人并入基本信息一步保存（整行更新要求非行员必须带代理人），
-      // 姓名已有但代理人缺失时单独出代理人步骤。
+      // 审批人与代理人合并在同一步一次填完。
       const keys = []
       if (missing.includes('name')) keys.push('basic')
-      if (missing.includes('manager')) keys.push('manager')
-      else if (missing.includes('agent')) keys.push('agent')
+      if (missing.includes('manager') || missing.includes('agent')) keys.push('relations')
       if (missing.includes('signature')) keys.push('signature')
       const form = { name: profile.name || '', personnelType: profile.personnelType || 'digital' }
       this.setData({
@@ -149,7 +147,14 @@ Page({
         emergencyContactName: (profile.emergencyContact && profile.emergencyContact.name) || null,
         emergencyContactPhone: (profile.emergencyContact && profile.emergencyContact.phone) || null
       })
-      this.setData({ saving: false })
+      this.setData({
+        saving: false,
+        profile: Object.assign({}, this.data.profile, {
+          name,
+          personnelType: form.personnelType,
+          agent: agent ? { id: agent.id, name: agent.name } : this.data.profile.agent
+        })
+      })
       this.advance()
     } catch (error) {
       this.setData({ saving: false })
@@ -157,36 +162,25 @@ Page({
     }
   },
 
-  async saveAgent() {
-    const { saving } = this.data
+  async saveRelations() {
+    const { saving, profile, people, managers, selectedAgentIndex, selectedManagerIndex } = this.data
     if (saving) return
-    const agent = this.data.people[this.data.selectedAgentIndex]
-    if (!agent) {
+    const needManager = profile.role === 'user'
+    const needAgent = profile.personnelType !== 'bank'
+    const manager = managers[selectedManagerIndex]
+    const agent = people[selectedAgentIndex]
+    if (needManager && !manager) {
+      wx.showToast({ title: '请选择审批人', icon: 'none' })
+      return
+    }
+    if (needAgent && !agent) {
       wx.showToast({ title: '请选择工作代理人', icon: 'none' })
       return
     }
     this.setData({ saving: true })
     try {
-      await me.setAgent(agent.id)
-      this.setData({ saving: false })
-      this.advance()
-    } catch (error) {
-      this.setData({ saving: false })
-      wx.showToast({ title: error.message || '保存失败', icon: 'none', duration: 3000 })
-    }
-  },
-
-  async saveManager() {
-    const { saving } = this.data
-    if (saving) return
-    const manager = this.data.managers[this.data.selectedManagerIndex]
-    if (!manager) {
-      wx.showToast({ title: '请选择审批人', icon: 'none' })
-      return
-    }
-    this.setData({ saving: true })
-    try {
-      await me.setManager(manager.id)
+      if (needManager) await me.setManager(manager.id)
+      if (needAgent) await me.setAgent(agent.id)
       this.setData({ saving: false })
       this.advance()
     } catch (error) {
@@ -292,8 +286,10 @@ Page({
       return
     }
     this.setData({ stepIndex: next, currentStep: this.data.steps[next].key })
-    if (this.data.steps[next].key === 'agent') this.loadPeople()
-    if (this.data.steps[next].key === 'manager') this.loadManagers()
+    if (this.data.steps[next].key === 'relations') {
+      this.loadPeople()
+      this.loadManagers()
+    }
   },
 
   finish() {

@@ -30,20 +30,8 @@
     <button class="primary-button step-button" loading="{{saving}}" bindtap="saveBasic">保存并继续</button>
   </view>
 
-  <view class="step-card card" wx:elif="{{currentStep === 'agent'}}">
-    <view class="field">
-      <text class="field-label">工作代理人（非行员） <text class="required">*</text></text>
-      <picker range="{{people}}" range-key="name" value="{{selectedAgentIndex}}" bindchange="onAgentChange">
-        <view class="field-input field-picker">{{selectedAgentIndex >= 0 ? people[selectedAgentIndex].name : '请选择工作代理人'}}<text class="picker-arrow">›</text></view>
-      </picker>
-      <text class="field-help" wx:if="{{!people.length}}">暂无可选代理人，请联系管理员先添加同事账号。</text>
-      <text class="field-help" wx:else>提交请假申请时，将由代理人代为处理你的工作。</text>
-    </view>
-    <button class="primary-button step-button" loading="{{saving}}" bindtap="saveAgent">保存并继续</button>
-  </view>
-
-  <view class="step-card card" wx:elif="{{currentStep === 'manager'}}">
-    <view class="field">
+  <view class="step-card card" wx:elif="{{currentStep === 'relations'}}">
+    <view class="field" wx:if="{{profile.role === 'user'}}">
       <text class="field-label">审批人（管理员） <text class="required">*</text></text>
       <picker range="{{managers}}" range-key="name" value="{{selectedManagerIndex}}" bindchange="onManagerChange">
         <view class="field-input field-picker">{{selectedManagerIndex >= 0 ? managers[selectedManagerIndex].name : '请选择审批人'}}<text class="picker-arrow">›</text></view>
@@ -51,7 +39,15 @@
       <text class="field-help" wx:if="{{!managers.length}}">暂无可选审批人，请联系超级管理员先分配审批关系。</text>
       <text class="field-help" wx:else>请假申请将提交给所选的审批管理员处理。</text>
     </view>
-    <button class="primary-button step-button" loading="{{saving}}" bindtap="saveManager">保存并继续</button>
+    <view class="field" wx:if="{{profile.personnelType !== 'bank'}}">
+      <text class="field-label">工作代理人（非行员） <text class="required">*</text></text>
+      <picker range="{{people}}" range-key="name" value="{{selectedAgentIndex}}" bindchange="onAgentChange">
+        <view class="field-input field-picker">{{selectedAgentIndex >= 0 ? people[selectedAgentIndex].name : '请选择工作代理人'}}<text class="picker-arrow">›</text></view>
+      </picker>
+      <text class="field-help" wx:if="{{!people.length}}">暂无可选代理人，请联系管理员先添加同事账号。</text>
+      <text class="field-help" wx:else>提交请假申请时，将由代理人代为处理你的工作。</text>
+    </view>
+    <button class="primary-button step-button" loading="{{saving}}" bindtap="saveRelations">保存并继续</button>
   </view>
 
   <view class="step-card card" wx:elif="{{currentStep === 'signature'}}">

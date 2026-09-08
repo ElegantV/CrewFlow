@@ -134,9 +134,11 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
     if (!validatePeriodRange(parsed.data.startDate, endDate, startPeriod, endPeriod)) {
       return reply.code(400).send({
         code: "INVALID_PERIOD_RANGE",
-        message: startPeriod === "afternoon" && endPeriod === "morning"
-          ? "同一天请假时，结束时段不能早于开始时段"
-          : "同一天选择全天时，开始和结束时段都必须选择全天",
+        message: parsed.data.startDate === endDate
+          ? startPeriod === "afternoon" && endPeriod === "morning"
+            ? "同一天请假时，结束时段不能早于开始时段"
+            : "同一天选择全天时，开始和结束时段都必须选择全天"
+          : "多天请假时，开始时段只能全天或下午半天，结束时段只能上午半天或全天",
       });
     }
 

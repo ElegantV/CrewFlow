@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { buildApp } from "../src/app.js";
-import { addWorkdays, calculateWorkingHours, isWorkdayDate } from "../src/business/leave-policy.js";
+import { addWorkdays, calculateWorkingHours, isWorkdayDate, validatePeriodRange } from "../src/business/leave-policy.js";
 import { db } from "../src/db.js";
 
 const app = await buildApp();
@@ -336,6 +336,38 @@ test("overtime, FIFO timeoff, duplicate leave, cancellation and permissions", as
   assert.equal(reversedSameDayPeriod.statusCode, 400, reversedSameDayPeriod.body);
   assert.equal(reversedSameDayPeriod.json().code, "INVALID_PERIOD_RANGE");
 
+  // 多天：开始日选上午半天 → 400；结束日选下午半天 → 400。
+  const multiDayStart = nextWeekday(today, 6);
+  const morningStartMultiDay = await app.inject({
+    method: "POST",
+    url: "/api/v1/leaves",
+    headers: auth(normalUser),
+    payload: {
+      leaveType: "public_out",
+      startDate: multiDayStart,
+      endDate: addWorkdays(multiDayStart, 1),
+      startPeriod: "morning",
+      endPeriod: "day",
+    },
+  });
+  assert.equal(morningStartMultiDay.statusCode, 400, morningStartMultiDay.body);
+  assert.equal(morningStartMultiDay.json().code, "INVALID_PERIOD_RANGE");
+
+  const afternoonEndMultiDay = await app.inject({
+    method: "POST",
+    url: "/api/v1/leaves",
+    headers: auth(normalUser),
+    payload: {
+      leaveType: "public_out",
+      startDate: multiDayStart,
+      endDate: addWorkdays(multiDayStart, 1),
+      startPeriod: "day",
+      endPeriod: "afternoon",
+    },
+  });
+  assert.equal(afternoonEndMultiDay.statusCode, 400, afternoonEndMultiDay.body);
+  assert.equal(afternoonEndMultiDay.json().code, "INVALID_PERIOD_RANGE");
+
   const extraOvertime = await app.inject({
     method: "POST",
     url: "/api/v1/overtime",
@@ -587,6 +619,24 @@ test("calculateWorkingHours 扣除法定节假日与调休上班日", () => {
   assert.equal(calculateWorkingHours("2026-09-24", "2026-09-28", "day", "day"), 16);
   // 2026-01-04(周日) 元旦调休上班，计入工作日。
   assert.equal(calculateWorkingHours("2026-01-04", "2026-01-04", "day", "day"), 8);
+});
+
+test("validatePeriodRange 多天开始只能全天/下午半天，结束只能上午半天/全天", () => {
+  // 2026-08-17(周一) 18(周二)。
+  // 多天合法组合：开始 ∈ {day, afternoon}，结束 ∈ {morning, day}。
+  assert.equal(validatePeriodRange("2026-08-17", "2026-08-18", "day", "day"), true);
+  assert.equal(validatePeriodRange("2026-08-17", "2026-08-18", "day", "morning"), true);
+  assert.equal(validatePeriodRange("2026-08-17", "2026-08-18", "afternoon", "day"), true);
+  assert.equal(validatePeriodRange("2026-08-17", "2026-08-18", "afternoon", "morning"), true);
+  // 多天非法组合：开始上午 / 结束下午。
+  assert.equal(validatePeriodRange("2026-08-17", "2026-08-18", "morning", "morning"), false);
+  assert.equal(validatePeriodRange("2026-08-17", "2026-08-18", "afternoon", "afternoon"), false);
+  assert.equal(validatePeriodRange("2026-08-17", "2026-08-18", "morning", "afternoon"), false);
+  // 单天规则不受影响。
+  assert.equal(validatePeriodRange("2026-08-17", "2026-08-17", "morning", "morning"), true);
+  assert.equal(validatePeriodRange("2026-08-17", "2026-08-17", "afternoon", "morning"), false);
+  assert.equal(validatePeriodRange("2026-08-17", "2026-08-17", "day", "day"), true);
+  assert.equal(validatePeriodRange("2026-08-17", "2026-08-17", "day", "morning"), false);
 });
 
 test("calculateWorkingHours 多天半天语义与单天一致", () => {
