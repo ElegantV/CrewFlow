@@ -131,7 +131,7 @@ Page({
   async testPush() {
     try {
       await wxpusher.test()
-      wx.showToast({ title: '已发送测试消息', icon: 'success' })
+      wx.showToast({ title: '已发送提醒消息', icon: 'success' })
     } catch (error) {
       wx.showToast({ title: error.message || '发送失败', icon: 'none' })
     }

@@ -4,6 +4,10 @@ const calendarService = require('../../services/calendar')
 const holidays = require('../../config/holidays')
 
 function pad(value) { return String(value).padStart(2, '0') }
+function today() {
+  const date = new Date()
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
 function monthKey(date) { return `${date.getFullYear()}-${pad(date.getMonth() + 1)}` }
 function shiftMonth(month, offset) {
   const [year, value] = month.split('-').map(Number)
@@ -83,6 +87,7 @@ Page({
     calMonth: '',
     calTitle: '',
     calCells: [],
+    today: '',
     weekdays: ['一', '二', '三', '四', '五', '六', '日'],
     rangeStart: '',
     rangeEnd: '',
@@ -95,7 +100,8 @@ Page({
     const currentMonth = monthKey(new Date())
     this.setData({
       calMonth: currentMonth,
-      calTitle: this.monthTitle(currentMonth)
+      calTitle: this.monthTitle(currentMonth),
+      today: today()
     })
     this.buildCalendar(currentMonth)
   },
@@ -421,6 +427,7 @@ Page({
     try {
       const result = await leave.create(this.data.form)
       this.setData({ showForm: false, submitting: false })
+      this.clearDateRange()
       wx.showToast({ title: `已提交${result.requestedDays}天`, icon: 'success' })
       if (result.warnings && result.warnings.length) {
         wx.showModal({

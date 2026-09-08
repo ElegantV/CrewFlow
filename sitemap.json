@@ -5,6 +5,21 @@
     "page": "pages/admin/users"
     }, {
     "action": "disallow",
+    "page": "pages/admin/system/system"
+    }, {
+    "action": "disallow",
+    "page": "pages/admin/ai/ai"
+    }, {
+    "action": "disallow",
+    "page": "pages/admin/calendar/calendar"
+    }, {
+    "action": "disallow",
+    "page": "pages/register/index"
+    }, {
+    "action": "disallow",
+    "page": "pages/onboard/index"
+    }, {
+    "action": "disallow",
     "page": "pages/dev/users"
     }, {
     "action": "allow",

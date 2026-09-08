@@ -128,7 +128,7 @@
       <view class="wxpusher-bound" wx:if="{{wxpusherBound}}">
         <view class="wxpusher-uid">已绑定 UID：{{wxpusherUid}}</view>
         <view class="wxpusher-actions">
-          <button class="secondary-button" bindtap="testPush">发送测试</button>
+          <button class="secondary-button" bindtap="testPush">发送提醒消息</button>
           <button class="text-button-danger" bindtap="unbindPush">解绑</button>
         </view>
       </view>

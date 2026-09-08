@@ -67,6 +67,7 @@ function requestFailed(response) {
 // 旧基础库不支持 onChunkReceived 时自动降级为一次性 JSON。
 function chatStream(messages, { onDelta } = {}) {
   return new Promise((resolve, reject) => {
+    let fallbackUsed = false
     const requestTask = wx.request({
       url: `${getApiBaseUrl()}/api/v1/ai/chat`,
       method: 'POST',
@@ -75,6 +76,7 @@ function chatStream(messages, { onDelta } = {}) {
       enableChunked: true,
       timeout: 60000,
       success(response) {
+        if (fallbackUsed) return
         if (response.statusCode >= 200 && response.statusCode < 300) return
         if (response.statusCode === 401) {
           return reject(Object.assign(new Error('登录状态已失效，请重新登录'), { code: 'AUTH_REQUIRED' }))
@@ -82,11 +84,14 @@ function chatStream(messages, { onDelta } = {}) {
         reject(Object.assign(new Error((response.data && response.data.message) || 'AI 服务暂时不可用，请稍后重试'), { code: 'AI_UPSTREAM_ERROR' }))
       },
       fail(error) {
+        if (fallbackUsed) return
         reject(Object.assign(new Error('网络异常，AI 暂时不可用'), { cause: error }))
       }
     })
     if (typeof requestTask.onChunkReceived !== 'function') {
       // 分片接收不可用:中止流式,降级为一次性 JSON 请求。
+      // abort 会触发 fail 回调,须先标记降级,让 success/fail 忽略旧请求的结果。
+      fallbackUsed = true
       try { requestTask.abort() } catch (error) { /* 已完成的请求无需中止 */ }
       chat(messages).then(resolve, reject)
       return

@@ -151,6 +151,7 @@ Page({
 
   onInput(event) {
     this.inputDraft = event.detail.value
+    this.setData({ input: event.detail.value })
   },
 
   useExample(event) {
