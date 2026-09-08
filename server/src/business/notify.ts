@@ -2,6 +2,7 @@ import { config } from "../config.js";
 import { db } from "../db.js";
 import { sendWxPusherMessage } from "../wxpusher.js";
 import { leavePolicies, type LeaveType } from "./leave-policy.js";
+import { generateMiniProgramScheme } from "./wechat-scheme.js";
 
 async function findUid(userId: string) {
   if (!config.WXPUSHER_APP_TOKEN) return null;
@@ -54,7 +55,9 @@ export async function notifyApproverPending(leaveRequestId: string) {
     const content =
       `【审批提醒】${row.applicant_name ?? "员工"}申请${label}（${range}，共${row.requested_days}天），` +
       `请及时在简序日程小程序中审批。`;
-    const sent = await sendWxPusherMessage(content, [uid]);
+    // 附小程序 URL Scheme,消息卡片出现"查看链接",微信内点击直达审批页。
+    const scheme = await generateMiniProgramScheme("/pages/approval/index");
+    const sent = await sendWxPusherMessage(content, [uid], undefined, scheme ?? undefined);
     if (sent.code !== 1000) {
       console.error("wxpusher 待审批提醒发送失败", sent.code, sent.msg);
     }
@@ -98,11 +101,44 @@ export async function notifyApplicantDecision(leaveRequestId: string, status: "a
     const content =
       `【审批结果】${row.applicant_name ?? "你"}申请的${label}（${range}，共${row.requested_days}天）${phrase}，` +
       `可到简序日程小程序查看详情。`;
-    const sent = await sendWxPusherMessage(content, [uid]);
+    // 附小程序 URL Scheme,消息卡片出现"查看链接",微信内点击直达请假列表页。
+    const scheme = await generateMiniProgramScheme("/pages/leave/index");
+    const sent = await sendWxPusherMessage(content, [uid], undefined, scheme ?? undefined);
     if (sent.code !== 1000) {
       console.error("wxpusher 审批结果提醒发送失败", sent.code, sent.msg);
     }
   } catch (error) {
     console.error("wxpusher 审批结果提醒发送异常", error);
+  }
+}
+
+// 加班登记后给本人推送"工作日加班打卡提醒"（wxpusher）。异常处理口径同上。
+export async function notifyOvertimeCheckIn(
+  userId: string,
+  date: string,
+  hours: number,
+  endTime: string,
+) {
+  if (!config.WXPUSHER_APP_TOKEN) return;
+  try {
+    const uid = await findUid(userId);
+    if (!uid) {
+      console.warn(`wxpusher 加班打卡提醒跳过:用户「${userId}」未绑定微信推送`);
+      return;
+    }
+    const content =
+      `📋工作日加班打卡提醒\n\n` +
+      `日期：${date}\n` +
+      `时长：${hours}小时\n` +
+      `打卡要求：🕢${endTime}:00之后打卡\n` +
+      `备注：加班无需审批，随时可提，请保证打卡时长大于申请时长！`;
+    // 附小程序 URL Scheme,消息卡片出现"查看链接",微信内点击直达加班页。
+    const scheme = await generateMiniProgramScheme("/pages/duty/index");
+    const sent = await sendWxPusherMessage(content, [uid], "工作日加班打卡提醒", scheme ?? undefined);
+    if (sent.code !== 1000) {
+      console.error("wxpusher 加班打卡提醒发送失败", sent.code, sent.msg);
+    }
+  } catch (error) {
+    console.error("wxpusher 加班打卡提醒发送异常", error);
   }
 }

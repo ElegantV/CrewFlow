@@ -676,3 +676,91 @@ test("周末请假返回明确的 NO_WORKDAY_IN_RANGE", async () => {
   assert.equal(result.statusCode, 400, result.body);
   assert.equal(result.json().code, "NO_WORKDAY_IN_RANGE");
 });
+
+test("bind 仅允许绑定普通用户,管理员/超管目标一律 404", async () => {
+  const pending = await db.query<{ id: string }>(
+    `INSERT INTO users (openid, name, role, status)
+     VALUES ('test-pending-bind', NULL, 'user', 'pending') RETURNING id`,
+  );
+  const pendingId = pending.rows[0]!.id;
+  const adminTarget = await db.query<{ id: string }>(
+    `INSERT INTO users (openid, name, mobile, role, status)
+     VALUES ('test-admin-bind', '可绑管理员', '13800000001', 'admin', 'active') RETURNING id`,
+  );
+  const adminTargetId = adminTarget.rows[0]!.id;
+  const superTarget = await db.query<{ id: string }>(
+    `INSERT INTO users (openid, name, mobile, role, status)
+     VALUES ('test-super-bind', '可绑超管', '13800000002', 'super_admin', 'active') RETURNING id`,
+  );
+  const superTargetId = superTarget.rows[0]!.id;
+  const userTarget = await db.query<{ id: string }>(
+    `INSERT INTO users (openid, name, mobile, role, status)
+     VALUES ('test-user-bind', '可绑普通用户', '13800000003', 'user', 'active') RETURNING id`,
+  );
+  const userTargetId = userTarget.rows[0]!.id;
+
+  const pendingAuth = {
+    authorization: `Bearer ${app.jwt.sign({ sub: pendingId, role: "user", status: "pending" })}`,
+  };
+
+  const adminResponse = await app.inject({
+    method: "POST",
+    url: "/api/v1/auth/bind",
+    headers: pendingAuth,
+    payload: { name: "可绑管理员", mobile: "13800000001" },
+  });
+  assert.equal(adminResponse.statusCode, 404, "管理员目标禁止绑定");
+  assert.equal(adminResponse.json().code, "BIND_NOT_FOUND");
+
+  const superResponse = await app.inject({
+    method: "POST",
+    url: "/api/v1/auth/bind",
+    headers: pendingAuth,
+    payload: { name: "可绑超管", mobile: "13800000002" },
+  });
+  assert.equal(superResponse.statusCode, 404, "超管目标禁止绑定");
+  assert.equal(superResponse.json().code, "BIND_NOT_FOUND");
+
+  const userResponse = await app.inject({
+    method: "POST",
+    url: "/api/v1/auth/bind",
+    headers: pendingAuth,
+    payload: { name: "可绑普通用户", mobile: "13800000003" },
+  });
+  assert.equal(userResponse.statusCode, 200, userResponse.body);
+  assert.equal(userResponse.json().user.id, userTargetId);
+
+  const after = await db.query<{ openid: string }>("SELECT openid FROM users WHERE id = $1", [userTargetId]);
+  assert.equal(after.rows[0]!.openid, "test-pending-bind");
+  const deleted = await db.query("SELECT 1 FROM users WHERE id = $1", [pendingId]);
+  assert.equal(deleted.rowCount, 0, "绑定者的 pending 账号应被删除");
+
+  const adminKept = await db.query<{ openid: string }>("SELECT openid FROM users WHERE id = $1", [adminTargetId]);
+  assert.equal(adminKept.rows[0]!.openid, "test-admin-bind", "管理员账号 openid 不应被覆盖");
+  const superKept = await db.query<{ openid: string }>("SELECT openid FROM users WHERE id = $1", [superTargetId]);
+  assert.equal(superKept.rows[0]!.openid, "test-super-bind", "超管账号 openid 不应被覆盖");
+});
+
+test("加班补录超过三个月返回 OVERTIME_EXPIRED,三个月整仍可补录", async () => {
+  const bounds = await db.query<{ three_months_ago: string }>(
+    `SELECT (current_date - interval '3 months')::date::text AS three_months_ago`,
+  );
+  const boundary = bounds.rows[0]!.three_months_ago;
+
+  const tooOld = await app.inject({
+    method: "POST",
+    url: "/api/v1/overtime",
+    headers: auth(normalUser),
+    payload: { date: addDays(boundary, -1), hours: 2, content: "超过三个月补录" },
+  });
+  assert.equal(tooOld.statusCode, 400, tooOld.body);
+  assert.equal(tooOld.json().code, "OVERTIME_EXPIRED");
+
+  const boundaryOk = await app.inject({
+    method: "POST",
+    url: "/api/v1/overtime",
+    headers: auth(normalUser),
+    payload: { date: boundary, hours: 2, content: "三个月整补录" },
+  });
+  assert.equal(boundaryOk.statusCode, 201, boundaryOk.body);
+});

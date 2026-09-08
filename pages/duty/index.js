@@ -8,6 +8,14 @@ function today() {
   return `${year}-${month}-${day}`
 }
 
+function daysAgo(days) {
+  const date = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 const statusLabels = {
   active: '可用',
   consumed: '已用完',
@@ -24,6 +32,7 @@ Page({
     nearestExpiry: null,
     records: [],
     maxDate: '',
+    minDate: '',
     form: {
       date: '',
       hours: '2',
@@ -33,7 +42,7 @@ Page({
 
   onLoad() {
     const date = today()
-    this.setData({ maxDate: date, 'form.date': date })
+    this.setData({ maxDate: date, minDate: daysAgo(90), 'form.date': date })
   },
 
   onShow() {

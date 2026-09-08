@@ -8,7 +8,7 @@
       <text class="summary-note" wx:else>暂无可用调休额度</text>
     </view>
 
-    <view class="rule-tip"><text class="rule-tag">规则</text><text class="rule-text">每次可登记2至6个整小时，发生后7天内可补录，额度自加班日起三个月有效。</text></view>
+    <view class="rule-tip"><text class="rule-tag">规则</text><text class="rule-text">每次可登记2至6个整小时，加班发生后三个月内可补录，额度自加班日起三个月有效。</text></view>
 
     <view class="ledger-entry card" bindtap="openLedger">
       <view class="ledger-entry-icon">记</view>
@@ -38,7 +38,7 @@
     </view>
     <view class="empty card" wx:elif="{{!loading}}">
       <text class="empty-title">暂无加班记录</text>
-      <text class="muted">可登记今天或补录7天内的加班。</text>
+      <text class="muted">可登记今天或补录三个月内的加班。</text>
     </view>
     <view class="loading" wx:else>加载中…</view>
 
@@ -57,7 +57,7 @@
         <view class="sheet-head"><text class="form-title">登记加班</text><text class="sheet-close" bindtap="closeForm">关闭</text></view>
         <view class="field">
           <text class="field-label">加班日期</text>
-          <picker mode="date" value="{{form.date}}" end="{{maxDate}}" bindchange="onDateChange">
+          <picker mode="date" value="{{form.date}}" start="{{minDate}}" end="{{maxDate}}" bindchange="onDateChange">
             <view class="field-control">{{form.date}}</view>
           </picker>
         </view>

@@ -16,11 +16,13 @@ export type WxPusherSendResult = {
   data?: Array<Record<string, unknown>>;
 };
 
-// 向指定 UID 推送消息（text 类型，无一次性订阅限制）。
+// 向指定 UID 推送消息（text 类型，无一次性订阅限制）。url 传小程序 URL Scheme 时，
+// 消息卡片会显示"查看链接"，微信内点击直达小程序。
 export async function sendWxPusherMessage(
   content: string,
   uids: string[],
   summary?: string,
+  url?: string,
 ): Promise<WxPusherSendResult> {
   const response = await fetch(SEND_URL, {
     method: "POST",
@@ -31,6 +33,7 @@ export async function sendWxPusherMessage(
       summary: summary || content.replace(/\n/g, " ").slice(0, 30),
       contentType: 1,
       uids,
+      ...(url ? { url } : {}),
     }),
     signal: AbortSignal.timeout(8_000),
   });

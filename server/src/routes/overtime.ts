@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { z } from "zod";
 import { loadActiveActor } from "../authz.js";
 import { isValidDate } from "../business/leave-policy.js";
+import { notifyOvertimeCheckIn } from "../business/notify.js";
 import { db } from "../db.js";
 
 const createSchema = z.object({
@@ -142,12 +143,20 @@ export const overtimeRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const dateBounds = await db.query<{ today: string }>(
-      `SELECT current_date::text AS today`,
+    const dateBounds = await db.query<{ today: string; three_months_ago: string }>(
+      `SELECT current_date::text AS today,
+              (current_date - interval '3 months')::date::text AS three_months_ago`,
     );
     const bounds = dateBounds.rows[0]!;
     if (parsed.data.date > bounds.today) {
       return reply.code(400).send({ code: "FUTURE_OVERTIME", message: "不能登记未来日期的加班" });
+    }
+    // 补录窗口与额度有效期一致：加班发生超过三个月即过期，不再接受补录。
+    if (parsed.data.date < bounds.three_months_ago) {
+      return reply.code(400).send({
+        code: "OVERTIME_EXPIRED",
+        message: "加班发生超过三个月，额度已过期，无法补录",
+      });
     }
 
     const hours = parsed.data.hours ?? Math.floor((endMinutes - startMinutes) / 60);
@@ -174,6 +183,8 @@ export const overtimeRoutes: FastifyPluginAsync = async (app) => {
         [actor.id, record.id, hours],
       );
       await client.query("COMMIT");
+      // 登记成功后异步推送打卡提醒（wxpusher），不阻塞响应。
+      void notifyOvertimeCheckIn(actor.id, parsed.data.date, hours, endTime);
       return reply.code(201).send({ id: record.id, hours, expiresAt: record.expires_at });
     } catch (error: unknown) {
       await client.query("ROLLBACK");
