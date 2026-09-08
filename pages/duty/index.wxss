@@ -34,7 +34,9 @@ page { height: 100vh; display: flex; flex-direction: column; }
 .action-bar { flex-shrink: 0; padding: 16rpx 28rpx; padding-bottom: calc(16rpx + env(safe-area-inset-bottom)); border-top: 1rpx solid var(--c-border); background: rgba(255, 255, 255, .96); box-sizing: border-box; }
 .action-button { width: 100%; margin: 0; }
 .modal-mask { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 100; display: flex; align-items: flex-end; background: rgba(15, 23, 42, .48); }
-.form-card { width: 100%; padding: 16rpx 32rpx 32rpx; padding-bottom: calc(32rpx + env(safe-area-inset-bottom)); border-radius: var(--r-xl) var(--r-xl) 0 0; background: #fff; box-sizing: border-box; }
+.form-card { width: 100%; max-height: 88vh; overflow: hidden; border-radius: var(--r-xl) var(--r-xl) 0 0; background: #fff; box-sizing: border-box; }
+.form-scroll { width: 100%; max-height: 88vh; }
+.form-content { padding: 16rpx 32rpx 32rpx; padding-bottom: calc(32rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 .sheet-handle { width: 72rpx; height: 8rpx; margin: 0 auto 22rpx; border-radius: var(--r-pill); background: #d8dce3; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; }
 .form-title { display: block; font-size: 34rpx; font-weight: 700; }

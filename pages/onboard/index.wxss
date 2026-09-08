@@ -29,6 +29,21 @@ page {
 .signature-actions button { flex: 1; margin: 0; }
 .signature-actions button + button { margin-left: 18rpx; }
 
+.secondary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 88rpx;
+  padding: 0;
+  box-sizing: border-box;
+  border-radius: var(--r-md);
+  color: var(--c-text-on-neutral);
+  background: var(--c-neutral-bg);
+  font-size: 29rpx;
+  font-weight: 600;
+}
+.secondary-button::after { border: 0; }
+
 .skip-link { display: block; margin-top: 30rpx; color: #8a9099; font-size: 24rpx; text-align: center; }
 
 .onboard-state { display: flex; flex-direction: column; align-items: center; padding: 140rpx 40rpx 0; }

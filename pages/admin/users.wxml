@@ -16,17 +16,21 @@
 
 <view class="modal-mask" wx:if="{{editing}}" bindtap="close">
   <view class="form-card" catchtap="noop">
-    <text class="form-title">编辑用户</text>
-    <view class="field"><text class="label">姓名</text><input class="control" value="{{form.name}}" bindinput="onNameInput" /></view>
-    <view class="field"><text class="label">工号</text><input class="control" value="{{form.employeeNo}}" bindinput="onEmployeeNoInput" /></view>
-    <view class="field"><text class="label">角色</text><picker range="{{roles}}" range-key="label" value="{{roleIndex}}" bindchange="onRoleChange"><view class="control">{{roles[roleIndex].label}}</view></picker></view>
-    <view class="field"><text class="label">状态</text><picker range="{{statuses}}" range-key="label" value="{{statusIndex}}" bindchange="onStatusChange"><view class="control">{{statuses[statusIndex].label}}</view></picker></view>
-    <view class="field"><text class="label">审批管理员</text><picker range="{{managers}}" range-key="name" value="{{managerIndex}}" bindchange="onManagerChange"><view class="control">{{managers[managerIndex].name}}</view></picker></view>
-    <view class="actions">
-      <button class="secondary" bindtap="close">取消</button>
-      <button class="danger" loading="{{deleting}}" disabled="{{saving}}" bindtap="remove">删除用户</button>
-      <button class="primary-button" loading="{{saving}}" disabled="{{deleting}}" bindtap="save">保存</button>
-    </view>
-    <text class="danger-help">删除将清空该用户的全部业务数据并解绑微信，之后该微信号将重新走首次注册流程。</text>
+    <scroll-view class="form-scroll" scroll-y>
+      <view class="form-content">
+        <text class="form-title">编辑用户</text>
+        <view class="field"><text class="label">姓名</text><input class="control" value="{{form.name}}" bindinput="onNameInput" /></view>
+        <view class="field"><text class="label">工号</text><input class="control" value="{{form.employeeNo}}" bindinput="onEmployeeNoInput" /></view>
+        <view class="field"><text class="label">角色</text><picker range="{{roles}}" range-key="label" value="{{roleIndex}}" bindchange="onRoleChange"><view class="control">{{roles[roleIndex].label}}</view></picker></view>
+        <view class="field"><text class="label">状态</text><picker range="{{statuses}}" range-key="label" value="{{statusIndex}}" bindchange="onStatusChange"><view class="control">{{statuses[statusIndex].label}}</view></picker></view>
+        <view class="field"><text class="label">审批管理员</text><picker range="{{managers}}" range-key="name" value="{{managerIndex}}" bindchange="onManagerChange"><view class="control">{{managers[managerIndex].name}}</view></picker></view>
+        <view class="actions">
+          <button class="secondary" bindtap="close">取消</button>
+          <button class="danger" loading="{{deleting}}" disabled="{{saving}}" bindtap="remove">删除用户</button>
+          <button class="primary-button" loading="{{saving}}" disabled="{{deleting}}" bindtap="save">保存</button>
+        </view>
+        <text class="danger-help">删除将清空该用户的全部业务数据并解绑微信，之后该微信号将重新走首次注册流程。</text>
+      </view>
+    </scroll-view>
   </view>
 </view>

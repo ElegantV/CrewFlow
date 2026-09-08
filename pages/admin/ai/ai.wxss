@@ -1,5 +1,6 @@
-.ai-config-scroll { height: 100vh; background: #F7F8FA; }
-.page-shell { padding: 24rpx 28rpx 60rpx; }
+page { height: 100vh; display: flex; flex-direction: column; }
+.ai-config-scroll { flex: 1; width: 100%; height: 0; box-sizing: border-box; background: #F7F8FA; }
+.page-shell { padding: 24rpx 28rpx calc(60rpx + env(safe-area-inset-bottom)); }
 .card { padding: 28rpx; margin-bottom: 24rpx; border-radius: var(--r-lg); background: #fff; box-shadow: 0 5rpx 18rpx rgba(30, 45, 70, .05); }
 .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8rpx; }
 .section-title { color: #172033; font-size: 30rpx; font-weight: 700; }

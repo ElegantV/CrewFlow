@@ -147,5 +147,5 @@ page {
 .send-button { display: flex; flex: 1 1 0; min-width: 0; width: auto; height: 76rpx; margin: 0 0 0 14rpx; padding: 0; align-items: center; justify-content: center; box-sizing: border-box; border-radius: var(--r-sm); color: #fff; background: var(--brand-ai-from); font-size: 24rpx; line-height: 76rpx; }
 .send-button--disabled { background: #aebbd1; }
 .send-button::after { border: 0; }
-.composer-hint { display: block; margin-top: 12rpx; color: #9aa2af; font-size: 19rpx; text-align: center; }
+.composer-hint { display: block; margin-top: 12rpx; color: #9aa2af; font-size: 20rpx; text-align: center; }
 .composer-hint--recording { color: var(--c-danger); }

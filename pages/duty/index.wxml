@@ -51,26 +51,30 @@
 
 <view class="modal-mask" wx:if="{{showForm}}" bindtap="closeForm">
   <view class="form-card" catchtap="noop">
-    <view class="sheet-handle"></view>
-    <view class="sheet-head"><text class="form-title">登记加班</text><text class="sheet-close" bindtap="closeForm">关闭</text></view>
-    <view class="field">
-      <text class="field-label">加班日期</text>
-      <picker mode="date" value="{{form.date}}" end="{{maxDate}}" bindchange="onDateChange">
-        <view class="field-control">{{form.date}}</view>
-      </picker>
-    </view>
-    <view class="field">
-      <text class="field-label">加班时长（小时）</text>
-      <input class="field-control field-input" type="number" value="{{form.hours}}" maxlength="1" placeholder="请输入2至6" bindinput="onHoursInput" />
-      <text class="field-help">仅填写整小时，最少2小时，最多6小时。</text>
-    </view>
-    <view class="field">
-      <text class="field-label">工作内容</text>
-      <textarea class="field-textarea" maxlength="200" value="{{form.content}}" placeholder="请填写加班工作内容" bindinput="onContentInput"></textarea>
-    </view>
-    <view class="form-actions">
-      <button class="secondary-button" bindtap="closeForm">取消</button>
-      <button class="primary-button" loading="{{submitting}}" bindtap="submit">确认登记</button>
-    </view>
+    <scroll-view class="form-scroll" scroll-y>
+      <view class="form-content">
+        <view class="sheet-handle"></view>
+        <view class="sheet-head"><text class="form-title">登记加班</text><text class="sheet-close" bindtap="closeForm">关闭</text></view>
+        <view class="field">
+          <text class="field-label">加班日期</text>
+          <picker mode="date" value="{{form.date}}" end="{{maxDate}}" bindchange="onDateChange">
+            <view class="field-control">{{form.date}}</view>
+          </picker>
+        </view>
+        <view class="field">
+          <text class="field-label">加班时长（小时）</text>
+          <input class="field-control field-input" type="number" value="{{form.hours}}" maxlength="1" placeholder="请输入2至6" bindinput="onHoursInput" />
+          <text class="field-help">仅填写整小时，最少2小时，最多6小时。</text>
+        </view>
+        <view class="field">
+          <text class="field-label">工作内容</text>
+          <textarea class="field-textarea" maxlength="200" value="{{form.content}}" placeholder="请填写加班工作内容" bindinput="onContentInput"></textarea>
+        </view>
+        <view class="form-actions">
+          <button class="secondary-button" bindtap="closeForm">取消</button>
+          <button class="primary-button" loading="{{submitting}}" bindtap="submit">确认登记</button>
+        </view>
+      </view>
+    </scroll-view>
   </view>
 </view>
