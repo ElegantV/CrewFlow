@@ -2,7 +2,6 @@ import { config } from "../config.js";
 import { db } from "../db.js";
 import { sendWxPusherMessage } from "../wxpusher.js";
 import { leavePolicies, type LeaveType } from "./leave-policy.js";
-import { generateMiniProgramScheme } from "./wechat-scheme.js";
 
 async function findUid(userId: string) {
   if (!config.WXPUSHER_APP_TOKEN) return null;
@@ -55,9 +54,9 @@ export async function notifyApproverPending(leaveRequestId: string) {
     const content =
       `【审批提醒】${row.applicant_name ?? "员工"}申请${label}（${range}，共${row.requested_days}天），` +
       `请及时在简序日程小程序中审批。`;
-    // 附小程序 URL Scheme,消息卡片出现"查看链接",微信内点击直达审批页。
-    const scheme = await generateMiniProgramScheme("/pages/approval/index");
-    const sent = await sendWxPusherMessage(content, [uid], undefined, scheme ?? undefined);
+    // 标题简短展示申请概要,避免长内容被推送卡片截断。
+    const summary = `${row.applicant_name ?? "员工"}申请${row.requested_days}天${label}`;
+    const sent = await sendWxPusherMessage(content, [uid], summary);
     if (sent.code !== 1000) {
       console.error("wxpusher 待审批提醒发送失败", sent.code, sent.msg);
     }
@@ -101,9 +100,9 @@ export async function notifyApplicantDecision(leaveRequestId: string, status: "a
     const content =
       `【审批结果】${row.applicant_name ?? "你"}申请的${label}（${range}，共${row.requested_days}天）${phrase}，` +
       `可到简序日程小程序查看详情。`;
-    // 附小程序 URL Scheme,消息卡片出现"查看链接",微信内点击直达请假列表页。
-    const scheme = await generateMiniProgramScheme("/pages/leave/index");
-    const sent = await sendWxPusherMessage(content, [uid], undefined, scheme ?? undefined);
+    // 标题简短展示结果概要,避免长内容被推送卡片截断。
+    const summary = `你的${label}申请${status === "approved" ? "已通过" : "未通过"}`;
+    const sent = await sendWxPusherMessage(content, [uid], summary);
     if (sent.code !== 1000) {
       console.error("wxpusher 审批结果提醒发送失败", sent.code, sent.msg);
     }
@@ -132,9 +131,7 @@ export async function notifyOvertimeCheckIn(
       `时长：${hours}小时\n` +
       `打卡要求：🕢${endTime}:00之后打卡\n` +
       `备注：加班无需审批，随时可提，请保证打卡时长大于申请时长！`;
-    // 附小程序 URL Scheme,消息卡片出现"查看链接",微信内点击直达加班页。
-    const scheme = await generateMiniProgramScheme("/pages/duty/index");
-    const sent = await sendWxPusherMessage(content, [uid], "工作日加班打卡提醒", scheme ?? undefined);
+    const sent = await sendWxPusherMessage(content, [uid], "工作日加班打卡提醒");
     if (sent.code !== 1000) {
       console.error("wxpusher 加班打卡提醒发送失败", sent.code, sent.msg);
     }
