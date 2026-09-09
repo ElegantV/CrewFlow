@@ -15,105 +15,25 @@ const fallbackTypes = [
   { value: 'maternity', label: '产假' }, { value: 'paternity', label: '陪产假' }
 ]
 
-// 语音识别：使用微信「同声传译」插件，未配置时降级为不可用。
-let recognitionManager = null
-let voiceReady = false
-function setupRecognition() {
-  if (voiceReady) return true
-  try {
-    const plugin = requirePlugin('WechatSI')
-    recognitionManager = plugin.getRecordRecognitionManager()
-    voiceReady = true
-    return true
-  } catch (error) {
-    return false
-  }
-}
-
 Page({
   data: {
     input: '',
     running: false,
-    recording: false,
-    voiceMode: false,
-    focusKeyboard: false,
+    stage: '',
+    feedback: '',
     types: fallbackTypes,
     pending: null,
-    messages: [
-      { id: 1, role: 'assistant', text: '你好，我是简序日程助手。可以帮你办理请假与加班，也能查询员工情况、通讯录、个人记录，或处理权限范围内的审批和用户管理任务。' }
-    ],
     examples: ['8月13号请一天调休假', '今天登记加班2小时，内容：生产发布', '查询张三的电话', '张三今天是否请假']
   },
 
   async onLoad() {
     this.inputDraft = ''
-    this.setupVoice()
     try {
       const result = await leave.types()
       if (result.types && result.types.length) this.setData({ types: result.types })
     } catch (error) {
       // 离线时仍允许体验指令判断，真正执行时由请求层展示失败原因。
     }
-  },
-
-  onUnload() {
-    if (this.data.recording && recognitionManager) recognitionManager.stop()
-  },
-
-  setupVoice() {
-    if (!setupRecognition()) return
-    recognitionManager.onRecognize = res => {
-      if (res && res.result) {
-        this.inputDraft = res.result
-        this.setData({ input: res.result })
-      }
-    }
-    recognitionManager.onStop = res => {
-      const text = String(res && res.result || '').trim()
-      this.inputDraft = text
-      const patch = { recording: false, input: text }
-      if (text) {
-        // 识别出文字后切回键盘模式,便于确认/修改后发送。
-        patch.voiceMode = false
-        patch.focusKeyboard = true
-        wx.showToast({ title: '识别完成，可确认后发送', icon: 'none' })
-      }
-      this.setData(patch)
-    }
-    recognitionManager.onError = res => {
-      this.setData({ recording: false })
-      wx.showToast({ title: (res && res.msg) || '语音识别失败，请重试', icon: 'none' })
-    }
-  },
-
-  // 长按录制、松开结束（与微信发语音一致）：按下即 start，抬起即 stop。
-  onVoiceStart() {
-    if (this.data.running || this.data.recording || !this.data.voiceMode) return
-    if (!voiceReady) {
-      wx.showToast({ title: '语音输入未配置，请在公众平台添加「微信同声传译」插件', icon: 'none' })
-      return
-    }
-    this.inputDraft = ''
-    this.setData({ recording: true, input: '' })
-    recognitionManager.start({ lang: 'zh_CN', duration: 60000 })
-  },
-
-  onVoiceEnd() {
-    if (!this.data.recording) return
-    recognitionManager.stop()
-  },
-
-  // 键盘 / 语音两种输入模式互切：语音模式下输入框变为"按住 说话"。
-  // focusKeyboard 只在切回键盘时置 true 唤起输入法，随后在 blur 时复位，
-  // 避免在聚焦状态下翻转为 false 造成"键盘弹出又收起"。
-  toggleVoiceMode() {
-    if (this.data.running || this.data.recording) return
-    const voiceMode = !this.data.voiceMode
-    this.setData({ voiceMode, focusKeyboard: !voiceMode })
-  },
-
-  onKeyboardBlur() {
-    if (this.data.focusKeyboard) this.setData({ focusKeyboard: false })
   },
 
   onInput(event) {
@@ -130,7 +50,6 @@ Page({
   send() {
     const text = String(this.inputDraft || this.data.input || '').trim()
     if (!text || this.data.running) return
-    this.appendMessage('user', text)
     this.inputDraft = ''
     this.setData({ input: '' })
     if (this.data.pending && this.data.pending.allowText) {
@@ -179,7 +98,7 @@ Page({
     const clarifyTasks = results.filter(result => result.status === 'clarify')
     const lines = readyTasks.map((task, index) => `${index + 1}. ${task.summary || task.intent || '请假'}`)
     if (clarifyTasks.length) lines.push(`（另有 ${clarifyTasks.length} 个任务缺少关键信息，请单独处理）`)
-    this.appendMessage('assistant', `检测到 ${results.length} 个任务：\n${lines.join('\n')}\n确认后我将按顺序执行。`, 'clarify')
+    this.showFeedback(`检测到 ${results.length} 个任务：\n${lines.join('\n')}\n确认后按顺序执行。`, 'clarify')
     wx.showModal({
       title: `确认执行 ${readyTasks.length} 个任务？`,
       content: lines.join('\n'),
@@ -187,7 +106,7 @@ Page({
       cancelText: '取消',
       success: async res => {
         if (!res.confirm) {
-          this.appendMessage('assistant', '已取消执行。', 'error')
+          this.showFeedback('已取消执行。', 'error')
           return
         }
         for (const task of readyTasks) {
@@ -195,7 +114,7 @@ Page({
           else await this.executeLeave(task)
         }
         if (clarifyTasks.length) {
-          this.appendMessage('assistant', `有 ${clarifyTasks.length} 个任务缺少关键信息，请单独输入后再试。`, 'clarify')
+          this.showFeedback(`有 ${clarifyTasks.length} 个任务缺少关键信息，请单独输入后再试。`, 'clarify')
         }
       }
     })
@@ -205,7 +124,6 @@ Page({
     if (!this.data.pending || this.data.running) return
     const label = event.currentTarget.dataset.label
     const value = event.currentTarget.dataset.value
-    this.appendMessage('user', label)
     const result = this.data.pending.intent
       ? command.applyChoice(this.data.pending, value, label)
       : parser.applyChoice(this.data.pending, value, { availableTypes: this.data.types })
@@ -215,7 +133,6 @@ Page({
   chooseDate(event) {
     if (!this.data.pending || this.data.running) return
     const value = event.detail.value
-    this.appendMessage('user', value)
     const result = this.data.pending.intent
       ? command.applyChoice(this.data.pending, value, value)
       : parser.applyChoice(this.data.pending, value, { availableTypes: this.data.types })
@@ -225,12 +142,12 @@ Page({
   handleResult(result) {
     if (result.status === 'invalid') {
       this.setData({ pending: null })
-      this.appendMessage('assistant', result.message, 'error')
+      this.showFeedback(result.message, 'error')
       return
     }
     if (result.status === 'clarify') {
       this.setData({ pending: result })
-      this.appendMessage('assistant', result.message, 'clarify')
+      this.showFeedback(result.message, 'clarify')
       return
     }
     this.setData({ pending: null })
@@ -240,12 +157,12 @@ Page({
 
   async executeLeave(result) {
     this.setData({ running: true })
-    this.appendMessage('assistant', `已理解：${result.summary}。正在自动提交申请…`, 'running')
+    this.showFeedback(`已解析：${result.summary}。正在提交申请…`, 'running')
     try {
       const response = await leave.create(parser.toLeaveRequest(result.draft))
-      this.appendMessage('assistant', `任务执行成功：已提交 ${response.requestedDays} 天申请，当前状态为待审批。`, 'success')
+      this.showFeedback(`办理成功：已提交 ${response.requestedDays} 天申请，当前状态为待审批。`, 'success')
     } catch (error) {
-      this.appendMessage('assistant', `任务执行失败：${error.message || '服务暂时不可用，请稍后重试。'}`, 'error')
+      this.showFeedback(`办理失败：${error.message || '服务暂时不可用，请稍后重试。'}`, 'error')
     } finally {
       this.setData({ running: false })
     }
@@ -255,9 +172,9 @@ Page({
     this.setData({ running: true })
     try {
       const response = await this.runCommand(result.intent, result.slots || {})
-      if (response) this.appendMessage('assistant', response, 'success')
+      if (response) this.showFeedback(response, 'success')
     } catch (error) {
-      this.appendMessage('assistant', `任务执行失败：${error.message || '服务暂时不可用，请稍后重试。'}`, 'error')
+      this.showFeedback(`办理失败：${error.message || '服务暂时不可用，请稍后重试。'}`, 'error')
     } finally {
       this.setData({ running: false })
     }
@@ -266,7 +183,7 @@ Page({
   async runCommand(intent, slots) {
     if (intent === 'overtime_create') {
       const result = await overtime.create({ date: slots.date, hours: slots.hours, content: slots.content })
-      return `任务执行成功：已登记 ${slots.date} 加班 ${result.hours} 小时，调休额度有效期至 ${result.expiresAt}。`
+      return `办理成功：已登记 ${slots.date} 加班 ${result.hours} 小时，调休额度有效期至 ${result.expiresAt}。`
     }
     if (intent === 'overtime_balance') {
       const result = await overtime.balance()
@@ -305,15 +222,15 @@ Page({
     }
     if (intent === 'overtime_revoke_select') {
       await overtime.revoke(slots.id)
-      return '任务执行成功：加班记录已撤销。'
+      return '办理成功：加班记录已撤销。'
     }
     if (intent === 'leave_cancel_select') {
       await leave.cancel(slots.id)
-      return '任务执行成功：请假申请已撤销。'
+      return '办理成功：请假申请已撤销。'
     }
     if (intent === 'agent_set_select') {
       await me.setAgent(slots.id)
-      return `任务执行成功：工作代理人已设置为 ${slots.label || '所选人员'}。`
+      return `办理成功：工作代理人已设置为 ${slots.label || '所选人员'}。`
     }
     if (intent === 'approval_select') return this.decideApproval(slots)
     throw new Error('暂不支持这项操作')
@@ -398,12 +315,12 @@ Page({
         ]
       }
       this.setData({ pending })
-      this.appendMessage('assistant', pending.message, 'clarify')
+      this.showFeedback(pending.message, 'clarify')
       return ''
     }
     if (slots.action === 'reject' && !slots.reason) {
       this.setData({ pending: { status: 'clarify', intent: 'approval_select', slots, field: 'reason', message: '驳回申请必须填写原因，请直接输入原因。', choices: [], allowText: true } })
-      this.appendMessage('assistant', '驳回申请必须填写原因，请直接输入原因。', 'clarify')
+      this.showFeedback('驳回申请必须填写原因，请直接输入原因。', 'clarify')
       return ''
     }
     if (!slots.id) {
@@ -413,7 +330,7 @@ Page({
       return this.selectRecord(records, 'approval_select', '请选择要处理的审批申请。', item => `${item.applicant && item.applicant.name || '未命名用户'} · ${item.leaveTypeLabel} · ${item.startDate} 至 ${item.endDate}`, slots)
     }
     await approval.decide(slots.id, slots.action, slots.reason || '')
-    return `任务执行成功：申请已${slots.action === 'approve' ? '通过' : '驳回'}。`
+    return `办理成功：申请已${slots.action === 'approve' ? '通过' : '驳回'}。`
   },
 
   async queryUsers() {
@@ -443,7 +360,7 @@ Page({
     if (slots.status) data.status = slots.status
     if (slots.role) data.role = slots.role
     await admin.updateUser(slots.id, data)
-    return `任务执行成功：用户${slots.status ? (slots.status === 'active' ? '已启用' : '已停用') : '角色已更新'}。`
+    return `办理成功：用户${slots.status ? (slots.status === 'active' ? '已启用' : '已停用') : '角色已更新'}。`
   },
 
   selectRecord(records, intent, message, formatter, baseSlots) {
@@ -451,21 +368,13 @@ Page({
     const choices = records.slice(0, 10).map(item => ({ label: formatter(item), value: item.id }))
     const pending = { status: 'clarify', intent, slots: Object.assign({}, baseSlots), field: 'id', message, choices }
     this.setData({ pending })
-    this.appendMessage('assistant', message, 'clarify')
+    this.showFeedback(message, 'clarify')
     return ''
   },
 
-  // 返回消息 id,供调用方后续替换内容。
-  appendMessage(role, text, tone) {
-    const message = { id: Date.now() + Math.random(), role, text, tone: tone || '' }
-    const messages = this.data.messages.concat(message)
-    this.setData({ messages })
-    setTimeout(() => this.setData({ scrollIntoView: `message-${messages.length - 1}` }), 30)
-    return message.id
-  },
-
-  replaceMessage(id, text, tone) {
-    const messages = this.data.messages.map(item => item.id === id ? Object.assign({}, item, { text, tone: tone || '' }) : item)
-    this.setData({ messages })
+  // 展示单条办理反馈：tone 映射为结果卡片的状态样式。
+  showFeedback(text, tone) {
+    const stage = tone === 'success' ? 'success' : tone === 'error' ? 'error' : tone === 'clarify' ? 'clarify' : tone === 'running' ? 'running' : 'parsed'
+    this.setData({ feedback: text, stage })
   }
 })

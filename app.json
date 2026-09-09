@@ -24,11 +24,5 @@
   "renderer": "webview",
   "componentFramework": "glass-easel",
   "sitemapLocation": "sitemap.json",
-  "lazyCodeLoading": "requiredComponents",
-  "plugins": {
-    "WechatSI": {
-      "version": "0.3.10",
-      "provider": "wx069ba97219f66d99"
-    }
-  }
+  "lazyCodeLoading": "requiredComponents"
 }

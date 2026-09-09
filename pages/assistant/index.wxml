@@ -1,25 +1,17 @@
-<navigation-bar title="AI 助手" color="#1F2329" background="#F7F8FA"></navigation-bar>
-<view class="assistant-page">
-  <scroll-view class="conversation" scroll-y scroll-into-view="{{scrollIntoView}}">
+<navigation-bar title="快捷办理" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<view class="cmd-page">
+  <scroll-view class="cmd-scroll" scroll-y>
     <view class="intro-card">
-      <view class="intro-icon">AI</view>
+      <view class="intro-icon">办</view>
       <view class="intro-copy">
-        <text class="intro-title">自动处理工作任务</text>
-        <text class="intro-subtitle">请假、加班、查询、通讯录与审批均可办理</text>
-      </view>
-      <view class="online"><text class="online-dot"></text>在线</view>
-    </view>
-
-    <view class="message-list">
-      <view id="message-{{index}}" class="message-row message-row--{{item.role}}" wx:for="{{messages}}" wx:key="id">
-        <view class="avatar" wx:if="{{item.role === 'assistant'}}">AI</view>
-        <view class="bubble bubble--{{item.role}} bubble--{{item.tone}}">{{item.text}}</view>
+        <text class="intro-title">快捷办理</text>
+        <text class="intro-subtitle">输入请假、加班、查询等指令，解析确认后自动办理</text>
       </view>
     </view>
 
-    <view class="clarify-card" wx:if="{{pending}}">
-      <text class="clarify-label">{{pending.allowText ? '请继续输入' : '请选择一项'}}</text>
-      <view class="choice-list">
+    <view class="result-card card" wx:if="{{stage}}">
+      <view class="result-line result-line--{{stage}}">{{feedback}}</view>
+      <view class="choice-list" wx:if="{{pending && pending.choices.length}}">
         <button
           class="choice"
           wx:for="{{pending.choices}}"
@@ -28,53 +20,35 @@
           data-label="{{item.label}}"
           bindtap="choose"
         >{{item.label}}</button>
-        <picker wx:if="{{pending.allowDatePicker}}" mode="date" bindchange="chooseDate">
-          <view class="choice choice--date">选择其他日期</view>
-        </picker>
       </view>
+      <picker wx:if="{{pending && pending.allowDatePicker}}" mode="date" bindchange="chooseDate">
+        <view class="choice choice--date">选择其他日期</view>
+      </picker>
     </view>
 
-    <view class="example-section" wx:if="{{messages.length === 1}}">
-      <text class="example-label">试试这样说</text>
+    <view class="example-section" wx:if="{{!stage}}">
+      <text class="example-label">常用指令</text>
       <view class="example" wx:for="{{examples}}" wx:key="*this" data-text="{{item}}" bindtap="useExample">{{item}}</view>
     </view>
-    <view class="conversation-bottom"></view>
+    <view class="cmd-bottom"></view>
   </scroll-view>
 
   <view class="composer">
     <view class="composer-row">
-      <button
-        class="mode-button"
-        bindtap="toggleVoiceMode"
-        disabled="{{running}}"
-        aria-label="{{voiceMode ? '切换为键盘输入' : '语音输入'}}"
-      ><image class="mode-icon" src="{{voiceMode ? '/assets/icons/keyboard.png' : '/assets/icons/mic.png'}}" mode="aspectFit"></image></button>
       <view class="input-wrap">
         <input
-          class="prompt-input {{voiceMode ? 'prompt-input--hidden' : ''}}"
+          class="prompt-input"
           value="{{input}}"
-          focus="{{focusKeyboard}}"
           placeholder="{{pending && pending.field === 'reason' ? '请输入请假事由，如：家中有事' : '例如：8月13号请一天调休假'}}"
           maxlength="500"
           confirm-type="send"
-          cursor-color="#45C98A"
           bindinput="onInput"
           bindconfirm="send"
-          bindblur="onKeyboardBlur"
           disabled="{{running}}"
         />
-        <button
-          class="hold-talk {{voiceMode ? '' : 'hold-talk--hidden'}} {{recording ? 'hold-talk--recording' : ''}}"
-          bindtouchstart="onVoiceStart"
-          bindtouchend="onVoiceEnd"
-          bindtouchcancel="onVoiceEnd"
-          disabled="{{running}}"
-          aria-label="{{recording ? '松开结束录音' : '按住说话'}}"
-        >{{recording ? '松开 结束' : '按住 说话'}}</button>
       </view>
-      <button wx:if="{{!voiceMode}}" class="send-button {{running ? 'send-button--disabled' : ''}}" bindtap="send" disabled="{{running}}">{{running ? '···' : '发送'}}</button>
+      <button class="send-button {{running ? 'send-button--disabled' : ''}}" bindtap="send" disabled="{{running}}">{{running ? '···' : '发送'}}</button>
     </view>
-    <text class="composer-hint composer-hint--recording" wx:if="{{recording}}">正在聆听，松开结束</text>
-    <text class="composer-hint" wx:elif="{{!voiceMode}}">AI 会执行真实操作，请确认指令中的日期和假别</text>
+    <text class="composer-hint">指令解析后需你确认才会执行，请核对日期和假别</text>
   </view>
 </view>

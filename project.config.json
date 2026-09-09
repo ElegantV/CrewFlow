@@ -24,6 +24,12 @@
       { "type": "folder", "value": "docs" },
       { "type": "folder", "value": "assets/appicon" },
       { "type": "file", "value": "assets/icons/generate.js" },
+      { "type": "file", "value": "assets/icons/ai.png" },
+      { "type": "file", "value": "assets/icons/ai.svg" },
+      { "type": "file", "value": "assets/icons/mic.png" },
+      { "type": "file", "value": "assets/icons/mic.svg" },
+      { "type": "file", "value": "assets/icons/keyboard.png" },
+      { "type": "file", "value": "assets/icons/keyboard.svg" },
       { "type": "file", "value": "AGENTS.md" },
       { "type": "file", "value": "README.md" },
       { "type": "file", "value": "CHANGELOG.md" }

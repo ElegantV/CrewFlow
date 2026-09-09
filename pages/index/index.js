@@ -21,9 +21,9 @@ Page({
     shortcuts: [
       {
         key: 'assistant',
-        icon: '/assets/icons/ai.png',
-        title: 'AI 助手',
-        description: '说出任务，自动判断并执行',
+        icon: '/assets/icons/cmd.png',
+        title: '快捷办理',
+        description: '输入指令，自动解析并办理',
         url: '/pages/assistant/index',
         accent: 'ai'
       },

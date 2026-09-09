@@ -13,11 +13,12 @@
 - 小程序 API 地址只改 `config/env.js` 顶部两个常量：`DEVELOPMENT_API_ORIGIN`（开发直连，目前是 ECS IP + HTTP）、`PRODUCTION_API_ORIGIN`（体验版/正式版，必须 HTTPS 备案域名）。
 - 非 develop 环境若解析出非 HTTPS 地址，会在控制台打 `[CrewFlow]` 警告，但不抛异常（避免配置未完成时白屏）。
 
-## 线上现状
+## 线上现状（2026-09-09 更新）
 
-- ECS `101.201.100.221:3000`（99 元/年实例，2026-08-31 从试用机迁来），`/health` 正常。
-- 域名 ICP 备案审核中；小程序本身已备案。备案下来后：填 `PRODUCTION_API_ORIGIN` → 配 `server/deploy/Caddyfile`（域名 + email 两处）→ 公众平台加 request/downloadFile 合法域名 → 提审。
-- 安全组：443 放行，**3000 端口不应公网开放**（只由 Caddy 本机反代）。
+- ECS `101.201.100.221`，api 与 db 端口只绑 127.0.0.1，由 Caddy 提供 HTTPS 反代。
+- **域名备案已完成**：`PRODUCTION_API_ORIGIN = https://api.ccherry.cn`（config/env.js）。
+- **小程序已通过微信审核并正式发布**（CC 2026-09-09 确认）。
+- 安全组：443 放行，**3000/5432 不得公网开放**；开发调试靠 SSH 隧道（`-L 3100:127.0.0.1:3000`）。
 
 ## 用户偏好
 
@@ -30,12 +31,19 @@
 - 代码仓库名：CrewFlow；面向用户的品牌名：**简序日程**（app.js 报错、助手问候、通知文案均用此名）。
 - 小程序原生写法（不是 uni-app / Taro），渲染器强制 WebView（app.json `renderer: "webview"`）。
 
-## AI 助手真相（关键）
+## AI 助手真相（2026-09-09 更正，旧结论已过时）
 
-- `pages/assistant` 的"AI 助手"是**纯规则引擎**（正则 + 意图槽位），**没有接大模型/LLM**。
-- 解析器在 `utils/assistant-command.js`（通用指令：加班/查询/审批/通讯录/导航）+ `utils/assistant-parser.js`（请假草稿对话）。
-- 语音输入依赖微信「同声传译」插件（WechatSI），未配置则降级。
-- 含义：想做"真 AI 对话"是较大的增强项，不是现状。
+- **端上**：`pages/assistant` 靠 `utils/assistant-command.js`（18 类通用指令）+ `utils/assistant-parser.js`（请假草稿）做正则 + 槽位解析，支持澄清式追问与 `splitTasks` 多任务拆分；语音走微信「同声传译」插件。
+- **服务端**：`server/src/routes/ai.ts` 已有完整大模型通道——`/ai/chat`（OpenAI 兼容协议，SSE 流式 + 长度硬截断）、`/ai/classify`（command/chat 意图路由）、`ai_config` 单行配置表（超管在线改模型/地址/密钥/提示词）、按用户限流、接口地址 SSRF 白名单。业务动作一律由规则引擎执行，模型只负责表达。
+- **关键**：1.0.6 起**客户端入口已隐藏**（个人主体小程序未开放「深度合成」类目），线上体验到的是纯规则引擎。对外文档/宣传必须如实标注，不能写成「已上线大模型对话」。企业主体申请类目后可开启。
+
+## 消息推送通道（2026-09-09 调研结论）
+
+- **公众号推送方案已否决**：个人主体公众号无法微信认证（2021 年起关闭认证入口），未认证订阅号没有订阅通知/模板消息/客服消息接口权限，只能被动回复；小程序与公众号消息体系相互独立，关联只打通 UnionID。
+- 小程序长期订阅仅面向政务/医疗/交通/金融/教育等公共服务类目，个人主体申请不到；新版无弹窗订阅需微信支付（个人主体开不了）。
+- **推荐落地方向**：一次性订阅消息 + 静默囤额度（用户勾选「总是保持以上选择」后重复调用 `requestSubscribeMessage` 不再弹窗且额度累积），wxpusher 保留兜底。
+- 真要无限推：主体转企业/个体工商户 → 认证服务号或申请长期订阅。
+- 现状：`notification_subscriptions`/`notification_send_log` 表已建（迁移 007）但**无发送逻辑**，三个通知点（`business/notify.ts`）全走 wxpusher。
 
 ## 样式设计 token（2026-08-31 建立）
 
