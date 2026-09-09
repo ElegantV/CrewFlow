@@ -24,7 +24,6 @@ Page({
   },
 
   openUsers() { wx.navigateTo({ url: '/pages/admin/users' }) },
-  openAiConfig() { wx.navigateTo({ url: '/pages/admin/ai/ai' }) },
   openCalendar() { wx.navigateTo({ url: '/pages/admin/calendar/calendar' }) },
 
   // 导出弹窗首次打开时才拉用户列表;失败不阻断导出,仍可按“全部用户”导出。

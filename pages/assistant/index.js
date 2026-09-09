@@ -7,7 +7,6 @@ const approval = require('../../services/approval')
 const admin = require('../../services/admin')
 const parser = require('../../utils/assistant-parser')
 const command = require('../../utils/assistant-command')
-const ai = require('../../services/ai')
 
 const fallbackTypes = [
   { value: 'comp_time', label: '调休' }, { value: 'annual', label: '年假' },
@@ -40,7 +39,6 @@ Page({
     focusKeyboard: false,
     types: fallbackTypes,
     pending: null,
-    aiAgentEnabled: false,
     messages: [
       { id: 1, role: 'assistant', text: '你好，我是简序日程助手。可以帮你办理请假与加班，也能查询员工情况、通讯录、个人记录，或处理权限范围内的审批和用户管理任务。' }
     ],
@@ -55,12 +53,6 @@ Page({
       if (result.types && result.types.length) this.setData({ types: result.types })
     } catch (error) {
       // 离线时仍允许体验指令判断，真正执行时由请求层展示失败原因。
-    }
-    try {
-      const profile = await me.get()
-      this.setData({ aiAgentEnabled: Boolean(profile.aiAgentEnabled) })
-    } catch (error) {
-      // 开关状态获取失败不影响指令功能,仅退化为纯规则模式。
     }
   },
 
@@ -124,31 +116,6 @@ Page({
     if (this.data.focusKeyboard) this.setData({ focusKeyboard: false })
   },
 
-  // 深度问答开关:整行点击切换,自绘开关样式随 aiAgentEnabled 数据变化。
-  toggleAiAgent() {
-    if (this.aiToggleLock) return
-    this.aiToggleLock = true
-    this.applyAiAgent(!this.data.aiAgentEnabled)
-  },
-
-  async applyAiAgent(enabled) {
-    const previous = this.data.aiAgentEnabled
-    if (enabled === previous) {
-      this.aiToggleLock = false
-      return
-    }
-    this.setData({ aiAgentEnabled: enabled })
-    try {
-      await me.setAiAgent(enabled)
-      wx.showToast({ title: enabled ? '深度问答已开启' : '深度问答已关闭', icon: 'none' })
-    } catch (error) {
-      this.setData({ aiAgentEnabled: previous })
-      wx.showToast({ title: error.message || '设置失败，请重试', icon: 'none' })
-    } finally {
-      this.aiToggleLock = false
-    }
-  },
-
   onInput(event) {
     this.inputDraft = event.detail.value
     this.setData({ input: event.detail.value })
@@ -173,29 +140,6 @@ Page({
       this.handleResult(result)
       return
     }
-    if (this.data.aiAgentEnabled) {
-      // 开启深度问答:先由大模型做轻量意图分类,command 走规则引擎,chat 直接回答。
-      this.routeByAgent(text)
-      return
-    }
-    this.runRuleFlow(text)
-  },
-
-  // 分类结果只用于路由;分类失败时退回规则引擎,保证指令功能始终可用。
-  async routeByAgent(text) {
-    this.setData({ running: true })
-    let route = ''
-    try {
-      const result = await ai.classify(text)
-      route = result && (result.route === 'command' || result.route === 'chat') ? result.route : ''
-    } catch (error) {
-      route = ''
-    }
-    this.setData({ running: false })
-    if (route === 'chat') {
-      this.askAi(text)
-      return
-    }
     this.runRuleFlow(text)
   },
 
@@ -203,12 +147,6 @@ Page({
     const results = command.splitTasks(text)
       .map(part => command.parseCommand(part) || parser.parsePrompt(part, { availableTypes: this.data.types }))
       .filter(result => result && result.status !== 'invalid')
-    if (results.length === 1 && results[0].status === 'clarify' && this.data.aiAgentEnabled && this.looksLikeQuestion(text)) {
-      // 开启深度问答时,带疑问词且只差补槽的消息多是咨询(如"调休可以折现吗"),
-      // 若仍走补槽流程会弹日期选择器把问题劫持掉,应直接交给 agent。
-      this.askAi(text)
-      return
-    }
     if (results.length === 0) {
       const commandResult = command.parseCommand(text)
       if (commandResult && commandResult.status !== 'invalid') {
@@ -217,23 +155,12 @@ Page({
       }
       const leaveResult = commandResult ? null : parser.parsePrompt(text, { availableTypes: this.data.types })
       if (leaveResult && leaveResult.status !== 'invalid') {
-        // 开启深度问答时,带疑问词的"请假/调休"类消息多是咨询(如"调休可以折现吗"),
-        // 若仍走补槽流程会弹日期选择器把问题劫持掉,应直接交给 agent。
-        if (this.data.aiAgentEnabled && leaveResult.status === 'clarify' && this.looksLikeQuestion(text)) {
-          this.askAi(text)
-          return
-        }
         this.handleResult(leaveResult)
         return
       }
       if (commandResult) {
         // 正则命中了指令但参数有误(如日期不存在),保留规则层的精确报错。
         this.handleResult(commandResult)
-        return
-      }
-      if (this.data.aiAgentEnabled) {
-        // 与系统无关的问题直接发送真实 agent,不再展示"不可执行"类提示。
-        this.askAi(text)
         return
       }
       this.handleResult(leaveResult)
@@ -528,52 +455,7 @@ Page({
     return ''
   },
 
-  // 疑问句启发式:结尾的"可以吗/行吗"先剥离,避免把"明天请病假可以吗"这类真指令误判为咨询。
-  looksLikeQuestion(text) {
-    const raw = String(text || '')
-    const stripped = raw.replace(/(可以吗|行吗|好吗)+$/, '')
-    if (stripped !== raw) return false
-    return /(什么|怎么|怎样|如何|为什么|是否|能不能|多少|几|哪些|区别|政策|制度|规定|流程|条件|吗[?？]?|[?？])/.test(stripped)
-  },
-
-  // AI 深度问答:流式接收回答实时上屏;大模型输出只作为回答文本展示,不解析为指令,
-  // 系统操作永远走上面的规则执行路径。
-  async askAi(text) {
-    this.setData({ running: true })
-    const history = this.data.messages
-      .filter(item => item.tone !== 'error' && typeof item.text === 'string' && item.text.trim())
-      .slice(-10)
-      .map(item => ({ role: item.role, content: item.text }))
-    const placeholderId = this.appendMessage('assistant', '正在思考…', 'running')
-    this.aiPartialText = ''
-    let received = false
-    try {
-      const result = await ai.chatStream(
-        history.concat({ role: 'user', content: text }),
-        {
-          onDelta: deltaText => {
-            received = true
-            this.replaceMessage(placeholderId, this.aiPartialText + deltaText, 'running')
-            this.aiPartialText += deltaText
-          }
-        }
-      )
-      this.replaceMessage(placeholderId, result.reply)
-    } catch (error) {
-      if (received) {
-        // 流式已上屏但收尾失败(如超长截断后连接异常):保留已显示内容,仅追加提示。
-        this.replaceMessage(placeholderId, `${this.aiPartialText}\n（回答可能不完整）`, 'error')
-      } else {
-        this.replaceMessage(placeholderId, error.message || 'AI 暂时不可用，请稍后重试。', 'error')
-      }
-    } finally {
-      this.aiPartialText = ''
-      this.setData({ running: false })
-      setTimeout(() => this.setData({ scrollIntoView: `message-${this.data.messages.length - 1}` }), 30)
-    }
-  },
-
-  // 返回消息 id,供调用方后续替换内容(如 AI 回复替换"正在思考…"占位)。
+  // 返回消息 id,供调用方后续替换内容。
   appendMessage(role, text, tone) {
     const message = { id: Date.now() + Math.random(), role, text, tone: tone || '' }
     const messages = this.data.messages.concat(message)

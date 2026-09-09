@@ -8,9 +8,6 @@
     "page": "pages/admin/system/system"
     }, {
     "action": "disallow",
-    "page": "pages/admin/ai/ai"
-    }, {
-    "action": "disallow",
     "page": "pages/admin/calendar/calendar"
     }, {
     "action": "disallow",

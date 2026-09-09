@@ -2,26 +2,21 @@
 <scroll-view class="scrollarea" scroll-y>
   <view class="page-shell">
     <view class="system-grid">
-      <button class="admin-action card" bindtap="openUsers">
+      <view class="admin-action card" hover-class="tap-active" hover-stay-time="80" bindtap="openUsers">
         <view class="admin-action__icon admin-action__icon--users"><image class="admin-action__img" src="/assets/icons/contact.png" mode="aspectFit" /></view>
         <text class="admin-action__title">用户管理</text>
         <text class="admin-action__desc">角色、状态与审批管理员</text>
-      </button>
-      <button class="admin-action card" bindtap="openExport">
+      </view>
+      <view class="admin-action card" hover-class="tap-active" hover-stay-time="80" bindtap="openExport">
         <view class="admin-action__icon admin-action__icon--export"><image class="admin-action__img" src="/assets/icons/ledger.png" mode="aspectFit" /></view>
         <text class="admin-action__title">考勤导出</text>
         <text class="admin-action__desc">按区间导出请假与加班</text>
-      </button>
-      <button class="admin-action card" bindtap="openAiConfig">
-        <view class="admin-action__icon admin-action__icon--ai"><image class="admin-action__img" src="/assets/icons/ai.png" mode="aspectFit" /></view>
-        <text class="admin-action__title">AI 设置</text>
-        <text class="admin-action__desc">模型、密钥与回复约束</text>
-      </button>
-      <button class="admin-action card" bindtap="openCalendar">
+      </view>
+      <view class="admin-action card" hover-class="tap-active" hover-stay-time="80" bindtap="openCalendar">
         <view class="admin-action__icon admin-action__icon--calendar"><image class="admin-action__img" src="/assets/icons/fa/calendar.png" mode="aspectFit" /></view>
         <text class="admin-action__title">节假日历</text>
         <text class="admin-action__desc">节假日查看与人工维护</text>
-      </button>
+      </view>
     </view>
   </view>
 </scroll-view>

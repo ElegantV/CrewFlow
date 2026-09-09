@@ -121,7 +121,7 @@ Page({
       // key 保持 'admin':用户已保存的首页菜单配置(排序/隐藏)按 key 匹配,换 key 会丢个性化设置。
       shortcuts.push({
         key: 'admin', icon: '/assets/icons/admin.png', title: '系统管理',
-        description: '用户、AI、节假日与考勤导出', url: '/pages/admin/system/system', accent: 'red'
+        description: '用户管理、节假日维护与考勤导出', url: '/pages/admin/system/system', accent: 'red'
       })
     }
     if (isDevelopment()) {
