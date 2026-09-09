@@ -27,14 +27,27 @@ Page({
     error: ''
   },
 
-  onLoad() {
+  onLoad(options) {
     const now = new Date()
     const today = dateKey(now)
-    const currentMonth = monthKey(now)
-    const rangeStart = shiftMonth(currentMonth, -6)
-    const rangeEnd = shiftMonth(currentMonth, 12)
-    this.setData({ today, selectedDate: today, rangeStart, rangeEnd })
-    this.loadRange(rangeStart, rangeEnd, today)
+    const baseMonth = monthKey(now)
+    // 支持从首页值班冲突提醒携带 date 深链：校验后高亮到对应日期。
+    let requested = ''
+    if (options && options.date && /^\d{4}-\d{2}-\d{2}$/.test(options.date)) {
+      const parts = options.date.split('-').map(Number)
+      const check = new Date(parts[0], parts[1] - 1, parts[2])
+      if (check.getFullYear() === parts[0] && check.getMonth() === parts[1] - 1 && check.getDate() === parts[2]) {
+        requested = options.date
+      }
+    }
+    const selected = requested || today
+    const selectedMonth = selected.slice(0, 7)
+    let rangeStart = shiftMonth(baseMonth, -6)
+    let rangeEnd = shiftMonth(baseMonth, 12)
+    if (selectedMonth < rangeStart) rangeStart = selectedMonth
+    if (selectedMonth > rangeEnd) rangeEnd = selectedMonth
+    this.setData({ today, selectedDate: selected, rangeStart, rangeEnd })
+    this.loadRange(rangeStart, rangeEnd, selected)
   },
 
   async loadRange(rangeStart, rangeEnd, selectedDate) {

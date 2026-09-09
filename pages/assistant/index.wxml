@@ -1,6 +1,6 @@
 <navigation-bar title="快捷办理" color="#1F2329" background="#F7F8FA"></navigation-bar>
 <view class="cmd-page">
-  <scroll-view class="cmd-scroll" scroll-y>
+  <scroll-view class="cmd-scroll" scroll-y scroll-into-view="{{scrollIntoView}}">
     <view class="intro-card">
       <view class="intro-icon"><image class="intro-icon-img" src="/assets/icons/cmd.png" mode="aspectFit"></image></view>
       <view class="intro-copy">
@@ -8,9 +8,15 @@
         <text class="intro-subtitle">输入请假、加班、查询等指令，解析确认后自动办理</text>
       </view>
     </view>
+    <view class="example-section">
+      <text class="example-label">常用指令</text>
+      <view class="example" wx:for="{{examples}}" wx:key="*this" data-text="{{item}}" bindtap="useExample">{{item}}</view>
+    </view>
 
-    <view class="result-card card" wx:if="{{stage}}">
-      <view class="result-line result-line--{{stage}}">{{feedback}}</view>
+    <block wx:if="{{messages.length}}">
+      <view class="msg-row msg-row--{{item.role}}" wx:for="{{messages}}" wx:key="index">
+        <text class="msg-bubble {{item.role === 'user' ? '' : 'msg-bubble--' + (item.stage || 'parsed')}}">{{item.text}}</text>
+      </view>
       <view class="choice-list" wx:if="{{pending && pending.choices.length}}">
         <button
           class="choice"
@@ -24,12 +30,8 @@
       <picker wx:if="{{pending && pending.allowDatePicker}}" mode="date" bindchange="chooseDate">
         <view class="choice choice--date">选择其他日期</view>
       </picker>
-    </view>
-
-    <view class="example-section" wx:if="{{!stage}}">
-      <text class="example-label">常用指令</text>
-      <view class="example" wx:for="{{examples}}" wx:key="*this" data-text="{{item}}" bindtap="useExample">{{item}}</view>
-    </view>
+    </block>
+    <view id="{{scrollIntoView}}" wx:if="{{scrollIntoView}}"></view>
     <view class="cmd-bottom"></view>
   </scroll-view>
 
@@ -46,7 +48,7 @@
           class="prompt-input {{voiceMode ? 'prompt-input--hidden' : ''}}"
           value="{{input}}"
           focus="{{focusKeyboard}}"
-          placeholder="{{pending && pending.field === 'reason' ? '请输入请假事由，如：家中有事' : '例如：8月13号请一天调休假'}}"
+          placeholder="{{pending && pending.field === 'reason' && pending.intent === 'approval_select' ? '请输入驳回原因，如：考勤情况不符' : '例如：8月13号请一天调休假'}}"
           maxlength="500"
           confirm-type="send"
           bindinput="onInput"

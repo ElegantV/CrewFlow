@@ -1,11 +1,15 @@
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
 import { startCalendarSync } from "./business/calendar.js";
+import { startApprovalReminderLoop } from "./business/approval-reminder.js";
 
 const app = await buildApp();
 
 // 节假日日历每日同步(启动先拉一次):仅生产进程启动,测试构建的 app 不触发。
 startCalendarSync(app.log);
+
+// 审批超时催办：待审批超过 24 小时提醒审批管理员，未处理则每 24 小时再提醒。
+startApprovalReminderLoop(app.log);
 
 // 通知等异步任务以 void 丢弃 Promise,数据库抖动等场景抛出的异常不能带崩进程;
 // 这里兜底记录并保持服务存活。

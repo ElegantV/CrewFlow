@@ -245,6 +245,8 @@ Page({
     } catch (error) {
       // 待激活账号由请求层统一跳转注册页，这里无需处理。
       if (error.code === 'ACCOUNT_PENDING') return null
+      // 其余失败(断网/5xx)保留上次资料并提示,避免静默失败造成陈旧数据的错觉。
+      wx.showToast({ title: '个人信息刷新失败，请检查网络后重试', icon: 'none' })
       return null
     }
   },
@@ -263,12 +265,20 @@ Page({
         dutyConflicts: dashboard.dutyConflicts || []
       } })
     } catch (error) {
-      if (this.data.reminders !== emptyReminders()) this.setData({ reminders: emptyReminders() })
+      // 失败时保留上次的提醒数据,避免闪一下变空;仅提示让用户可下拉/重进刷新。
+      wx.showToast({ title: '提醒加载失败，请稍后重试', icon: 'none' })
     }
   },
 
   openShortcut(event) {
     wx.navigateTo({ url: event.currentTarget.dataset.url })
+  },
+
+  // 值班冲突提醒：携带最早冲突日期直达员工情况页并高亮当天，避免落地后还要自己找日期。
+  openConflict(event) {
+    const date = event.currentTarget.dataset.date
+    const url = date ? `/pages/situation/index?date=${date}` : '/pages/situation/index'
+    wx.navigateTo({ url })
   },
 
   openRegister() {

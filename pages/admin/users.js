@@ -14,6 +14,8 @@ const statuses = [
 
 Page({
   data: {
+    loading: true,
+    loadError: '',
     users: [],
     managers: [{ id: '', name: '不指定' }],
     roles,
@@ -32,6 +34,7 @@ Page({
   },
 
   async loadData() {
+    this.setData({ loading: true, loadError: '' })
     try {
       const result = await admin.users()
       const managers = [{ id: '', name: '不指定' }].concat(
@@ -40,6 +43,7 @@ Page({
           .map(user => ({ id: user.id, name: user.name || user.openid.slice(0, 8) }))
       )
       this.setData({
+        loading: false,
         users: result.users.map(user => Object.assign({}, user, {
           roleLabel: roles.find(item => item.value === user.role).label,
           statusLabel: statuses.find(item => item.value === user.status).label
@@ -47,7 +51,7 @@ Page({
         managers
       })
     } catch (error) {
-      wx.showToast({ title: error.message || '加载失败', icon: 'none' })
+      this.setData({ loading: false, loadError: error.message || '用户列表加载失败' })
     }
   },
 

@@ -7,6 +7,11 @@
 
   <view class="records-loading" wx:if="{{loading}}">加载中…</view>
 
+  <view wx:elif="{{loadError}}" class="list-error">
+    <text>{{loadError}}</text>
+    <button class="list-retry" bindtap="load">重新加载</button>
+  </view>
+
   <view wx:elif="{{!leaves.length && !overtime.length}}" class="records-empty">本月暂无请假或加班记录</view>
 
   <block wx:else>

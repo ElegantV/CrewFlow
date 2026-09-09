@@ -21,6 +21,7 @@ Component({
     month: '',
     title: '',
     loading: false,
+    loadError: '',
     leaves: [],
     overtime: []
   },
@@ -36,7 +37,7 @@ Component({
   methods: {
     load() {
       const [year, value] = this.data.month.split('-').map(Number)
-      this.setData({ loading: true, title: `${year}年${value}月` })
+      this.setData({ loading: true, title: `${year}年${value}月`, loadError: '' })
       me.ledger(this.data.month).then(result => {
         this.setData({
           loading: false,
@@ -48,9 +49,8 @@ Component({
             statusLabel: overtimeStatusLabels[item.status] || item.status
           }))
         })
-      }).catch(() => {
-        this.setData({ loading: false })
-        wx.showToast({ title: '记录加载失败', icon: 'none' })
+      }).catch(error => {
+        this.setData({ loading: false, loadError: (error && error.message) || '记录加载失败，请重试' })
       })
     },
 

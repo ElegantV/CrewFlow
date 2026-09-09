@@ -144,20 +144,13 @@ function analyzeDraft(draft, availableTypes, now) {
       message: `${type.label}最少需要请${type.minimumHours / 8}天，不能申请半天。`
     }
   }
-  if (!draft.reason) {
-    return {
-      status: 'clarify', draft, field: 'reason',
-      message: '请填写请假事由（例如：家中有事、身体不适、公出办事）。',
-      choices: [],
-      allowText: true
-    }
-  }
   const endDate = draft.days > 1 ? addWorkdays(draft.startDate, draft.days) : draft.startDate
   const periodLabel = draft.period === 'morning' ? '上午半天' : draft.period === 'afternoon' ? '下午半天' : `${draft.days}天`
+  const reasonText = draft.reason ? ` · 事由：${draft.reason}` : ''
   return {
     status: 'ready',
     draft: Object.assign({}, draft, { endDate }),
-    summary: `${type ? type.label : '请假'} · ${draft.startDate}${endDate !== draft.startDate ? ` 至 ${endDate}` : ''} · ${periodLabel} · 事由：${draft.reason}`
+    summary: `${type ? type.label : '请假'} · ${draft.startDate}${endDate !== draft.startDate ? ` 至 ${endDate}` : ''} · ${periodLabel}${reasonText}`
   }
 }
 

@@ -22,6 +22,22 @@ function today() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
+const MOBILE_RE = /^1[3-9]\d{9}$/
+
+// 参与"未保存修改"判定的字段(不含头像,头像单独即时保存)。
+const DIRTY_KEYS = [
+  'name', 'accountName', 'oaAccount', 'idCardNo', 'personnelType', 'digitalEmployeeNo',
+  'department', 'bankProject', 'attendanceLocation', 'bankLevel', 'itlStatus',
+  'workStartDate', 'mobile', 'address', 'emergencyContactName', 'emergencyContactPhone'
+]
+
+function pickForm(form) {
+  if (!form) return null
+  const snapshot = {}
+  DIRTY_KEYS.forEach(key => { snapshot[key] = form[key] === undefined || form[key] === null ? '' : form[key] })
+  return snapshot
+}
+
 Page({
   data: {
     profile: null,
@@ -196,6 +212,7 @@ Page({
         annualLeave: profile.annualLeave || calculateAnnualLeave(form.workStartDate),
         isManager: profile.role === 'admin' || profile.role === 'super_admin'
       })
+      this.syncSnapshot()
       // 管理员且已保存过签名时回显当前签名;失败不影响资料页其余功能。
       if (profile.signatureConfigured && (profile.role === 'admin' || profile.role === 'super_admin')) {
         this.loadSignature()
@@ -214,6 +231,38 @@ Page({
     } catch (error) {
       this.setData({ signatureImage: '' })
     }
+  },
+
+  // 记录当前表单快照，作为"未保存修改"判定的基线。
+  syncSnapshot() {
+    this.savedForm = pickForm(this.data.form)
+    this.savedAgentIndex = this.data.selectedAgentIndex
+    this.savedManagerIndex = this.data.selectedManagerIndex
+  },
+
+  isDirty() {
+    if (!this.data.form || !this.savedForm) return false
+    const current = pickForm(this.data.form)
+    const changed = DIRTY_KEYS.some(key => String(current[key] || '') !== String(this.savedForm[key] || ''))
+    if (changed) return true
+    return this.data.selectedAgentIndex !== this.savedAgentIndex || this.data.selectedManagerIndex !== this.savedManagerIndex
+  },
+
+  // 自定义返回：有未保存修改时先确认，避免长表单误触返回丢失编辑。
+  onNavBack() {
+    if (!this.isDirty()) {
+      wx.navigateBack()
+      return
+    }
+    wx.showModal({
+      title: '放弃未保存的修改？',
+      content: '离开后本次修改将丢失，是否放弃修改并返回？',
+      confirmText: '放弃修改',
+      cancelText: '继续编辑',
+      success: result => {
+        if (result.confirm) wx.navigateBack()
+      }
+    })
   },
 
   onInput(event) {
@@ -297,6 +346,14 @@ Page({
       wx.showToast({ title: '请填写中文姓名', icon: 'none' })
       return
     }
+    if (form.mobile && !MOBILE_RE.test(form.mobile)) {
+      wx.showToast({ title: '请输入 11 位有效手机号', icon: 'none' })
+      return
+    }
+    if (form.emergencyContactPhone && !MOBILE_RE.test(form.emergencyContactPhone)) {
+      wx.showToast({ title: '紧急联系人手机号格式不正确', icon: 'none' })
+      return
+    }
     const agent = this.data.people[this.data.selectedAgentIndex]
     if (form.personnelType !== 'bank' && !agent) {
       wx.showToast({ title: '非行员请选择工作代理人', icon: 'none' })
@@ -325,12 +382,17 @@ Page({
       })
       const manager = this.data.managers[this.data.selectedManagerIndex]
       const currentManagerId = this.data.profile.manager && this.data.profile.manager.id
-      if (manager && manager.id !== currentManagerId) {
+      if (manager && manager.id && manager.id !== currentManagerId) {
         await me.setManager(manager.id)
       }
-      this.setData({ saving: false })
+      // 局部更新避免整页重载闪烁:表单即最终态,仅刷新依赖服务端回显的字段。
+      const updates = { saving: false, annualLeave: calculateAnnualLeave(form.workStartDate) }
+      if (manager && manager.id && manager.id !== currentManagerId) {
+        updates['profile.manager'] = { id: manager.id, name: manager.name }
+      }
+      this.setData(updates)
+      this.syncSnapshot()
       wx.showToast({ title: '个人信息已保存', icon: 'success' })
-      await this.loadData()
     } catch (error) {
       this.setData({ saving: false })
       wx.showToast({ title: error.message || '保存失败', icon: 'none', duration: 3000 })

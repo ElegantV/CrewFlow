@@ -1,4 +1,4 @@
-<navigation-bar title="个人信息" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<navigation-bar title="个人信息" color="#1F2329" background="#F7F8FA" customBack="{{true}}" bind:back="onNavBack"></navigation-bar>
 <scroll-view class="profile-scroll" scroll-y>
   <view class="page-shell profile-page" wx:if="{{form}}">
     <view class="identity-card card">

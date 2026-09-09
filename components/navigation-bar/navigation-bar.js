@@ -26,6 +26,11 @@ Component({
       type: Boolean,
       value: true
     },
+    customBack: {
+      // 为 true 时不自动执行 navigateBack,只触发 back 事件,由页面决定是否/何时返回。
+      type: Boolean,
+      value: false
+    },
     loading: {
       type: Boolean,
       value: false
@@ -91,6 +96,10 @@ Component({
     },
     back() {
       const data = this.data
+      if (data.customBack) {
+        this.triggerEvent('back', { delta: data.delta }, {})
+        return
+      }
       if (data.delta) {
         wx.navigateBack({
           delta: data.delta

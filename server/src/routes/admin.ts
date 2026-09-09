@@ -152,11 +152,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       }
 
       // 按外键依赖自子表向父表删除,最后删除用户本身。
-      await client.query(
-        "DELETE FROM notification_send_log WHERE user_id = $1 OR leave_request_id IN (SELECT id FROM leave_requests WHERE applicant_id = $1)",
-        [id.data],
-      );
-      await client.query("DELETE FROM notification_subscriptions WHERE user_id = $1", [id.data]);
       await client.query("DELETE FROM wxpusher_bindings WHERE user_id = $1", [id.data]);
       await client.query(
         "DELETE FROM timeoff_allocations WHERE leave_request_id IN (SELECT id FROM leave_requests WHERE applicant_id = $1) OR duty_record_id IN (SELECT id FROM duty_records WHERE user_id = $1)",

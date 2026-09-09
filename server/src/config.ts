@@ -11,8 +11,6 @@ const schema = z.object({
   JWT_SECRET: z.string().min(32),
   WECHAT_APP_ID: z.string().min(1),
   WECHAT_APP_SECRET: z.string().min(1),
-  WECHAT_SUBSCRIBE_TEMPLATE_ID: z.string().default(""),
-  WECHAT_SUBSCRIBE_STATE: z.enum(["developer", "trial", "formal"]).default("formal"),
   WXPUSHER_APP_TOKEN: z.string().default(""),
   BOOTSTRAP_SUPER_ADMIN_OPENID: z.string().default(""),
   CORS_ORIGINS: z.string().default(""),

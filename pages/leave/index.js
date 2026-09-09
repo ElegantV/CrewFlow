@@ -1,9 +1,18 @@
 const leave = require('../../services/leave')
 const me = require('../../services/me')
+const overtime = require('../../services/overtime')
 const calendarService = require('../../services/calendar')
 const holidays = require('../../config/holidays')
 
 function pad(value) { return String(value).padStart(2, '0') }
+function trimDays(value) {
+  const num = Number(value)
+  return Number.isInteger(num) ? String(num) : String(Math.round(num * 10) / 10)
+}
+function trimHours(value) {
+  const num = Number(value)
+  return Number.isInteger(num) ? String(num) : String(Math.round(num * 10) / 10)
+}
 function today() {
   const date = new Date()
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
@@ -68,6 +77,10 @@ Page({
     resultLeaveId: '',
     cancellingId: '',
     requests: [],
+    compBalance: null,
+    quotaText: '',
+    quotaInsufficient: false,
+    loadError: '',
     types: [defaultLeaveType],
     typeIndex: 0,
     currentType: defaultLeaveType,
@@ -111,11 +124,12 @@ Page({
   },
 
   async loadData() {
-    this.setData({ loading: true })
-    const [listResult, typesResult, profileResult] = await Promise.all([
+    this.setData({ loading: true, loadError: '' })
+    const [listResult, typesResult, profileResult, balanceResult] = await Promise.all([
       settled(leave.list()),
       settled(leave.types()),
-      settled(me.get())
+      settled(me.get()),
+      settled(overtime.balance())
     ])
     const updates = { loading: false }
     if (listResult.value) {
@@ -124,7 +138,10 @@ Page({
         canCancel: item.status === 'pending' || item.status === 'approved',
         canViewResult: item.status === 'approved'
       }))
+    } else {
+      updates.loadError = listResult.error.message || '记录加载失败，请重试'
     }
+    if (balanceResult.value) updates.compBalance = balanceResult.value.availableHours
     if (typesResult.value && typesResult.value.types && typesResult.value.types.length) {
       const types = typesResult.value.types
       updates.types = types
@@ -141,11 +158,63 @@ Page({
     }
     if (profileResult.value) updates.profile = profileResult.value
     this.setData(updates)
+    this.refreshQuota()
 
     const failed = listResult.error || typesResult.error || profileResult.error
     if (failed) {
       wx.showToast({ title: failed.message || '部分数据加载失败，请重试', icon: 'none' })
     }
+  },
+
+  // 年假/调休额度提示：按当前类型即时展示剩余额度，申请量超过剩余时置灰提交按钮。
+  refreshQuota() {
+    const typeValue = this.data.currentType && this.data.currentType.value
+    let quotaText = ''
+    let insufficient = false
+    if (typeValue === 'annual') {
+      const entitlement = (this.data.profile && this.data.profile.annualLeave && this.data.profile.annualLeave.annualLeaveDays) || 0
+      const used = this.usedAnnualDays()
+      const remaining = Math.max(0, entitlement - used)
+      quotaText = `剩余年假 ${trimDays(remaining)} 天`
+      const leaveDays = this.data.leaveDays || 0
+      insufficient = leaveDays > 0 && leaveDays > remaining + 0.0001
+    } else if (typeValue === 'comp_time') {
+      if (this.data.compBalance === null || this.data.compBalance === undefined) {
+        quotaText = ''
+      } else {
+        quotaText = `剩余调休 ${trimHours(this.data.compBalance)} 小时`
+        const needed = this.estimatedHours()
+        insufficient = needed > 0 && needed > this.data.compBalance
+      }
+    }
+    this.setData({ quotaText, quotaInsufficient: insufficient })
+  },
+
+  // 当年已使用的年假天数(待审批+已通过,按工作日在年内占比折算),用于计算剩余额度。
+  usedAnnualDays() {
+    const year = new Date().getFullYear()
+    const yearStart = `${year}-01-01`
+    const yearEnd = `${year}-12-31`
+    return (this.data.requests || []).reduce((total, request) => {
+      if (request.leaveType !== 'annual' || (request.status !== 'pending' && request.status !== 'approved')) return total
+      const start = request.startDate > yearStart ? request.startDate : yearStart
+      const end = request.endDate < yearEnd ? request.endDate : yearEnd
+      if (start > end) return total
+      const rangeTotal = holidays.countWorkdays(request.startDate, request.endDate)
+      const overlap = holidays.countWorkdays(start, end)
+      const ratio = rangeTotal > 0 ? overlap / rangeTotal : 1
+      return total + (request.requestedDays || 0) * ratio
+    }, 0)
+  },
+
+  // 预估本次申请将消耗的调休小时数(工作日8小时/天,半天按4小时)。
+  estimatedHours() {
+    const leaveDays = this.data.leaveDays || 0
+    const sameDay = this.data.rangeStart && this.data.rangeStart === this.data.rangeEnd
+    if (sameDay && (this.data.sameDayPeriod === 'morning' || this.data.sameDayPeriod === 'afternoon')) {
+      return 4
+    }
+    return Math.round(leaveDays * 8)
   },
 
   openForm() {
@@ -235,6 +304,10 @@ Page({
   onCalendarTap(event) {
     const date = event.currentTarget.dataset.date
     if (!date) return
+    if (!holidays.isWorkday(date)) {
+      wx.showToast({ title: '周末与法定节假日不可请假', icon: 'none' })
+      return
+    }
     const fixed = this.data.currentType && this.data.currentType.fixedWorkdays
     let rangeStart, rangeEnd, startDate, endDate
     if (fixed) {
@@ -297,6 +370,7 @@ Page({
       endPeriodIndex: periodIndex(endPeriods, 'day')
     })
     this.buildCalendar(this.data.calMonth)
+    this.refreshQuota()
   },
 
   refreshRange() {
@@ -336,6 +410,7 @@ Page({
       this.setData({ rangeWorkdays, leaveDays })
     }
     this.buildCalendar(this.data.calMonth)
+    this.refreshQuota()
   },
 
   prevMonth() {
@@ -353,6 +428,7 @@ Page({
       'form.startPeriod': value,
       'form.endPeriod': value
     })
+    this.refreshQuota()
   },
 
   onTypeChange(event) {
@@ -378,6 +454,7 @@ Page({
       this.setData({ rangeEnd: '', 'form.endDate': '' })
       this.buildCalendar(this.data.calMonth)
     }
+    this.refreshQuota()
   },
 
   onStartPeriodChange(event) {
@@ -399,6 +476,7 @@ Page({
     if (form.startPeriod === 'morning' || form.startPeriod === 'afternoon') leaveDays -= 0.5
     if (form.endPeriod === 'morning' || form.endPeriod === 'afternoon') leaveDays -= 0.5
     this.setData({ leaveDays })
+    this.refreshQuota()
   },
 
   async submit() {
@@ -422,6 +500,10 @@ Page({
         wx.showToast({ title: '同一天选择全天时，开始和结束都须选全天', icon: 'none', duration: 3000 })
         return
       }
+    }
+    if (this.data.quotaInsufficient) {
+      wx.showToast({ title: '超出剩余额度，请调整请假范围或先补登记加班', icon: 'none' })
+      return
     }
     this.setData({ submitting: true })
     try {
@@ -488,9 +570,13 @@ Page({
   cancel(event) {
     const id = event.currentTarget.dataset.id
     if (!id || this.data.cancellingId === id) return
+    const request = this.data.requests.find(item => item.id === id)
+    const content = request && request.leaveType === 'comp_time'
+      ? '调休额度将按原加班记录和原到期日退回，是否继续？'
+      : `确认撤销这条${request && request.leaveTypeLabel ? request.leaveTypeLabel : ''}申请？撤销后不可恢复。`
     wx.showModal({
       title: '撤销申请',
-      content: '调休额度将按原加班记录和原到期日退回，是否继续？',
+      content,
       success: async result => {
         if (!result.confirm) return
         this.setData({ cancellingId: id })

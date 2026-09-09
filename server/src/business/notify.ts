@@ -116,6 +116,7 @@ export async function notifyOvertimeCheckIn(
   userId: string,
   date: string,
   hours: number,
+  startTime: string,
   endTime: string,
 ) {
   if (!config.WXPUSHER_APP_TOKEN) return;
@@ -128,8 +129,8 @@ export async function notifyOvertimeCheckIn(
     const content =
       `📋工作日加班打卡提醒\n\n` +
       `日期：${date}\n` +
-      `时长：${hours}小时\n` +
-      `打卡要求：🕢${endTime}:00之后打卡\n` +
+      `时段：${startTime}-${endTime}（${hours}小时）\n` +
+      `打卡要求：${endTime}:00之后打卡\n` +
       `备注：加班无需审批，随时可提，请保证打卡时长大于申请时长！`;
     const sent = await sendWxPusherMessage(content, [uid], "工作日加班打卡提醒");
     if (sent.code !== 1000) {

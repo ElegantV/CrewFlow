@@ -41,6 +41,8 @@ Page({
     feedback: '',
     types: fallbackTypes,
     pending: null,
+    messages: [],
+    scrollIntoView: '',
     examples: ['8月13号请一天调休假', '今天登记加班2小时，内容：生产发布', '查询张三的电话', '张三今天是否请假']
   },
 
@@ -57,6 +59,50 @@ Page({
 
   onUnload() {
     if (this.data.recording && recognitionManager) recognitionManager.stop()
+  },
+
+  // 对话列表辅助：commit 统一更新并滚动到底部，appendUser 记录用户输入并结束当前机器人回合。
+  nextTailId() {
+    this.tailSeq = (this.tailSeq || 0) + 1
+    return `tail-${this.tailSeq}`
+  },
+
+  commit(messages) {
+    const list = messages.slice(-60)
+    this.setData({ messages: list, scrollIntoView: this.nextTailId() })
+  },
+
+  appendUser(text) {
+    this.currentBotKey = undefined
+    this.commit(this.data.messages.concat({ role: 'user', text }))
+  },
+
+  nextBotKey(messages) {
+    const used = new Set((messages || []).filter(item => item.role === 'bot').map(item => item.key))
+    let seq = (this.botSeq || 0) + 1
+    while (used.has(`bot-${seq}`)) seq += 1
+    this.botSeq = seq
+    return `bot-${seq}`
+  },
+
+  // 结果反馈：同一轮用户操作内的机器人提示复用同一个气泡(running→success 原地刷新)，
+  // 新的用户消息(appendUser/choose)会把回合推进到下一个气泡。
+  showFeedback(text, tone) {
+    const stage = tone === 'success' ? 'success' : tone === 'error' ? 'error' : tone === 'clarify' ? 'clarify' : tone === 'running' ? 'running' : 'parsed'
+    const messages = this.data.messages.slice()
+    if (this.currentBotKey === undefined) {
+      this.currentBotKey = this.nextBotKey(messages)
+      messages.push({ key: this.currentBotKey, role: 'bot', text, stage })
+    } else {
+      const index = messages.findIndex(item => item.key === this.currentBotKey && item.role === 'bot')
+      if (index >= 0) {
+        messages[index] = Object.assign({}, messages[index], { text, stage })
+      } else {
+        this.currentBotKey = this.nextBotKey(messages)
+        messages.push({ key: this.currentBotKey, role: 'bot', text, stage })
+      }
+    }
+    this.setData({ messages: messages.slice(-60), scrollIntoView: this.nextTailId(), stage, feedback: text })
   },
 
   setupVoice() {
@@ -131,6 +177,8 @@ Page({
     if (!text || this.data.running) return
     this.inputDraft = ''
     this.setData({ input: '' })
+    // 先展示用户输入消息,再进行解析/执行,保证对话列表可回看。
+    this.appendUser(text)
     if (this.data.pending && this.data.pending.allowText) {
       const result = this.data.pending.intent
         ? command.applyChoice(this.data.pending, text, text)
@@ -189,6 +237,8 @@ Page({
           return
         }
         for (const task of readyTasks) {
+          // 每个子任务独立成一条机器人结果,避免互相覆盖。
+          this.currentBotKey = undefined
           if (task.intent) await this.executeCommand(task)
           else await this.executeLeave(task)
         }
@@ -203,6 +253,7 @@ Page({
     if (!this.data.pending || this.data.running) return
     const label = event.currentTarget.dataset.label
     const value = event.currentTarget.dataset.value
+    this.appendUser(label)
     const result = this.data.pending.intent
       ? command.applyChoice(this.data.pending, value, label)
       : parser.applyChoice(this.data.pending, value, { availableTypes: this.data.types })
@@ -212,6 +263,7 @@ Page({
   chooseDate(event) {
     if (!this.data.pending || this.data.running) return
     const value = event.detail.value
+    this.appendUser(value)
     const result = this.data.pending.intent
       ? command.applyChoice(this.data.pending, value, value)
       : parser.applyChoice(this.data.pending, value, { availableTypes: this.data.types })
@@ -366,6 +418,26 @@ Page({
     const result = await overtime.list()
     let records = (result.records || []).filter(item => item.canRevoke)
     if (slots.date) records = records.filter(item => item.date === slots.date)
+    if (!records.length) return slots.date ? `${slots.date} 没有可撤销的加班记录。` : '没有可撤销的加班记录。'
+    if (records.length === 1) {
+      const item = records[0]
+      const confirmed = await new Promise(resolve => {
+        wx.showModal({
+          title: '撤销加班',
+          content: `${item.date} · ${item.hours}小时${item.content ? ` · ${item.content}` : ''}\n撤销后将移除对应调休额度，是否继续？`,
+          confirmText: '确认撤销',
+          cancelText: '取消',
+          success: res => resolve(!!res.confirm),
+          fail: () => resolve(false)
+        })
+      })
+      if (!confirmed) {
+        this.showFeedback('已取消撤销。', 'error')
+        return ''
+      }
+      await overtime.revoke(item.id)
+      return '办理成功：加班记录已撤销。'
+    }
     return this.selectRecord(records, 'overtime_revoke_select', '请选择要撤销的加班记录。', item => `${item.date} · ${item.hours}小时 · ${item.content}`)
   },
 
@@ -451,9 +523,5 @@ Page({
     return ''
   },
 
-  // 展示单条办理反馈：tone 映射为结果卡片的状态样式。
-  showFeedback(text, tone) {
-    const stage = tone === 'success' ? 'success' : tone === 'error' ? 'error' : tone === 'clarify' ? 'clarify' : tone === 'running' ? 'running' : 'parsed'
-    this.setData({ feedback: text, stage })
-  }
+  // 对话列表更新与机器人提示语复用 showFeedback/commit（上部统一实现）。
 })

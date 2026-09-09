@@ -8,6 +8,7 @@ import { db } from "../db.js";
 
 const createSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   hours: z.coerce.number().int().min(2).max(6).optional(),
   // 暂时兼容仍提交结束时间的旧版小程序。
   endTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
@@ -132,15 +133,33 @@ export const overtimeRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ code: "INVALID_DATE", message: "日期格式不正确" });
     }
 
-    const startMinutes = minutes("17:30");
-    const endMinutes = parsed.data.hours !== undefined
-      ? startMinutes + parsed.data.hours * 60
-      : minutes(parsed.data.endTime!);
-    if (endMinutes < minutes("19:30") || endMinutes > minutes("23:30")) {
-      return reply.code(400).send({
-        code: "INVALID_OVERTIME_TIME",
-        message: "加班从17:30开始，至少2小时，结束时间须在19:30至23:30之间",
-      });
+    // 开始时间默认 17:30，全天任意时刻可选；结束早于开始视为跨天（次日）。
+    // 时长 = 开始到结束的分钟差,按"已满的整小时"向下取整记录(如 17:30-19:29 计 1 小时、
+    // 17:30-20:29 计 2 小时),最低 2 小时、最高 6 小时。
+    const startMinutes = minutes(parsed.data.startTime ?? "17:30");
+    let endMinutes: number;
+    let hours: number;
+    if (parsed.data.endTime !== undefined) {
+      const rawEnd = minutes(parsed.data.endTime);
+      endMinutes = rawEnd <= startMinutes ? rawEnd + 1440 : rawEnd;
+      const duration = endMinutes - startMinutes;
+      hours = Math.floor(duration / 60);
+      if (hours < 2) {
+        return reply.code(400).send({
+          code: "INVALID_OVERTIME_TIME",
+          message: `本次加班约${Math.max(hours, 0)}小时，不足2小时，请适当延长结束时间`,
+        });
+      }
+      if (hours > 6) {
+        return reply.code(400).send({
+          code: "INVALID_OVERTIME_TIME",
+          message: "加班时长最多6小时，请缩短结束时间",
+        });
+      }
+    } else {
+      // 兼容历史的小时数提交方式：默认从 17:30 开始，结束时间自动推算。
+      endMinutes = startMinutes + (parsed.data.hours! * 60);
+      hours = parsed.data.hours!;
     }
 
     const dateBounds = await db.query<{ today: string; three_months_ago: string }>(
@@ -159,8 +178,9 @@ export const overtimeRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const hours = parsed.data.hours ?? Math.floor((endMinutes - startMinutes) / 60);
-    const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
+    const startTime = parsed.data.startTime ?? "17:30";
+    const endClock = endMinutes % 1440;
+    const endTime = `${String(Math.floor(endClock / 60)).padStart(2, "0")}:${String(endClock % 60).padStart(2, "0")}`;
     const actor = request.actor!;
     const client = await db.connect();
     try {
@@ -171,9 +191,9 @@ export const overtimeRoutes: FastifyPluginAsync = async (app) => {
       }>(
         `INSERT INTO duty_records
            (user_id, duty_date, start_time, end_time, hours, remaining_hours, content, expires_at)
-         VALUES ($1, $2, '17:30', $3, $4, $4, $5, ($2::date + interval '3 months')::date)
+         VALUES ($1, $2, $3, $4, $5, $5, $6, ($2::date + interval '3 months')::date)
          RETURNING id, expires_at::text`,
-        [actor.id, parsed.data.date, endTime, hours, parsed.data.content],
+        [actor.id, parsed.data.date, startTime, endTime, hours, parsed.data.content],
       );
       const record = inserted.rows[0]!;
       await client.query(
@@ -184,7 +204,7 @@ export const overtimeRoutes: FastifyPluginAsync = async (app) => {
       );
       await client.query("COMMIT");
       // 登记成功后异步推送打卡提醒（wxpusher），不阻塞响应。
-      void notifyOvertimeCheckIn(actor.id, parsed.data.date, hours, endTime);
+      void notifyOvertimeCheckIn(actor.id, parsed.data.date, hours, startTime, endTime);
       return reply.code(201).send({ id: record.id, hours, expiresAt: record.expires_at });
     } catch (error: unknown) {
       await client.query("ROLLBACK");

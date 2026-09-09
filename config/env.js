@@ -14,9 +14,9 @@ const PRODUCTION_API_ORIGIN = 'https://api.ccherry.cn'
 // 隧道启动命令(本机执行,断开后重跑即可):
 //   nohup ssh -N -o ServerAliveInterval=30 -L 0.0.0.0:3100:127.0.0.1:3000 \
 //     -i ~/.ssh/aliyun_182 root@101.201.100.221 > /tmp/crewflow-tunnel.log 2>&1 &
-// 192.168.1.14 是本机局域网 IP,IP 变化后需同步更新。
+// 192.168.1.17 是本机局域网 IP,IP 变化后需同步更新。
 const DEVELOPMENT_API_ORIGIN = 'http://127.0.0.1:3100'
-const DEVICE_API_ORIGIN = 'http://192.168.1.14:3100'
+const DEVICE_API_ORIGIN = 'http://192.168.1.17:3100'
 
 const environments = {
   develop: {

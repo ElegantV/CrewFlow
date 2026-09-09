@@ -33,7 +33,7 @@
         </view>
         <text class="reminder-arrow">›</text>
       </view>
-      <view class="reminder-card reminder-card--red" wx:if="{{reminders.dutyConflicts.length}}" data-url="/pages/situation/index" bindtap="openShortcut" hover-class="tap-active" hover-stay-time="80">
+      <view class="reminder-card reminder-card--red" wx:if="{{reminders.dutyConflicts.length}}" data-date="{{reminders.dutyConflicts[0].date}}" bindtap="openConflict" hover-class="tap-active" hover-stay-time="80">
         <view class="reminder-icon">值</view>
         <view class="reminder-body">
           <text class="reminder-title">值班时间冲突</text>

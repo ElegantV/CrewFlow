@@ -120,3 +120,9 @@ page { height: 100vh; display: flex; flex-direction: column; }
 .result-actions { display: flex; flex-direction: row; margin-top: 28rpx; }
 .result-actions button { flex: 1; margin: 0; }
 .result-actions button + button { margin-left: 20rpx; }
+
+.calendar-cell--off { opacity: .45; }
+.quota-note { margin-top: 10rpx; color: #147a55; font-size: 23rpx; font-weight: 600; }
+.quota-note--danger { color: var(--c-danger); }
+.field-help--danger { color: var(--c-danger); font-weight: 600; }
+.primary-button--disabled { opacity: .5; }

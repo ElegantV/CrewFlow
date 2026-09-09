@@ -138,3 +138,27 @@ button:active {
   background: var(--empty-icon) center / contain no-repeat;
   opacity: .9;
 }
+
+/* 统一列表加载失败内联态（各二级页复用）：错误文案 + 重新加载按钮 */
+.list-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx 28rpx;
+  color: var(--c-text-muted);
+  font-size: 24rpx;
+  text-align: center;
+}
+
+.list-retry {
+  flex-shrink: 0;
+  margin-left: 20rpx;
+  padding: 0 24rpx;
+  color: var(--brand);
+  background: var(--c-info-bg);
+  border-radius: var(--r-pill);
+  font-size: 22rpx;
+  line-height: 2;
+}
+
+.list-retry::after { border: 0; }

@@ -52,3 +52,5 @@ page { height: 100vh; display: flex; flex-direction: column; }
 .form-actions button + button { margin-left: 20rpx; }
 .secondary-button { border-radius: var(--r-md); color: var(--c-text-on-neutral); background: var(--c-neutral-bg); }
 .secondary-button::after { border: 0; }
+
+.field-help--danger { color: var(--c-danger); font-weight: 600; }
