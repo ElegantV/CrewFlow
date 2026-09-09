@@ -15,10 +15,28 @@ const fallbackTypes = [
   { value: 'maternity', label: '产假' }, { value: 'paternity', label: '陪产假' }
 ]
 
+// 语音输入：使用微信「同声传译」插件（仅语音转文字），未配置时降级为不可用。
+let recognitionManager = null
+let voiceReady = false
+function setupRecognition() {
+  if (voiceReady) return true
+  try {
+    const plugin = requirePlugin('WechatSI')
+    recognitionManager = plugin.getRecordRecognitionManager()
+    voiceReady = true
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
 Page({
   data: {
     input: '',
     running: false,
+    recording: false,
+    voiceMode: false,
+    focusKeyboard: false,
     stage: '',
     feedback: '',
     types: fallbackTypes,
@@ -28,12 +46,73 @@ Page({
 
   async onLoad() {
     this.inputDraft = ''
+    this.setupVoice()
     try {
       const result = await leave.types()
       if (result.types && result.types.length) this.setData({ types: result.types })
     } catch (error) {
       // 离线时仍允许体验指令判断，真正执行时由请求层展示失败原因。
     }
+  },
+
+  onUnload() {
+    if (this.data.recording && recognitionManager) recognitionManager.stop()
+  },
+
+  setupVoice() {
+    if (!setupRecognition()) return
+    recognitionManager.onRecognize = res => {
+      if (res && res.result) {
+        this.inputDraft = res.result
+        this.setData({ input: res.result })
+      }
+    }
+    recognitionManager.onStop = res => {
+      const text = String(res && res.result || '').trim()
+      this.inputDraft = text
+      const patch = { recording: false, input: text }
+      if (text) {
+        // 识别出文字后切回键盘模式,便于确认/修改后发送。
+        patch.voiceMode = false
+        patch.focusKeyboard = true
+        wx.showToast({ title: '识别完成，可确认后发送', icon: 'none' })
+      }
+      this.setData(patch)
+    }
+    recognitionManager.onError = res => {
+      this.setData({ recording: false })
+      wx.showToast({ title: (res && res.msg) || '语音识别失败，请重试', icon: 'none' })
+    }
+  },
+
+  // 长按录制、松开结束（与微信发语音一致）：按下即 start，抬起即 stop。
+  onVoiceStart() {
+    if (this.data.running || this.data.recording || !this.data.voiceMode) return
+    if (!voiceReady) {
+      wx.showToast({ title: '语音输入未配置，请在公众平台添加「微信同声传译」插件', icon: 'none' })
+      return
+    }
+    this.inputDraft = ''
+    this.setData({ recording: true, input: '' })
+    recognitionManager.start({ lang: 'zh_CN', duration: 60000 })
+  },
+
+  onVoiceEnd() {
+    if (!this.data.recording) return
+    recognitionManager.stop()
+  },
+
+  // 键盘 / 语音两种输入模式互切：语音模式下输入框变为"按住 说话"。
+  // focusKeyboard 只在切回键盘时置 true 唤起输入法，随后在 blur 时复位，
+  // 避免在聚焦状态下翻转为 false 造成"键盘弹出又收起"。
+  toggleVoiceMode() {
+    if (this.data.running || this.data.recording) return
+    const voiceMode = !this.data.voiceMode
+    this.setData({ voiceMode, focusKeyboard: !voiceMode })
+  },
+
+  onKeyboardBlur() {
+    if (this.data.focusKeyboard) this.setData({ focusKeyboard: false })
   },
 
   onInput(event) {

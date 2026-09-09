@@ -2,7 +2,7 @@
 <view class="cmd-page">
   <scroll-view class="cmd-scroll" scroll-y>
     <view class="intro-card">
-      <view class="intro-icon">办</view>
+      <view class="intro-icon"><image class="intro-icon-img" src="/assets/icons/cmd.png" mode="aspectFit"></image></view>
       <view class="intro-copy">
         <text class="intro-title">快捷办理</text>
         <text class="intro-subtitle">输入请假、加班、查询等指令，解析确认后自动办理</text>
@@ -35,20 +35,37 @@
 
   <view class="composer">
     <view class="composer-row">
+      <button
+        class="mode-button"
+        bindtap="toggleVoiceMode"
+        disabled="{{running}}"
+        aria-label="{{voiceMode ? '切换为键盘输入' : '语音输入'}}"
+      ><image class="mode-icon" src="{{voiceMode ? '/assets/icons/keyboard.png' : '/assets/icons/mic.png'}}" mode="aspectFit"></image></button>
       <view class="input-wrap">
         <input
-          class="prompt-input"
+          class="prompt-input {{voiceMode ? 'prompt-input--hidden' : ''}}"
           value="{{input}}"
+          focus="{{focusKeyboard}}"
           placeholder="{{pending && pending.field === 'reason' ? '请输入请假事由，如：家中有事' : '例如：8月13号请一天调休假'}}"
           maxlength="500"
           confirm-type="send"
           bindinput="onInput"
           bindconfirm="send"
+          bindblur="onKeyboardBlur"
           disabled="{{running}}"
         />
+        <button
+          class="hold-talk {{voiceMode ? '' : 'hold-talk--hidden'}} {{recording ? 'hold-talk--recording' : ''}}"
+          bindtouchstart="onVoiceStart"
+          bindtouchend="onVoiceEnd"
+          bindtouchcancel="onVoiceEnd"
+          disabled="{{running}}"
+          aria-label="{{recording ? '松开结束录音' : '按住说话'}}"
+        >{{recording ? '松开 结束' : '按住 说话'}}</button>
       </view>
-      <button class="send-button {{running ? 'send-button--disabled' : ''}}" bindtap="send" disabled="{{running}}">{{running ? '···' : '发送'}}</button>
+      <button wx:if="{{!voiceMode}}" class="send-button {{running ? 'send-button--disabled' : ''}}" bindtap="send" disabled="{{running}}">{{running ? '···' : '发送'}}</button>
     </view>
-    <text class="composer-hint">指令解析后需你确认才会执行，请核对日期和假别</text>
+    <text class="composer-hint composer-hint--recording" wx:if="{{recording}}">正在聆听，松开结束</text>
+    <text class="composer-hint" wx:elif="{{!voiceMode}}">指令解析后需你确认才会执行，请核对日期和假别</text>
   </view>
 </view>
