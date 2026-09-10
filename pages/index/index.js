@@ -7,6 +7,59 @@ function emptyReminders() {
   return { overtimeExpiring: [], pendingApprovals: null, dutyConflicts: [] }
 }
 
+// 基础菜单全集(不可变):个性化配置只影响展示,不影响这里的来源,
+// 否则隐藏后 items 会被过滤掉,编辑菜单时再也无法恢复显示。
+const BASE_SHORTCUTS = [
+  {
+    key: 'assistant',
+    icon: '/assets/icons/cmd.png',
+    title: '快捷办理',
+    description: '输入指令，自动解析并办理',
+    url: '/pages/assistant/index',
+    accent: 'ai'
+  },
+  {
+    key: 'duty',
+    icon: '/assets/icons/duty.png',
+    title: '值班',
+    description: '登记值班并查看可用调休',
+    url: '/pages/duty/index',
+    accent: 'blue'
+  },
+  {
+    key: 'leave',
+    icon: '/assets/icons/leave.png',
+    title: '请假',
+    description: '提交申请并查看审批进度',
+    url: '/pages/leave/index',
+    accent: 'green'
+  },
+  {
+    key: 'situation',
+    icon: '/assets/icons/situation.png',
+    title: '员工情况',
+    description: '按日期查看请假与加班人员',
+    url: '/pages/situation/index',
+    accent: 'orange'
+  },
+  {
+    key: 'contact',
+    icon: '/assets/icons/contact.png',
+    title: '通讯录',
+    description: '按系统查找人员并快速联系',
+    url: '/pages/contact/index',
+    accent: 'blue'
+  },
+  {
+    key: 'profile',
+    icon: '/assets/icons/profile.png',
+    title: '个人信息',
+    description: '维护账户、行内与联系信息',
+    url: '/pages/profile/index',
+    accent: 'purple'
+  }
+]
+
 Page({
   data: {
     apiConfigured: false,
@@ -18,56 +71,7 @@ Page({
     menuSaving: false,
     menuItems: [],
     switchColor: BRAND_DEEP,
-    shortcuts: [
-      {
-        key: 'assistant',
-        icon: '/assets/icons/cmd.png',
-        title: '快捷办理',
-        description: '输入指令，自动解析并办理',
-        url: '/pages/assistant/index',
-        accent: 'ai'
-      },
-      {
-        key: 'duty',
-        icon: '/assets/icons/duty.png',
-        title: '值班',
-        description: '登记值班并查看可用调休',
-        url: '/pages/duty/index',
-        accent: 'blue'
-      },
-      {
-        key: 'leave',
-        icon: '/assets/icons/leave.png',
-        title: '请假',
-        description: '提交申请并查看审批进度',
-        url: '/pages/leave/index',
-        accent: 'green'
-      },
-      {
-        key: 'situation',
-        icon: '/assets/icons/situation.png',
-        title: '员工情况',
-        description: '按日期查看请假与加班人员',
-        url: '/pages/situation/index',
-        accent: 'orange'
-      },
-      {
-        key: 'contact',
-        icon: '/assets/icons/contact.png',
-        title: '通讯录',
-        description: '按系统查找人员并快速联系',
-        url: '/pages/contact/index',
-        accent: 'blue'
-      },
-      {
-        key: 'profile',
-        icon: '/assets/icons/profile.png',
-        title: '个人信息',
-        description: '维护账户、行内与联系信息',
-        url: '/pages/profile/index',
-        accent: 'purple'
-      }
-    ]
+    shortcuts: BASE_SHORTCUTS
   },
 
   async onShow() {
@@ -110,7 +114,7 @@ Page({
 
   // 根据角色计算默认菜单(不含个性化)。
   buildShortcuts(user) {
-    const shortcuts = this.data.shortcuts.filter(item => !['approval', 'admin', 'dev'].includes(item.key))
+    const shortcuts = BASE_SHORTCUTS.filter(item => !['approval', 'admin', 'dev'].includes(item.key))
     if (user && (user.role === 'admin' || user.role === 'super_admin')) {
       shortcuts.push({
         key: 'approval', icon: '/assets/icons/approval.png', title: '请假审批',

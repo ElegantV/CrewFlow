@@ -64,11 +64,26 @@ Component({
   },
   lifetimes: {
     attached() {
-      const rect = wx.getMenuButtonBoundingClientRect()
+      const rect = wx.getMenuButtonBoundingClientRect() || {}
       const platform = (wx.getDeviceInfo() || wx.getSystemInfoSync()).platform
       const isAndroid = platform === 'android'
       const isDevtools = platform === 'devtools'
-      const { windowWidth, safeArea: { top = 0, bottom = 0 } = {} } = wx.getWindowInfo() || wx.getSystemInfoSync()
+      const isPC = platform === 'windows' || platform === 'mac'
+      const { windowWidth, safeArea: { top = 0 } = {} } = wx.getWindowInfo() || wx.getSystemInfoSync()
+
+      if (isPC) {
+        // PC 端:窗口顶部是微信原生标题栏,覆盖内容区顶部一小段,自定义导航栏需整体下移,
+        // 否则返回按钮被原生栏裁掉上半截且点击被拦截;PC 上胶囊坐标不可靠,宽度用固定值。
+        const nativeHeaderHeight = top > 0 ? top : (rect.top > 20 && rect.top < 120 ? rect.top : 48)
+        this.setData({
+          ios: true,
+          innerPaddingRight: 'padding-right: 100px',
+          leftWidth: 'width: 88px',
+          safeAreaTop: `height: calc(var(--height) + ${nativeHeaderHeight}px); padding-top: ${nativeHeaderHeight}px`
+        })
+        return
+      }
+
       this.setData({
         ios: !isAndroid,
         innerPaddingRight: `padding-right: ${windowWidth - rect.left}px`,
