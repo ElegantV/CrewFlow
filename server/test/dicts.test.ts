@@ -132,3 +132,22 @@ test("people/managers 接口返回 department 字段", async () => {
     assert.ok("department" in manager, "managers 应带 department 字段");
   }
 });
+
+test("超管更新用户行内级别仅接受五档选项", async () => {
+  // 启用普通用户必须已有审批人，避免命中 MANAGER_REQUIRED。
+  await db.query("UPDATE users SET manager_id = $1 WHERE id = $2", [superAdmin.id, normalUser.id]);
+
+  const valid = await app.inject({
+    method: "PUT", url: `/api/v1/admin/users/${normalUser.id}`,
+    headers: auth(superAdmin), payload: { bankLevel: "高级主管" },
+  });
+  assert.equal(valid.statusCode, 200, valid.body);
+  const stored = await db.query<{ bank_level: string }>("SELECT bank_level FROM users WHERE id = $1", [normalUser.id]);
+  assert.equal(stored.rows[0]!.bank_level, "高级主管");
+
+  const invalid = await app.inject({
+    method: "PUT", url: `/api/v1/admin/users/${normalUser.id}`,
+    headers: auth(superAdmin), payload: { bankLevel: "1级" },
+  });
+  assert.equal(invalid.statusCode, 400, invalid.body);
+});

@@ -15,6 +15,7 @@
       <view class="dict-card card" wx:for="{{activeTab === 'departments' ? departments : locations}}" wx:key="id">
         <view class="dict-card__main">
           <text class="dict-card__name">{{item.name}}</text>
+          <text class="dict-card__meta" wx:if="{{activeTab === 'departments'}}">{{item.leaveApprovalRequired ? '请假需审批' : '请假免审批'}} · {{item.overtimeApprovalRequired ? '加班需审批' : '加班免审批'}}</text>
         </view>
         <view class="dict-card__actions">
           <text class="dict-action" data-id="{{item.id}}" bindtap="openEdit">编辑</text>
@@ -80,6 +81,23 @@
       <view class="form-content">
         <text class="form-title">{{form.id ? '编辑' : '新增'}}{{activeTab === 'departments' ? '行内处室' : (activeTab === 'attendance-locations' ? '打卡地点' : '行内项目')}}</text>
         <view class="field"><text class="label">名称</text><input class="control" value="{{form.name}}" bindinput="onNameInput" maxlength="160" placeholder="请输入名称" /></view>
+        <block wx:if="{{activeTab === 'departments'}}">
+          <view class="field switch-field">
+            <view class="switch-copy">
+              <text class="label">请假需审批</text>
+              <text class="switch-help">关闭后本处室请假提交即生效</text>
+            </view>
+            <switch checked="{{form.leaveApprovalRequired}}" color="#1D4ED8" bindchange="onLeaveApprovalChange" />
+          </view>
+          <view class="field switch-field">
+            <view class="switch-copy">
+              <text class="label">加班需审批</text>
+              <text class="switch-help">开启后本处室加班需审批人通过才生效</text>
+            </view>
+            <switch checked="{{form.overtimeApprovalRequired}}" color="#1D4ED8" bindchange="onOvertimeApprovalChange" />
+          </view>
+          <text class="danger-help switch-note">未分配审批人的用户始终免审批。</text>
+        </block>
         <view class="field" wx:if="{{activeTab === 'bank-projects'}}">
           <text class="label">所属处室</text>
           <picker range="{{departmentOptions}}" range-key="name" value="{{departmentIndex}}" bindchange="onDepartmentChange">

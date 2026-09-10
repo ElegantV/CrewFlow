@@ -1,5 +1,6 @@
 const admin = require('../../../services/admin')
 const me = require('../../../services/me')
+const { showError } = require('../../../utils/feedback')
 
 const TABS = [
   { value: 'departments', label: '行内处室' },
@@ -19,7 +20,7 @@ Page({
     editing: false,
     saving: false,
     deleting: false,
-    form: { name: '', departmentId: '' },
+    form: { name: '', departmentId: '', leaveApprovalRequired: true, overtimeApprovalRequired: false },
     departmentOptions: [],
     departmentIndex: 0,
     departmentsMap: {},
@@ -82,7 +83,9 @@ Page({
         name: '',
         departmentId: activeTab === 'bank-projects' && departmentOptions.length
           ? departmentOptions[projectDeptIndex].id
-          : ''
+          : '',
+        leaveApprovalRequired: true,
+        overtimeApprovalRequired: false
       },
       departmentIndex: activeTab === 'bank-projects' ? projectDeptIndex : 0
     })
@@ -96,7 +99,13 @@ Page({
     const departmentIndex = Math.max(0, departmentOptions.findIndex(dep => dep.id === item.departmentId))
     const updates = {
       editing: true,
-      form: { id: item.id, name: item.name, departmentId: item.departmentId || '' },
+      form: {
+        id: item.id,
+        name: item.name,
+        departmentId: item.departmentId || '',
+        leaveApprovalRequired: item.leaveApprovalRequired !== false,
+        overtimeApprovalRequired: item.overtimeApprovalRequired === true
+      },
       departmentIndex
     }
     // 项目编辑时同步左侧处室选中态,保证右侧列表包含正在编辑的项目。
@@ -120,6 +129,14 @@ Page({
     this.setData({ departmentIndex: index, 'form.departmentId': this.data.departmentOptions[index].id })
   },
 
+  onLeaveApprovalChange(event) {
+    this.setData({ 'form.leaveApprovalRequired': event.detail.value })
+  },
+
+  onOvertimeApprovalChange(event) {
+    this.setData({ 'form.overtimeApprovalRequired': event.detail.value })
+  },
+
   async save() {
     const { activeTab, form, departmentOptions, departmentIndex } = this.data
     const name = (form.name || '').trim()
@@ -128,6 +145,10 @@ Page({
       return
     }
     let payload = { name }
+    if (activeTab === 'departments') {
+      payload.leaveApprovalRequired = form.leaveApprovalRequired !== false
+      payload.overtimeApprovalRequired = form.overtimeApprovalRequired === true
+    }
     if (activeTab === 'bank-projects') {
       payload.departmentId = form.departmentId || (departmentOptions[departmentIndex] || {}).id
       if (!payload.departmentId) {
@@ -148,7 +169,7 @@ Page({
       await this.loadData()
     } catch (error) {
       this.setData({ saving: false })
-      wx.showToast({ title: error.message || '保存失败', icon: 'none' })
+      showError(error, '保存失败')
     }
   },
 
@@ -171,7 +192,7 @@ Page({
           await this.loadData()
         } catch (error) {
           this.setData({ deleting: false })
-          wx.showToast({ title: error.message || '删除失败', icon: 'none' })
+          showError(error, '删除失败')
         }
       }
     })

@@ -131,6 +131,8 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
     if ((user.role === "admin" || user.role === "super_admin") && !user.signature_updated_at) {
       missingRequired.push("signature");
     }
+    // 工作开始时间用于计算年假，缺失会导致年假为 0，纳入引导页必填项。
+    if (!user.work_start_date) missingRequired.push("workStartDate");
 
     return {
       id: user.id,
@@ -484,8 +486,10 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
         ? await client.query<{ count: string }>(
             `SELECT count(*)::text AS count
              FROM approval_records a
-             JOIN leave_requests l ON l.id = a.leave_request_id
-             WHERE a.status = 'pending' AND l.status = 'pending'
+             LEFT JOIN leave_requests l ON l.id = a.leave_request_id
+             LEFT JOIN duty_records d ON d.id = a.duty_record_id
+             WHERE a.status = 'pending'
+               AND (l.status = 'pending' OR d.status = 'pending')
                AND ($1 = 'super_admin' OR a.approver_id = $2)`,
             [actor.role, actor.id],
           )

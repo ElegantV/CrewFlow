@@ -3,6 +3,7 @@ const me = require('../../services/me')
 const overtime = require('../../services/overtime')
 const calendarService = require('../../services/calendar')
 const holidays = require('../../config/holidays')
+const { showError } = require('../../utils/feedback')
 
 function pad(value) { return String(value).padStart(2, '0') }
 function trimDays(value) {
@@ -136,7 +137,7 @@ Page({
       updates.requests = listResult.value.requests.map(item => Object.assign({}, item, {
         statusLabel: statusLabels[item.status] || item.status,
         canCancel: item.status === 'pending' || item.status === 'approved',
-        canViewResult: item.status === 'approved'
+        canViewResult: item.status === 'approved' && !!item.approval
       }))
     } else {
       updates.loadError = listResult.error.message || '记录加载失败，请重试'
@@ -175,7 +176,10 @@ Page({
       const entitlement = (this.data.profile && this.data.profile.annualLeave && this.data.profile.annualLeave.annualLeaveDays) || 0
       const used = this.usedAnnualDays()
       const remaining = Math.max(0, entitlement - used)
-      quotaText = `剩余年假 ${trimDays(remaining)} 天`
+      const workStartDate = this.data.profile && this.data.profile.workStartDate
+      quotaText = workStartDate
+        ? `剩余年假 ${trimDays(remaining)} 天`
+        : '年假为 0：请先到「个人信息」填写工作开始时间'
       const leaveDays = this.data.leaveDays || 0
       insufficient = leaveDays > 0 && leaveDays > remaining + 0.0001
     } else if (typeValue === 'comp_time') {
@@ -510,10 +514,13 @@ Page({
       const result = await leave.create(this.data.form)
       this.setData({ showForm: false, submitting: false })
       this.clearDateRange()
-      wx.showToast({ title: `已提交${result.requestedDays}天`, icon: 'none' })
+      wx.showToast({
+        title: result.approvalRequired ? '已提交，等待审批' : `已提交并生效${result.requestedDays}天`,
+        icon: 'none'
+      })
       if (result.warnings && result.warnings.length) {
         wx.showModal({
-          title: '值班时间冲突提醒',
+          title: '请假提醒',
           content: result.warnings.map(item => item.message).join('\n'),
           showCancel: false
         })
@@ -521,7 +528,7 @@ Page({
       await this.loadData()
     } catch (error) {
       this.setData({ submitting: false })
-      wx.showToast({ title: error.message || '提交失败', icon: 'none', duration: 3000 })
+      showError(error, '提交失败')
     }
   },
 
@@ -533,7 +540,7 @@ Page({
       this.setData({ approvalResult: response.result, resultLoading: false })
     } catch (error) {
       this.setData({ showResult: false, resultLoading: false })
-      wx.showToast({ title: error.message || '审批结果加载失败', icon: 'none' })
+      showError(error, '审批结果加载失败')
     }
   },
 
@@ -580,7 +587,7 @@ Page({
       })
     } catch (error) {
       this.setData({ downloading: false })
-      wx.showToast({ title: error.message || '下载失败', icon: 'none' })
+      showError(error, '下载失败')
     }
   },
 
@@ -606,7 +613,7 @@ Page({
           wx.showToast({ title: '申请已撤销', icon: 'success' })
           await this.loadData()
         } catch (error) {
-          wx.showToast({ title: error.message || '撤销失败', icon: 'none' })
+          showError(error, '撤销失败')
         } finally {
           this.setData({ cancellingId: '' })
         }

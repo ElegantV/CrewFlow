@@ -1,5 +1,6 @@
 const auth = require('../../services/auth')
 const { isDevelopment } = require('../../config/env')
+const { showError } = require('../../utils/feedback')
 
 const roleLabels = {
   super_admin: '超级管理员',
@@ -48,7 +49,7 @@ Page({
       })
     } catch (error) {
       this.setData({ loading: false })
-      wx.showToast({ title: error.message || '加载测试用户失败', icon: 'none' })
+      showError(error, '加载测试用户失败')
     }
   },
 
@@ -62,7 +63,7 @@ Page({
       setTimeout(() => wx.reLaunch({ url: '/pages/index/index' }), 500)
     } catch (error) {
       this.setData({ switchingId: '' })
-      wx.showToast({ title: error.message || '切换失败', icon: 'none' })
+      showError(error, '切换失败')
     }
   },
 
@@ -75,7 +76,7 @@ Page({
       setTimeout(() => wx.reLaunch({ url: '/pages/index/index' }), 500)
     } catch (error) {
       this.setData({ restoring: false })
-      wx.showToast({ title: error.message || '恢复失败', icon: 'none' })
+      showError(error, '恢复失败')
     }
   }
 })

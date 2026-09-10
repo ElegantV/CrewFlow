@@ -12,13 +12,15 @@ import {
 } from "../business/export-records.js";
 import { adminAiConfigSchema, readAdminAiConfig } from "./ai.js";
 
+const bankLevelOptions = ["初级", "中级", "高级", "主管", "高级主管"] as const;
+
 const updateUserSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   employeeNo: z.string().trim().min(1).max(64).nullable().optional(),
   role: z.enum(["user", "admin", "super_admin"]).optional(),
   status: z.enum(["pending", "active", "disabled"]).optional(),
   managerId: z.string().uuid().nullable().optional(),
-  bankLevel: z.string().trim().min(1).max(80).nullable().optional(),
+  bankLevel: z.enum(bankLevelOptions).nullable().optional(),
 }).refine((value) => Object.keys(value).length > 0);
 
 export const adminRoutes: FastifyPluginAsync = async (app) => {
@@ -141,6 +143,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
            SELECT approval.approver_id AS uid
            FROM approval_records approval JOIN leave_requests leave ON leave.id = approval.leave_request_id
            WHERE approval.approver_id = $1 AND leave.applicant_id <> $1
+           UNION SELECT approval.approver_id
+           FROM approval_records approval JOIN duty_records duty ON duty.id = approval.duty_record_id
+           WHERE approval.approver_id = $1 AND duty.user_id <> $1
            UNION SELECT manager_id FROM users WHERE manager_id = $1
            UNION SELECT agent_user_id FROM users WHERE agent_user_id = $1
            UNION SELECT agent_user_id FROM leave_requests WHERE agent_user_id = $1
@@ -166,7 +171,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         [id.data],
       );
       await client.query(
-        "DELETE FROM approval_records WHERE leave_request_id IN (SELECT id FROM leave_requests WHERE applicant_id = $1)",
+        "DELETE FROM approval_records WHERE leave_request_id IN (SELECT id FROM leave_requests WHERE applicant_id = $1) OR duty_record_id IN (SELECT id FROM duty_records WHERE user_id = $1)",
         [id.data],
       );
       await client.query("DELETE FROM leave_requests WHERE applicant_id = $1", [id.data]);
@@ -364,6 +369,17 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return false;
   }
 
+  function registerDictDelete(path: string, table: string, userColumn: string, label: string) {
+    app.delete(`/dicts/${path}/:id`, superAdminHooks, async (request, reply) => {
+      const id = z.string().uuid().safeParse((request.params as { id?: string }).id);
+      if (!id.success) return reply.code(400).send({ code: "INVALID_DICT", message: "参数无效" });
+      if (await dictRefCheck(reply, table, id.data, userColumn, label)) return;
+      const result = await db.query(`DELETE FROM ${table} WHERE id = $1 RETURNING id`, [id.data]);
+      if (!result.rowCount) return reply.code(404).send({ code: "DICT_NOT_FOUND", message: "字典项不存在" });
+      return { success: true };
+    });
+  }
+
   function registerDictCrud(path: string, table: string, userColumn: string, label: string) {
     app.post(`/dicts/${path}`, superAdminHooks, async (request, reply) => {
       const parsed = dictNameSchema.safeParse(request.body);
@@ -390,17 +406,68 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       return { item: result.rows[0] };
     });
 
-    app.delete(`/dicts/${path}/:id`, superAdminHooks, async (request, reply) => {
-      const id = z.string().uuid().safeParse((request.params as { id?: string }).id);
-      if (!id.success) return reply.code(400).send({ code: "INVALID_DICT", message: "参数无效" });
-      if (await dictRefCheck(reply, table, id.data, userColumn, label)) return;
-      const result = await db.query(`DELETE FROM ${table} WHERE id = $1 RETURNING id`, [id.data]);
-      if (!result.rowCount) return reply.code(404).send({ code: "DICT_NOT_FOUND", message: "字典项不存在" });
-      return { success: true };
-    });
+    registerDictDelete(path, table, userColumn, label);
   }
 
-  registerDictCrud("departments", "departments", "department", "行内处室");
+  // 处室额外维护请假/加班审批开关,单独实现 POST/PUT;删除复用通用逻辑。
+  const departmentSchema = z.object({
+    name: z.string().trim().min(1).max(160),
+    leaveApprovalRequired: z.boolean().optional(),
+    overtimeApprovalRequired: z.boolean().optional(),
+  });
+
+  type DepartmentRow = {
+    id: string;
+    name: string;
+    leave_approval_required: boolean;
+    overtime_approval_required: boolean;
+  };
+
+  function departmentItem(row: DepartmentRow) {
+    return {
+      id: row.id,
+      name: row.name,
+      leaveApprovalRequired: row.leave_approval_required,
+      overtimeApprovalRequired: row.overtime_approval_required,
+    };
+  }
+
+  app.post("/dicts/departments", superAdminHooks, async (request, reply) => {
+    const parsed = departmentSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ code: "INVALID_DICT", message: "名称或审批配置无效" });
+    if (await dictNameTaken("departments", parsed.data.name)) {
+      return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该名称已存在" });
+    }
+    const result = await db.query<DepartmentRow>(
+      `INSERT INTO departments (name, leave_approval_required, overtime_approval_required)
+       VALUES ($1, $2, $3)
+       RETURNING id, name, leave_approval_required, overtime_approval_required`,
+      [parsed.data.name, parsed.data.leaveApprovalRequired ?? true, parsed.data.overtimeApprovalRequired ?? false],
+    );
+    return { item: departmentItem(result.rows[0]!) };
+  });
+
+  app.put("/dicts/departments/:id", superAdminHooks, async (request, reply) => {
+    const id = z.string().uuid().safeParse((request.params as { id?: string }).id);
+    const parsed = departmentSchema.safeParse(request.body);
+    if (!id.success || !parsed.success) return reply.code(400).send({ code: "INVALID_DICT", message: "名称或审批配置无效" });
+    if (await dictNameTaken("departments", parsed.data.name, id.data)) {
+      return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该名称已存在" });
+    }
+    const result = await db.query<DepartmentRow>(
+      `UPDATE departments
+       SET name = $1, updated_at = now(),
+           leave_approval_required = COALESCE($2, leave_approval_required),
+           overtime_approval_required = COALESCE($3, overtime_approval_required)
+       WHERE id = $4
+       RETURNING id, name, leave_approval_required, overtime_approval_required`,
+      [parsed.data.name, parsed.data.leaveApprovalRequired ?? null, parsed.data.overtimeApprovalRequired ?? null, id.data],
+    );
+    if (!result.rowCount) return reply.code(404).send({ code: "DICT_NOT_FOUND", message: "字典项不存在" });
+    return { item: departmentItem(result.rows[0]!) };
+  });
+
+  registerDictDelete("departments", "departments", "department", "行内处室");
   registerDictCrud("attendance-locations", "attendance_locations", "attendance_location", "打卡地点");
 
   // 行内项目:名称 + 所属处室(处室被删时项目级联删除)。

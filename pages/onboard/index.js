@@ -1,5 +1,6 @@
 const me = require('../../services/me')
 const onboard = require('../../utils/onboard')
+const { showError } = require('../../utils/feedback')
 
 // 从人员列表提取"处室 → 一级选项"（含"全部处室"兜底）。
 function buildDeptOptions(people) {
@@ -18,8 +19,26 @@ function filterByDept(people, dept) {
   return dept ? people.filter(person => person.department === dept) : people
 }
 
+// 年假规则与个人信息页/服务端一致：满一年可休；工龄<5年按5天，之后逐年+1，上限15天。
+function calculateAnnualLeave(workStartDate) {
+  if (!workStartDate) return { workYears: 0, annualLeaveDays: 0 }
+  const parts = workStartDate.split('-').map(Number)
+  const now = new Date()
+  let workYears = now.getFullYear() - parts[0]
+  if (now.getMonth() + 1 < parts[1] || (now.getMonth() + 1 === parts[1] && now.getDate() < parts[2])) workYears -= 1
+  workYears = Math.max(0, workYears)
+  let annualLeaveDays = 0
+  if (workYears >= 1) annualLeaveDays = workYears < 5 ? 5 : Math.min(workYears, 15)
+  return { workYears, annualLeaveDays: Math.floor(annualLeaveDays) }
+}
+
+function today() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
 const STEP_META = {
-  basic: { title: '基本信息', description: '填写姓名并选择人员类型' },
+  basic: { title: '基本信息', description: '填写姓名、人员类型与工作开始时间' },
   relations: { title: '审批人与代理人', description: '一次性选择审批管理员与工作代理人' },
   signature: { title: '审批签名', description: '审批申请时需要使用手写签名' }
 }
@@ -32,7 +51,9 @@ Page({
     steps: [],
     stepIndex: 0,
     currentStep: 'basic',
-    form: { name: '', personnelType: 'digital' },
+    form: { name: '', personnelType: 'digital', workStartDate: '' },
+    annualLeave: { workYears: 0, annualLeaveDays: 0 },
+    maxWorkStartDate: today(),
     personnelTypes: [
       { value: 'bank', label: '行员' },
       { value: 'digital', label: '数科' },
@@ -51,6 +72,10 @@ Page({
     managerDepartments: [{ value: '', label: '全部处室' }],
     selectedManagerDeptIndex: 0,
     filteredManagers: [],
+    managerMultiRange: [[], []],
+    managerMultiIndex: [0, 0],
+    agentMultiRange: [[], []],
+    agentMultiIndex: [0, 0],
     saving: false,
     signatureDirty: false,
     savingSignature: false
@@ -73,10 +98,14 @@ Page({
       // 姓名缺失时把代理人并入基本信息一步保存（整行更新要求非行员必须带代理人），
       // 审批人与代理人合并在同一步一次填完。
       const keys = []
-      if (missing.includes('name')) keys.push('basic')
+      if (missing.includes('name') || missing.includes('workStartDate')) keys.push('basic')
       if (missing.includes('manager') || missing.includes('agent')) keys.push('relations')
       if (missing.includes('signature')) keys.push('signature')
-      const form = { name: profile.name || '', personnelType: profile.personnelType || 'digital' }
+      const form = {
+        name: profile.name || '',
+        personnelType: profile.personnelType || 'digital',
+        workStartDate: profile.workStartDate || ''
+      }
       this.setData({
         loading: false,
         profile,
@@ -84,6 +113,7 @@ Page({
         stepIndex: 0,
         currentStep: keys[0],
         form,
+        annualLeave: calculateAnnualLeave(form.workStartDate),
         personnelTypeIndex: Math.max(0, this.data.personnelTypes.findIndex(item => item.value === form.personnelType))
       })
       this.loadPeople(profile)
@@ -113,7 +143,12 @@ Page({
         selectedAgentId,
         selectedAgentIndex: selectedAgentId
           ? filteredPeople.findIndex(person => person.id === selectedAgentId)
-          : -1
+          : -1,
+        agentMultiRange: [agentDepartments.map(item => ({ name: item.label, value: item.value })), filteredPeople],
+        agentMultiIndex: [
+          selectedAgentDeptIndex,
+          selectedAgentId ? Math.max(0, filteredPeople.findIndex(person => person.id === selectedAgentId)) : 0
+        ]
       })
     } catch (error) {
       this.setData({ people: [] })
@@ -140,7 +175,12 @@ Page({
         selectedManagerId,
         selectedManagerIndex: selectedManagerId
           ? filteredManagers.findIndex(manager => manager.id === selectedManagerId)
-          : -1
+          : -1,
+        managerMultiRange: [managerDepartments.map(item => ({ name: item.label, value: item.value })), filteredManagers],
+        managerMultiIndex: [
+          selectedManagerDeptIndex,
+          selectedManagerId ? Math.max(0, filteredManagers.findIndex(manager => manager.id === selectedManagerId)) : 0
+        ]
       })
     } catch (error) {
       this.setData({ managers: [] })
@@ -157,53 +197,72 @@ Page({
     this.setData({ personnelTypeIndex: index, 'form.personnelType': this.data.personnelTypes[index].value })
   },
 
-  onAgentDeptChange(event) {
-    const index = Number(event.detail.value)
-    const dept = this.data.agentDepartments[index].value
-    const filteredPeople = filterByDept(this.data.people, dept)
-    const selectedAgentId = filteredPeople.some(person => person.id === this.data.selectedAgentId)
-      ? this.data.selectedAgentId
-      : ''
-    this.setData({
-      selectedAgentDeptIndex: index,
-      filteredPeople,
-      selectedAgentId,
-      selectedAgentIndex: selectedAgentId
-        ? filteredPeople.findIndex(person => person.id === selectedAgentId)
-        : -1
-    })
+  onWorkStartDateChange(event) {
+    const workStartDate = event.detail.value
+    this.setData({ 'form.workStartDate': workStartDate, annualLeave: calculateAnnualLeave(workStartDate) })
   },
 
-  onManagerDeptChange(event) {
-    const index = Number(event.detail.value)
-    const dept = this.data.managerDepartments[index].value
+  // 审批人分级选择:多列 picker,左列处室、右列该处室人员联动。
+  onManagerMultiColumnChange(event) {
+    const column = event.detail.column
+    if (column !== 0) return
+    const deptIndex = event.detail.value
+    const dept = this.data.managerDepartments[deptIndex].value
     const filteredManagers = filterByDept(this.data.managers, dept)
-    const selectedManagerId = filteredManagers.some(manager => manager.id === this.data.selectedManagerId)
-      ? this.data.selectedManagerId
-      : ''
+    const managerMultiIndex = [deptIndex, 0]
+    // 已选人员仍在当前处室时保留选中。
+    const kept = filteredManagers.findIndex(item => item.id === this.data.selectedManagerId)
+    if (kept >= 0) managerMultiIndex[1] = kept
     this.setData({
-      selectedManagerDeptIndex: index,
+      managerMultiRange: [this.data.managerDepartments.map(item => ({ name: item.label, value: item.value })), filteredManagers],
+      managerMultiIndex
+    })
+  },
+
+  onManagerMultiChange(event) {
+    const [deptIndex, personIndex] = event.detail.value
+    const dept = this.data.managerDepartments[deptIndex].value
+    const filteredManagers = filterByDept(this.data.managers, dept)
+    const person = filteredManagers[personIndex]
+    this.setData({
+      selectedManagerDeptIndex: deptIndex,
       filteredManagers,
-      selectedManagerId,
-      selectedManagerIndex: selectedManagerId
-        ? filteredManagers.findIndex(manager => manager.id === selectedManagerId)
-        : -1
+      selectedManagerIndex: person ? personIndex : -1,
+      selectedManagerId: person ? person.id : '',
+      managerMultiRange: [this.data.managerDepartments.map(item => ({ name: item.label, value: item.value })), filteredManagers],
+      managerMultiIndex: [deptIndex, personIndex]
     })
   },
 
-  onAgentChange(event) {
-    const index = Number(event.detail.value)
+  // 代理人分级选择:多列 picker,左列处室、右列该处室人员联动。
+  onAgentMultiColumnChange(event) {
+    const column = event.detail.column
+    if (column !== 0) return
+    const deptIndex = event.detail.value
+    const dept = this.data.agentDepartments[deptIndex].value
+    const filteredPeople = filterByDept(this.data.people, dept)
+    const agentMultiIndex = [deptIndex, 0]
+    // 已选人员仍在当前处室时保留选中。
+    const kept = filteredPeople.findIndex(item => item.id === this.data.selectedAgentId)
+    if (kept >= 0) agentMultiIndex[1] = kept
     this.setData({
-      selectedAgentIndex: index,
-      selectedAgentId: index >= 0 ? this.data.filteredPeople[index].id : ''
+      agentMultiRange: [this.data.agentDepartments.map(item => ({ name: item.label, value: item.value })), filteredPeople],
+      agentMultiIndex
     })
   },
 
-  onManagerChange(event) {
-    const index = Number(event.detail.value)
+  onAgentMultiChange(event) {
+    const [deptIndex, personIndex] = event.detail.value
+    const dept = this.data.agentDepartments[deptIndex].value
+    const filteredPeople = filterByDept(this.data.people, dept)
+    const person = filteredPeople[personIndex]
     this.setData({
-      selectedManagerIndex: index,
-      selectedManagerId: index >= 0 ? this.data.filteredManagers[index].id : ''
+      selectedAgentDeptIndex: deptIndex,
+      filteredPeople,
+      selectedAgentIndex: person ? personIndex : -1,
+      selectedAgentId: person ? person.id : '',
+      agentMultiRange: [this.data.agentDepartments.map(item => ({ name: item.label, value: item.value })), filteredPeople],
+      agentMultiIndex: [deptIndex, personIndex]
     })
   },
 
@@ -221,6 +280,10 @@ Page({
       wx.showToast({ title: '非行员请选择工作代理人', icon: 'none' })
       return
     }
+    if (!form.workStartDate) {
+      wx.showToast({ title: '请选择工作开始时间', icon: 'none' })
+      return
+    }
     this.setData({ saving: true })
     try {
       await me.saveProfile({
@@ -236,7 +299,7 @@ Page({
         attendanceLocation: profile.attendanceLocation || null,
         bankLevel: profile.bankLevel || null,
         itlStatus: profile.itlStatus || 'no',
-        workStartDate: profile.workStartDate || null,
+        workStartDate: form.workStartDate || null,
         mobile: profile.mobile || null,
         address: profile.address || null,
         emergencyContactName: (profile.emergencyContact && profile.emergencyContact.name) || null,
@@ -253,7 +316,7 @@ Page({
       this.advance()
     } catch (error) {
       this.setData({ saving: false })
-      wx.showToast({ title: error.message || '保存失败', icon: 'none', duration: 3000 })
+      showError(error, '保存失败')
     }
   },
 
@@ -280,7 +343,7 @@ Page({
       this.advance()
     } catch (error) {
       this.setData({ saving: false })
-      wx.showToast({ title: error.message || '保存失败', icon: 'none', duration: 3000 })
+      showError(error, '保存失败')
     }
   },
 
@@ -342,7 +405,7 @@ Page({
               this.advance()
             } catch (error) {
               this.setData({ savingSignature: false })
-              wx.showToast({ title: error.message || '签名保存失败', icon: 'none' })
+              showError(error, '签名保存失败')
             }
           },
           fail: () => {

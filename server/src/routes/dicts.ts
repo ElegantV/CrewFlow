@@ -9,8 +9,15 @@ export const dictRoutes: FastifyPluginAsync = async (app) => {
 
   app.get("/", protectedHooks, async () => {
     const [departments, locations, projects] = await Promise.all([
-      db.query<{ id: string; name: string; sort_order: number }>(
-        "SELECT id, name, sort_order FROM departments ORDER BY sort_order, name",
+      db.query<{
+        id: string;
+        name: string;
+        sort_order: number;
+        leave_approval_required: boolean;
+        overtime_approval_required: boolean;
+      }>(
+        `SELECT id, name, sort_order, leave_approval_required, overtime_approval_required
+         FROM departments ORDER BY sort_order, name`,
       ),
       db.query<{ id: string; name: string; sort_order: number }>(
         "SELECT id, name, sort_order FROM attendance_locations ORDER BY sort_order, name",
@@ -20,7 +27,13 @@ export const dictRoutes: FastifyPluginAsync = async (app) => {
       ),
     ]);
     return {
-      departments: departments.rows.map((item) => ({ id: item.id, name: item.name, sortOrder: item.sort_order })),
+      departments: departments.rows.map((item) => ({
+        id: item.id,
+        name: item.name,
+        sortOrder: item.sort_order,
+        leaveApprovalRequired: item.leave_approval_required,
+        overtimeApprovalRequired: item.overtime_approval_required,
+      })),
       attendanceLocations: locations.rows.map((item) => ({ id: item.id, name: item.name, sortOrder: item.sort_order })),
       bankProjects: projects.rows.map((item) => ({
         id: item.id,

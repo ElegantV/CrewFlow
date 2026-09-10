@@ -1,4 +1,5 @@
 const auth = require('../../services/auth')
+const { showError } = require('../../utils/feedback')
 
 const MOBILE_RE = /^1[3-9]\d{9}$/
 
@@ -57,7 +58,7 @@ Page({
         })
         return
       }
-      wx.showToast({ title: error.message || '注册失败', icon: 'none' })
+      showError(error, '注册失败')
     }
   },
 
@@ -88,7 +89,7 @@ Page({
       }
     } catch (error) {
       this.setData({ submitting: false })
-      wx.showToast({ title: error.message || '绑定失败', icon: 'none' })
+      showError(error, '绑定失败')
     }
   }
 })

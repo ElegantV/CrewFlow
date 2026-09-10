@@ -87,10 +87,10 @@
       <view class="field">
         <text class="field-label">行内级别</text>
         <view class="field-control field-picker" bindtap="onBankLevelTap">
-          <text>{{form.bankLevel || '1级'}}</text>
+          <text>{{form.bankLevel || '初级'}}</text>
           <text class="picker-arrow">›</text>
         </view>
-        <text class="field-help">行内级别默认 1 级，如需调整请联系管理员。</text>
+        <text class="field-help">行内级别默认为初级，如需调整请联系管理员。</text>
       </view>
       <view class="field">
         <text class="field-label">ITL 开通情况</text>

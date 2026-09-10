@@ -3,7 +3,7 @@ import type { PoolClient } from "pg";
 import { z } from "zod";
 import { loadActiveActor } from "../authz.js";
 import { isValidDate } from "../business/leave-policy.js";
-import { notifyOvertimeCheckIn } from "../business/notify.js";
+import { notifyOvertimeApproverPending, notifyOvertimeCheckIn } from "../business/notify.js";
 import { db } from "../db.js";
 
 const createSchema = z.object({
@@ -72,7 +72,8 @@ export const overtimeRoutes: FastifyPluginAsync = async (app) => {
           content: record.content,
           expiresAt: record.expires_at,
           status: record.status,
-          canRevoke: record.status === "active" && Number(record.hours) === Number(record.remaining_hours),
+          canRevoke: record.status === "pending"
+            || (record.status === "active" && Number(record.hours) === Number(record.remaining_hours)),
         })),
       };
     } catch (error) {
@@ -142,27 +143,64 @@ export const overtimeRoutes: FastifyPluginAsync = async (app) => {
     const client = await db.connect();
     try {
       await client.query("BEGIN");
+      // 处室要求审批且已分配审批人才走审批流；未分配审批人一律免审批（直接生效）。
+      const deptConfig = await client.query<{ overtime_approval_required: boolean }>(
+        "SELECT overtime_approval_required FROM departments WHERE name = $1",
+        [actor.department],
+      );
+      const requiresApproval = Boolean(actor.managerId) && (deptConfig.rows[0]?.overtime_approval_required ?? false);
+      if (requiresApproval) {
+        const manager = await client.query<{ role: string; status: string }>(
+          "SELECT role, status FROM users WHERE id = $1 FOR SHARE",
+          [actor.managerId],
+        );
+        if (!manager.rows[0] || manager.rows[0].status !== "active" || !["admin", "super_admin"].includes(manager.rows[0].role)) {
+          await client.query("ROLLBACK");
+          return reply.code(409).send({ code: "MANAGER_UNAVAILABLE", message: "审批管理员当前不可用" });
+        }
+      }
       const inserted = await client.query<{
         id: string;
         expires_at: string;
       }>(
         `INSERT INTO duty_records
-           (user_id, duty_date, off_time, hours, remaining_hours, content, expires_at)
-         VALUES ($1, $2, $3::time, $4, $4, $5, ($2::date + interval '3 months')::date)
+           (user_id, duty_date, off_time, hours, remaining_hours, content, expires_at, status)
+         VALUES ($1, $2, $3::time, $4, $5, $6, ($2::date + interval '3 months')::date,
+                 CASE WHEN $7 THEN 'pending' ELSE 'active' END)
          RETURNING id, expires_at::text`,
-        [actor.id, parsed.data.date, parsed.data.offTime, parsed.data.hours, parsed.data.content],
+        [actor.id, parsed.data.date, parsed.data.offTime, parsed.data.hours,
+          requiresApproval ? 0 : parsed.data.hours, parsed.data.content, requiresApproval],
       );
       const record = inserted.rows[0]!;
-      await client.query(
-        `INSERT INTO timeoff_ledger
-           (user_id, duty_record_id, entry_type, amount_hours, note)
-         VALUES ($1, $2, 'earn', $3, '登记加班产生调休额度')`,
-        [actor.id, record.id, parsed.data.hours],
-      );
+      if (requiresApproval) {
+        await client.query(
+          `INSERT INTO approval_records (duty_record_id, step_no, approver_id)
+           VALUES ($1, 1, $2)`,
+          [record.id, actor.managerId],
+        );
+      } else {
+        await client.query(
+          `INSERT INTO timeoff_ledger
+             (user_id, duty_record_id, entry_type, amount_hours, note)
+           VALUES ($1, $2, 'earn', $3, '登记加班产生调休额度')`,
+          [actor.id, record.id, parsed.data.hours],
+        );
+      }
       await client.query("COMMIT");
-      // 登记成功后异步推送打卡提醒（wxpusher），不阻塞响应。
-      void notifyOvertimeCheckIn(actor.id, parsed.data.date, parsed.data.offTime, parsed.data.hours);
-      return reply.code(201).send({ id: record.id, hours: parsed.data.hours, expiresAt: record.expires_at });
+      if (requiresApproval) {
+        // 提交成功后异步提醒审批管理员（wxpusher），不阻塞响应。
+        void notifyOvertimeApproverPending(record.id);
+      } else {
+        // 登记成功后异步推送打卡提醒（wxpusher），不阻塞响应。
+        void notifyOvertimeCheckIn(actor.id, parsed.data.date, parsed.data.offTime, parsed.data.hours);
+      }
+      return reply.code(201).send({
+        id: record.id,
+        hours: parsed.data.hours,
+        expiresAt: record.expires_at,
+        status: requiresApproval ? "pending" : "active",
+        approvalRequired: requiresApproval,
+      });
     } catch (error: unknown) {
       await client.query("ROLLBACK");
       if (typeof error === "object" && error && "code" in error && error.code === "23505") {
@@ -198,6 +236,23 @@ export const overtimeRoutes: FastifyPluginAsync = async (app) => {
       if (!record) {
         await client.query("ROLLBACK");
         return reply.code(404).send({ code: "OVERTIME_NOT_FOUND", message: "加班记录不存在" });
+      }
+      // 待审批的加班可撤回：无调休额度产生，同步取消审批任务。
+      if (record.status === "pending") {
+        await client.query(
+          `UPDATE duty_records
+           SET status = 'revoked', remaining_hours = 0, updated_at = now(), version = version + 1
+           WHERE id = $1`,
+          [record.id],
+        );
+        await client.query(
+          `UPDATE approval_records
+           SET status = 'cancelled', decided_at = COALESCE(decided_at, now())
+           WHERE duty_record_id = $1`,
+          [record.id],
+        );
+        await client.query("COMMIT");
+        return { success: true };
       }
       if (record.status !== "active" || Number(record.hours) !== Number(record.remaining_hours)) {
         await client.query("ROLLBACK");

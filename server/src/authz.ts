@@ -11,8 +11,9 @@ export async function loadActiveActor(request: FastifyRequest, reply: FastifyRep
     manager_id: string | null;
     agent_user_id: string | null;
     personnel_type: "bank" | "digital" | "vendor";
+    department: string | null;
   }>(
-    `SELECT id, role, status, manager_id, agent_user_id, personnel_type
+    `SELECT id, role, status, manager_id, agent_user_id, personnel_type, department
      FROM users WHERE id = $1`,
     [request.user.sub],
   );
@@ -33,6 +34,7 @@ export async function loadActiveActor(request: FastifyRequest, reply: FastifyRep
     managerId: user.manager_id,
     agentUserId: user.agent_user_id,
     personnelType: user.personnel_type,
+    department: user.department,
   };
 }
 

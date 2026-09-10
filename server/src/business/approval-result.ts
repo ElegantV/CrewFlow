@@ -102,7 +102,7 @@ export async function buildApprovalResult(
       expired_hours: string;
     }>(
       `SELECT
-         COALESCE(SUM(duty.hours) FILTER (WHERE duty.status <> 'revoked'), 0)::text AS total_hours,
+         COALESCE(SUM(duty.hours) FILTER (WHERE duty.status NOT IN ('revoked', 'pending', 'rejected')), 0)::text AS total_hours,
          COALESCE(SUM(duty.remaining_hours) FILTER (
            WHERE duty.status = 'active' AND duty.expires_at >= current_date
          ), 0)::text AS remaining_hours,

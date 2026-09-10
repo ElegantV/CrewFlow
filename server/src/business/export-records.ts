@@ -33,6 +33,8 @@ const LEAVE_STATUS_LABELS: Record<string, string> = {
 
 const OVERTIME_STATUS_LABELS: Record<string, string> = {
   active: "可用",
+  pending: "待审批",
+  rejected: "已驳回",
   consumed: "已用完",
   revoked: "已撤销",
   expired: "已到期",

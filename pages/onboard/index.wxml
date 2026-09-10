@@ -20,13 +20,21 @@
         <view class="field-input field-picker">{{personnelTypes[personnelTypeIndex].label}}<text class="picker-arrow">›</text></view>
       </picker>
     </view>
+    <view class="field">
+      <text class="field-label">工作开始时间 <text class="required">*</text></text>
+      <picker mode="date" value="{{form.workStartDate}}" end="{{maxWorkStartDate}}" bindchange="onWorkStartDateChange">
+        <view class="field-input field-picker {{form.workStartDate ? '' : 'field-placeholder'}}">{{form.workStartDate || '请选择实际入职日期'}}<text class="picker-arrow">›</text></view>
+      </picker>
+      <text class="field-help" wx:if="{{!form.workStartDate}}">用于计算年假天数，工作满一年后可休年假。</text>
+      <text class="field-help" wx:else>工作已满 {{annualLeave.workYears}} 年，当前年假 {{annualLeave.annualLeaveDays}} 天。</text>
+    </view>
     <view class="field" wx:if="{{form.personnelType !== 'bank'}}">
       <text class="field-label">工作代理人（非行员） <text class="required">*</text></text>
-      <picker range="{{agentDepartments}}" range-key="label" value="{{selectedAgentDeptIndex}}" bindchange="onAgentDeptChange">
-        <view class="field-input field-picker">{{agentDepartments[selectedAgentDeptIndex].label}}<text class="picker-arrow">›</text></view>
-      </picker>
-      <picker range="{{filteredPeople}}" range-key="name" value="{{selectedAgentIndex}}" bindchange="onAgentChange">
-        <view class="field-input field-picker">{{selectedAgentIndex >= 0 ? filteredPeople[selectedAgentIndex].name : '请选择工作代理人'}}<text class="picker-arrow">›</text></view>
+      <picker mode="multiSelector" range="{{agentMultiRange}}" range-key="name" value="{{agentMultiIndex}}" bindchange="onAgentMultiChange" bindcolumnchange="onAgentMultiColumnChange">
+        <view class="field-input field-picker">
+          <text class="{{selectedAgentIndex >= 0 || profile.agent ? '' : 'field-placeholder'}}">{{selectedAgentIndex >= 0 ? filteredPeople[selectedAgentIndex].name : (profile.agent ? profile.agent.name : '请选择工作代理人')}}</text>
+          <text class="picker-arrow">›</text>
+        </view>
       </picker>
       <text class="field-help" wx:if="{{!people.length}}">暂无可选代理人，请联系管理员先添加同事账号。</text>
     </view>
@@ -36,22 +44,22 @@
   <view class="step-card card" wx:elif="{{currentStep === 'relations'}}">
     <view class="field" wx:if="{{profile.role === 'user'}}">
       <text class="field-label">审批人（管理员） <text class="required">*</text></text>
-      <picker range="{{managerDepartments}}" range-key="label" value="{{selectedManagerDeptIndex}}" bindchange="onManagerDeptChange">
-        <view class="field-input field-picker">{{managerDepartments[selectedManagerDeptIndex].label}}<text class="picker-arrow">›</text></view>
-      </picker>
-      <picker range="{{filteredManagers}}" range-key="name" value="{{selectedManagerIndex}}" bindchange="onManagerChange">
-        <view class="field-input field-picker">{{selectedManagerIndex >= 0 ? filteredManagers[selectedManagerIndex].name : '请选择审批人'}}<text class="picker-arrow">›</text></view>
+      <picker mode="multiSelector" range="{{managerMultiRange}}" range-key="name" value="{{managerMultiIndex}}" bindchange="onManagerMultiChange" bindcolumnchange="onManagerMultiColumnChange">
+        <view class="field-input field-picker">
+          <text class="{{selectedManagerIndex >= 0 || profile.manager ? '' : 'field-placeholder'}}">{{selectedManagerIndex >= 0 ? filteredManagers[selectedManagerIndex].name : (profile.manager ? profile.manager.name : '请选择审批人')}}</text>
+          <text class="picker-arrow">›</text>
+        </view>
       </picker>
       <text class="field-help" wx:if="{{!managers.length}}">暂无可选审批人，请联系超级管理员先分配审批关系。</text>
       <text class="field-help" wx:else>先按处室筛选，再选择具体审批管理员。</text>
     </view>
     <view class="field" wx:if="{{profile.personnelType !== 'bank'}}">
       <text class="field-label">工作代理人（非行员） <text class="required">*</text></text>
-      <picker range="{{agentDepartments}}" range-key="label" value="{{selectedAgentDeptIndex}}" bindchange="onAgentDeptChange">
-        <view class="field-input field-picker">{{agentDepartments[selectedAgentDeptIndex].label}}<text class="picker-arrow">›</text></view>
-      </picker>
-      <picker range="{{filteredPeople}}" range-key="name" value="{{selectedAgentIndex}}" bindchange="onAgentChange">
-        <view class="field-input field-picker">{{selectedAgentIndex >= 0 ? filteredPeople[selectedAgentIndex].name : '请选择工作代理人'}}<text class="picker-arrow">›</text></view>
+      <picker mode="multiSelector" range="{{agentMultiRange}}" range-key="name" value="{{agentMultiIndex}}" bindchange="onAgentMultiChange" bindcolumnchange="onAgentMultiColumnChange">
+        <view class="field-input field-picker">
+          <text class="{{selectedAgentIndex >= 0 || profile.agent ? '' : 'field-placeholder'}}">{{selectedAgentIndex >= 0 ? filteredPeople[selectedAgentIndex].name : (profile.agent ? profile.agent.name : '请选择工作代理人')}}</text>
+          <text class="picker-arrow">›</text>
+        </view>
       </picker>
       <text class="field-help" wx:if="{{!people.length}}">暂无可选代理人，请联系管理员先添加同事账号。</text>
       <text class="field-help" wx:else>提交请假申请时，将由代理人代为处理你的工作。</text>

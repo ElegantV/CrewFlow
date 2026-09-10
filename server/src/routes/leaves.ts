@@ -13,7 +13,7 @@ import {
   validatePeriodRange,
   type LeaveType,
 } from "../business/leave-policy.js";
-import { notifyApproverPending } from "../business/notify.js";
+import { notifyApproverCancelled, notifyApproverPending } from "../business/notify.js";
 import { allocateTimeoff, releaseTimeoff } from "../business/timeoff.js";
 import { db } from "../db.js";
 
@@ -158,9 +158,6 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
     if ("fixedWorkdays" in policy && requestedHours !== policy.fixedWorkdays * 8) {
       return reply.code(400).send({ code: "FIXED_LEAVE_REQUIRED", message: `${policy.label}必须一次性休完` });
     }
-    if (!actor.managerId) {
-      return reply.code(409).send({ code: "MANAGER_NOT_ASSIGNED", message: "尚未配置审批管理员" });
-    }
     if (actor.personnelType !== "bank" && !actor.agentUserId) {
       return reply.code(409).send({ code: "AGENT_NOT_ASSIGNED", message: "请先在个人信息中维护工作代理人" });
     }
@@ -168,13 +165,21 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
     const client = await db.connect();
     try {
       await client.query("BEGIN");
-      const manager = await client.query<{ role: string; status: string }>(
-        "SELECT role, status FROM users WHERE id = $1 FOR SHARE",
-        [actor.managerId],
+      // 处室要求审批且已分配审批人才走审批流；未分配审批人一律免审批（直接通过）。
+      const deptConfig = await client.query<{ leave_approval_required: boolean }>(
+        "SELECT leave_approval_required FROM departments WHERE name = $1",
+        [actor.department],
       );
-      if (!manager.rows[0] || manager.rows[0].status !== "active" || !["admin", "super_admin"].includes(manager.rows[0].role)) {
-        await client.query("ROLLBACK");
-        return reply.code(409).send({ code: "MANAGER_UNAVAILABLE", message: "审批管理员当前不可用" });
+      const requiresApproval = Boolean(actor.managerId) && (deptConfig.rows[0]?.leave_approval_required ?? true);
+      if (requiresApproval) {
+        const manager = await client.query<{ role: string; status: string }>(
+          "SELECT role, status FROM users WHERE id = $1 FOR SHARE",
+          [actor.managerId],
+        );
+        if (!manager.rows[0] || manager.rows[0].status !== "active" || !["admin", "super_admin"].includes(manager.rows[0].role)) {
+          await client.query("ROLLBACK");
+          return reply.code(409).send({ code: "MANAGER_UNAVAILABLE", message: "审批管理员当前不可用" });
+        }
       }
       if (actor.agentUserId) {
         const agent = await client.query(
@@ -258,8 +263,11 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO leave_requests
            (applicant_id, agent_user_id, leave_type, start_date, end_date,
-            start_period, end_period, requested_days, requested_hours, reason)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            start_period, end_period, requested_days, requested_hours, reason,
+            status, decided_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                 CASE WHEN $11 THEN 'pending' ELSE 'approved' END,
+                 CASE WHEN $11 THEN NULL ELSE now() END)
          RETURNING id`,
         [
           actor.id,
@@ -272,6 +280,7 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
           requestedHours / 8,
           requestedHours,
           parsed.data.reason ?? null,
+          requiresApproval,
         ],
       );
       const leaveRequestId = inserted.rows[0]!.id;
@@ -288,15 +297,17 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
-      await client.query(
-        `INSERT INTO approval_records (leave_request_id, step_no, approver_id)
-         VALUES ($1, 1, $2)`,
-        [leaveRequestId, actor.managerId],
-      );
+      if (requiresApproval) {
+        await client.query(
+          `INSERT INTO approval_records (leave_request_id, step_no, approver_id)
+           VALUES ($1, 1, $2)`,
+          [leaveRequestId, actor.managerId],
+        );
+      }
       await client.query(
         `INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, details)
          VALUES ($1, 'leave.submit', 'leave_request', $2, $3::jsonb)`,
-        [actor.id, leaveRequestId, JSON.stringify({ leaveType: parsed.data.leaveType, requestedHours })],
+        [actor.id, leaveRequestId, JSON.stringify({ leaveType: parsed.data.leaveType, requestedHours, requiresApproval })],
       );
 
       // 值日协同：请假日期与已登记值班重叠时给出预警，不阻断申请。
@@ -313,19 +324,48 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
         [actor.id, parsed.data.startDate, endDate],
       );
 
+      // 代理人协同：工作代理人在同一区间也有请假（待审批/已通过）时给出预警，不阻断申请。
+      const agentOverlap = actor.agentUserId
+        ? await client.query<{
+            start_date: string;
+            end_date: string;
+            agent_name: string | null;
+          }>(
+            `SELECT agent_leave.start_date::text, agent_leave.end_date::text,
+                    agent.name AS agent_name
+             FROM leave_requests agent_leave
+             JOIN users agent ON agent.id = agent_leave.applicant_id
+             WHERE agent_leave.applicant_id = $1
+               AND agent_leave.status IN ('pending', 'approved')
+               AND daterange(agent_leave.start_date, agent_leave.end_date, '[]')
+                   && daterange($2::date, $3::date, '[]')
+             ORDER BY agent_leave.start_date, agent_leave.id`,
+            [actor.agentUserId, parsed.data.startDate, endDate],
+          )
+        : { rows: [] };
+
       await client.query("COMMIT");
-      // 事务提交后异步通知审批管理员，不阻塞也不影响本次响应。
-      void notifyApproverPending(leaveRequestId);
+      // 事务提交后异步通知审批管理员，不阻塞也不影响本次响应；免审批无需通知。
+      if (requiresApproval) void notifyApproverPending(leaveRequestId);
       return reply.code(201).send({
         id: leaveRequestId,
         requestedHours,
         requestedDays: requestedHours / 8,
         endDate,
-        status: "pending",
-        warnings: dutyOverlap.rows.map((item) => ({
-          code: "DUTY_OVERLAP",
-          message: `请假日期与 ${item.duty_date} 已登记值班（${item.hours} 小时 · ${item.content}）重叠，请确认工作安排`,
-        })),
+        status: requiresApproval ? "pending" : "approved",
+        approvalRequired: requiresApproval,
+        warnings: [
+          ...dutyOverlap.rows.map((item) => ({
+            code: "DUTY_OVERLAP",
+            message: `请假日期与 ${item.duty_date} 已登记值班（${item.hours} 小时 · ${item.content}）重叠，请确认工作安排`,
+          })),
+          ...agentOverlap.rows.map((item) => ({
+            code: "AGENT_LEAVE_OVERLAP",
+            message: `工作代理人「${item.agent_name ?? "未命名用户"}」在 ${
+              item.start_date === item.end_date ? item.start_date : `${item.start_date} 至 ${item.end_date}`
+            } 也请假，请确认工作交接安排`,
+          })),
+        ],
       });
     } catch (error) {
       await client.query("ROLLBACK");
@@ -498,12 +538,18 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
          WHERE leave_request_id = $1`,
         [id.data],
       );
+      const approverResult = await client.query<{ approver_id: string | null }>(
+        "SELECT approver_id FROM approval_records WHERE leave_request_id = $1 AND step_no = 1",
+        [id.data],
+      );
       await client.query(
         `INSERT INTO audit_logs (actor_id, action, entity_type, entity_id)
          VALUES ($1, 'leave.cancel', 'leave_request', $2)`,
         [actor.id, id.data],
       );
       await client.query("COMMIT");
+      // 事务提交后异步提醒审批人：申请人已撤销该申请。免审批申请无审批人，不通知。
+      if (approverResult.rows[0]?.approver_id) void notifyApproverCancelled(id.data);
       return { success: true };
     } catch (error) {
       await client.query("ROLLBACK");

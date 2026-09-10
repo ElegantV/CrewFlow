@@ -1,4 +1,5 @@
 const approval = require('../../services/approval')
+const { showError } = require('../../utils/feedback')
 
 function formatTime(value) {
   if (!value) return ''
@@ -45,10 +46,12 @@ Page({
   approve(event) {
     const id = event.currentTarget.dataset.id
     if (!id || this.data.decidingId) return
+    const item = this.data.approvals.find(entry => entry.id === id)
+    const isOvertime = item && item.bizType === 'overtime'
     this.setData({ decidingId: id })
     wx.showModal({
       title: '通过申请',
-      content: '确认通过这条请假申请？',
+      content: isOvertime ? '确认通过这条加班申请？通过后将产生调休额度。' : '确认通过这条请假申请？',
       success: async result => {
         if (!result.confirm) {
           this.setData({ decidingId: '' })
@@ -100,7 +103,7 @@ Page({
         })
         return
       }
-      wx.showToast({ title: error.message || '审批失败', icon: 'none' })
+      showError(error, '审批失败')
     }
   },
 

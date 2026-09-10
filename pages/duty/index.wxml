@@ -31,9 +31,9 @@
           <text class="status status--{{item.status}}">{{item.statusLabel}}</text>
         </view>
         <text class="record-content">{{item.content}}</text>
-        <text class="record-meta">{{item.offTime ? item.offTime + ' 下班 · ' : ''}}{{item.hours}}小时 · 剩余{{item.remainingHours}}小时</text>
-        <text class="record-expiry">有效期至 {{item.expiresAt}}</text>
-        <button wx:if="{{item.canRevoke}}" class="text-button" data-id="{{item.id}}" bindtap="revoke">撤销</button>
+        <text class="record-meta">{{item.metaText}}</text>
+        <text class="record-expiry" wx:if="{{item.status === 'active' || item.status === 'consumed' || item.status === 'expired'}}">有效期至 {{item.expiresAt}}</text>
+        <button wx:if="{{item.canRevoke}}" class="text-button" data-id="{{item.id}}" bindtap="revoke">{{item.status === 'pending' ? '撤回' : '撤销'}}</button>
       </view>
     </view>
     <view class="loading" wx:elif="{{loading}}">加载中…</view>

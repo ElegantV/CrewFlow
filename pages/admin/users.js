@@ -1,4 +1,5 @@
 const admin = require('../../services/admin')
+const { showError } = require('../../utils/feedback')
 
 const roles = [
   { value: 'user', label: '普通用户' },
@@ -12,6 +13,8 @@ const statuses = [
   { value: 'disabled', label: '已停用' }
 ]
 
+const bankLevels = ['初级', '中级', '高级', '主管', '高级主管']
+
 Page({
   data: {
     loading: true,
@@ -20,12 +23,14 @@ Page({
     managers: [{ id: '', name: '不指定' }],
     roles,
     statuses,
+    bankLevels,
     editing: false,
     saving: false,
     deleting: false,
     roleIndex: 0,
     statusIndex: 0,
     managerIndex: 0,
+    bankLevelIndex: 0,
     form: null
   },
 
@@ -60,8 +65,7 @@ Page({
       this.setData({
         loading: false,
         users: result.users.map(user => Object.assign({}, user, {
-          roleLabel: roles.find(item => item.value === user.role).label,
-          statusLabel: statuses.find(item => item.value === user.status).label
+          roleLabel: roles.find(item => item.value === user.role).label
         })),
         managers
       })
@@ -77,16 +81,18 @@ Page({
     const managerIndex = user.manager
       ? this.data.managers.findIndex(item => item.id === user.manager.id)
       : 0
+    // 历史自定义级别不在五档内时回退到"初级",保存后即按新选项落库。
+    const bankLevelIndex = Math.max(0, bankLevels.indexOf(user.bankLevel))
     this.setData({
       editing: true,
       roleIndex,
       statusIndex,
       managerIndex: Math.max(managerIndex, 0),
+      bankLevelIndex,
       form: {
         id: user.id,
         name: user.name || '',
-        employeeNo: user.employeeNo || '',
-        bankLevel: user.bankLevel || '1级',
+        bankLevel: bankLevels[bankLevelIndex],
         role: user.role,
         status: user.status,
         managerId: user.manager ? user.manager.id : null
@@ -100,8 +106,10 @@ Page({
 
   // 输入期间不 setData 回写受控组件，避免 Skyline 打断中文输入法的拼音组合态。
   onNameInput(event) { this.data.form.name = event.detail.value },
-  onEmployeeNoInput(event) { this.data.form.employeeNo = event.detail.value },
-  onBankLevelInput(event) { this.data.form.bankLevel = event.detail.value },
+  onBankLevelChange(event) {
+    const index = Number(event.detail.value)
+    this.setData({ bankLevelIndex: index, 'form.bankLevel': bankLevels[index] })
+  },
   onRoleChange(event) {
     const index = Number(event.detail.value)
     this.setData({ roleIndex: index, 'form.role': roles[index].value })
@@ -129,8 +137,7 @@ Page({
     try {
       await admin.updateUser(this.data.form.id, {
         name: this.data.form.name,
-        employeeNo: this.data.form.employeeNo || null,
-        bankLevel: (this.data.form.bankLevel || '').trim() || null,
+        bankLevel: bankLevels[this.data.bankLevelIndex],
         role: this.data.form.role,
         status: this.data.form.status,
         managerId: this.data.form.managerId
@@ -140,7 +147,7 @@ Page({
       await this.loadData()
     } catch (error) {
       this.setData({ saving: false })
-      wx.showToast({ title: error.message || '保存失败', icon: 'none' })
+      showError(error, '保存失败')
     }
   },
 
@@ -163,7 +170,7 @@ Page({
           await this.loadData()
         } catch (error) {
           this.setData({ deleting: false })
-          wx.showToast({ title: error.message || '删除失败', icon: 'none', duration: 3000 })
+          showError(error, '删除失败')
         }
       }
     })

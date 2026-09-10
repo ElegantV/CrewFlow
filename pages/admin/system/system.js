@@ -1,4 +1,5 @@
 const admin = require('../../../services/admin')
+const { showError } = require('../../../utils/feedback')
 
 Page({
   data: {
@@ -75,7 +76,7 @@ Page({
       })
     } catch (error) {
       this.setData({ exporting: false })
-      wx.showToast({ title: error.message || '导出失败', icon: 'none' })
+      showError(error, '导出失败')
     }
   },
 

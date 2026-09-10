@@ -111,6 +111,145 @@ export async function notifyApplicantDecision(leaveRequestId: string, status: "a
   }
 }
 
+// 申请人撤销请假后，提醒审批人无需再处理（wxpusher）。异常处理口径同上。
+export async function notifyApproverCancelled(leaveRequestId: string) {
+  if (!config.WXPUSHER_APP_TOKEN) return;
+  try {
+    const result = await db.query<{
+      approver_id: string;
+      approver_name: string | null;
+      applicant_name: string | null;
+      leave_type: LeaveType;
+      start_date: string;
+      end_date: string;
+      requested_days: string;
+    }>(
+      `SELECT approval.approver_id, approver.name AS approver_name,
+              applicant.name AS applicant_name,
+              leave.leave_type, leave.start_date::text, leave.end_date::text,
+              leave.requested_days::text
+       FROM leave_requests leave
+       JOIN users applicant ON applicant.id = leave.applicant_id
+       JOIN approval_records approval ON approval.leave_request_id = leave.id AND approval.step_no = 1
+       JOIN users approver ON approver.id = approval.approver_id
+       WHERE leave.id = $1`,
+      [leaveRequestId],
+    );
+    const row = result.rows[0];
+    if (!row) return;
+
+    const uid = await findUid(row.approver_id);
+    if (!uid) {
+      console.warn(
+        `wxpusher 撤销提醒跳过:审批管理员「${row.approver_name ?? row.approver_id}」未绑定微信推送`,
+      );
+      return;
+    }
+
+    const label = leavePolicies[row.leave_type].label;
+    const range = row.start_date === row.end_date ? row.start_date : `${row.start_date} 至 ${row.end_date}`;
+    const content =
+      `【撤销提醒】${row.applicant_name ?? "员工"}已撤销${label}申请（${range}，共${row.requested_days}天），` +
+      `无需再审批，可到简序日程小程序查看。`;
+    const summary = `${row.applicant_name ?? "员工"}撤销了${label}申请`;
+    const sent = await sendWxPusherMessage(content, [uid], summary);
+    if (sent.code !== 1000) {
+      console.error("wxpusher 撤销提醒发送失败", sent.code, sent.msg);
+    }
+  } catch (error) {
+    console.error("wxpusher 撤销提醒发送异常", error);
+  }
+}
+
+// 加班登记需审批时，给审批管理员推送"待审批"消息（wxpusher）。异常处理口径同上。
+export async function notifyOvertimeApproverPending(dutyRecordId: string) {
+  if (!config.WXPUSHER_APP_TOKEN) return;
+  try {
+    const result = await db.query<{
+      approver_id: string;
+      approver_name: string | null;
+      applicant_name: string | null;
+      duty_date: string;
+      hours: string;
+      content: string;
+    }>(
+      `SELECT approval.approver_id, approver.name AS approver_name,
+              applicant.name AS applicant_name,
+              duty.duty_date::text, duty.hours::text, duty.content
+       FROM duty_records duty
+       JOIN users applicant ON applicant.id = duty.user_id
+       JOIN approval_records approval ON approval.duty_record_id = duty.id AND approval.step_no = 1
+       JOIN users approver ON approver.id = approval.approver_id
+       WHERE duty.id = $1`,
+      [dutyRecordId],
+    );
+    const row = result.rows[0];
+    if (!row) return;
+
+    const uid = await findUid(row.approver_id);
+    if (!uid) {
+      console.warn(
+        `wxpusher 加班待审批提醒跳过:审批管理员「${row.approver_name ?? row.approver_id}」未绑定微信推送`,
+      );
+      return;
+    }
+
+    const hours = Number(row.hours);
+    const content =
+      `【审批提醒】${row.applicant_name ?? "员工"}登记加班（${row.duty_date}，${hours}小时：${row.content}），` +
+      `请及时在简序日程小程序中审批。`;
+    const summary = `${row.applicant_name ?? "员工"}登记加班${hours}小时`;
+    const sent = await sendWxPusherMessage(content, [uid], summary);
+    if (sent.code !== 1000) {
+      console.error("wxpusher 加班待审批提醒发送失败", sent.code, sent.msg);
+    }
+  } catch (error) {
+    console.error("wxpusher 加班待审批提醒发送异常", error);
+  }
+}
+
+// 加班审批通过/驳回后，给登记人推送结果消息（wxpusher）。异常处理口径同上。
+export async function notifyOvertimeApplicantDecision(dutyRecordId: string, status: "approved" | "rejected") {
+  if (!config.WXPUSHER_APP_TOKEN) return;
+  try {
+    const result = await db.query<{
+      user_id: string;
+      applicant_name: string | null;
+      duty_date: string;
+      hours: string;
+      content: string;
+    }>(
+      `SELECT duty.user_id, applicant.name AS applicant_name,
+              duty.duty_date::text, duty.hours::text, duty.content
+       FROM duty_records duty
+       JOIN users applicant ON applicant.id = duty.user_id
+       WHERE duty.id = $1`,
+      [dutyRecordId],
+    );
+    const row = result.rows[0];
+    if (!row) return;
+
+    const uid = await findUid(row.user_id);
+    if (!uid) {
+      console.warn(`wxpusher 加班审批结果提醒跳过:用户「${row.applicant_name ?? row.user_id}」未绑定微信推送`);
+      return;
+    }
+
+    const hours = Number(row.hours);
+    const phrase = status === "approved" ? "已审批通过" : "未通过（已被驳回）";
+    const content =
+      `【审批结果】你登记的加班（${row.duty_date}，${hours}小时：${row.content}）${phrase}，` +
+      `可到简序日程小程序查看详情。`;
+    const summary = `你的加班登记${status === "approved" ? "已通过" : "未通过"}`;
+    const sent = await sendWxPusherMessage(content, [uid], summary);
+    if (sent.code !== 1000) {
+      console.error("wxpusher 加班审批结果提醒发送失败", sent.code, sent.msg);
+    }
+  } catch (error) {
+    console.error("wxpusher 加班审批结果提醒发送异常", error);
+  }
+}
+
 // 加班登记后给本人推送"工作日加班打卡提醒"（wxpusher）。异常处理口径同上。
 export async function notifyOvertimeCheckIn(
   userId: string,
@@ -135,7 +274,7 @@ export async function notifyOvertimeCheckIn(
       `下班时间：${offTime}\n` +
       `加班时长：${hours}小时（实际加班时间以此为准）\n` +
       `打卡要求：${endTime}之后打卡\n` +
-      `备注：加班无需审批，随时可提，请保证打卡时长大于申请时长！`;
+      `备注：请保证打卡时长大于申请时长！`;
     const sent = await sendWxPusherMessage(content, [uid], "工作日加班打卡提醒");
     if (sent.code !== 1000) {
       console.error("wxpusher 加班打卡提醒发送失败", sent.code, sent.msg);

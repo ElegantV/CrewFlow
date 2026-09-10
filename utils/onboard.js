@@ -11,6 +11,8 @@ function missingRequiredOf(profile) {
   if (profile.role === 'user' && !(profile.manager && profile.manager.id)) missing.push('manager')
   if (profile.personnelType !== 'bank' && !(profile.agent && profile.agent.id)) missing.push('agent')
   if ((profile.role === 'admin' || profile.role === 'super_admin') && !profile.signatureConfigured) missing.push('signature')
+  // 与 GET /me 的 missingRequired 保持一致：工作开始时间缺失时引导补齐，避免年假为 0。
+  if (!profile.workStartDate) missing.push('workStartDate')
   return missing
 }
 

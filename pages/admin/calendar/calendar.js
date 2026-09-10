@@ -1,4 +1,5 @@
 const admin = require('../../../services/admin')
+const { showError } = require('../../../utils/feedback')
 
 const TYPE_LABELS = {
   holiday: '法定节假日',
@@ -40,7 +41,7 @@ Page({
       this.setData({ days, loading: false })
     } catch (error) {
       this.setData({ loading: false })
-      wx.showToast({ title: error.message || '加载失败', icon: 'none' })
+      showError(error, '加载失败')
     }
   },
 
@@ -92,7 +93,7 @@ Page({
       this.loadData()
     } catch (error) {
       this.setData({ saving: false })
-      wx.showToast({ title: error.message || '保存失败', icon: 'none' })
+      showError(error, '保存失败')
     }
   },
 
@@ -108,7 +109,7 @@ Page({
           wx.showToast({ title: '已删除', icon: 'success' })
           this.loadData()
         } catch (error) {
-          wx.showToast({ title: error.message || '删除失败', icon: 'none' })
+          showError(error, '删除失败')
         }
       }
     })
@@ -130,7 +131,7 @@ Page({
       this.loadData()
     } catch (error) {
       this.setData({ syncing: false })
-      wx.showToast({ title: error.message || '同步失败', icon: 'none' })
+      showError(error, '同步失败')
     }
   },
 

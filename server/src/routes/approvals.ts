@@ -3,7 +3,7 @@ import { z } from "zod";
 import { allowRoles, loadActiveActor } from "../authz.js";
 import { buildApprovalResult, type ApprovalResultSnapshot } from "../business/approval-result.js";
 import { leavePolicies, type LeaveType } from "../business/leave-policy.js";
-import { notifyApplicantDecision } from "../business/notify.js";
+import { notifyApplicantDecision, notifyOvertimeApplicantDecision } from "../business/notify.js";
 import { releaseTimeoff } from "../business/timeoff.js";
 import { db } from "../db.js";
 
@@ -21,97 +21,177 @@ export const approvalRoutes: FastifyPluginAsync = async (app) => {
 
   app.get("/pending", approvalHooks, async (request) => {
     const actor = request.actor!;
-    const result = await db.query<{
-      approval_id: string;
-      leave_request_id: string;
-      applicant_id: string;
-      applicant_name: string | null;
-      agent_name: string | null;
-      leave_type: LeaveType;
-      start_date: string;
-      end_date: string;
-      requested_days: string;
-      requested_hours: string;
-      reason: string | null;
-      submitted_at: string;
-    }>(
-      `SELECT a.id AS approval_id, l.id AS leave_request_id,
-              l.applicant_id, applicant.name AS applicant_name,
-              agent.name AS agent_name, l.leave_type,
-              l.start_date::text, l.end_date::text,
-              l.requested_days::text, l.requested_hours::text,
-              l.reason,
-              l.submitted_at::text
-       FROM approval_records a
-       JOIN leave_requests l ON l.id = a.leave_request_id
-       JOIN users applicant ON applicant.id = l.applicant_id
-       LEFT JOIN users agent ON agent.id = l.agent_user_id
-       WHERE a.status = 'pending'
-         AND l.status = 'pending'
-         AND ($1 = 'super_admin' OR a.approver_id = $2)
-       ORDER BY l.submitted_at, l.id`,
-      [actor.role, actor.id],
-    );
+    const [leaveResult, overtimeResult] = await Promise.all([
+      db.query<{
+        approval_id: string;
+        leave_request_id: string;
+        applicant_id: string;
+        applicant_name: string | null;
+        agent_name: string | null;
+        leave_type: LeaveType;
+        start_date: string;
+        end_date: string;
+        requested_days: string;
+        requested_hours: string;
+        reason: string | null;
+        submitted_at: string;
+      }>(
+        `SELECT a.id AS approval_id, l.id AS leave_request_id,
+                l.applicant_id, applicant.name AS applicant_name,
+                agent.name AS agent_name, l.leave_type,
+                l.start_date::text, l.end_date::text,
+                l.requested_days::text, l.requested_hours::text,
+                l.reason,
+                l.submitted_at::text
+         FROM approval_records a
+         JOIN leave_requests l ON l.id = a.leave_request_id
+         JOIN users applicant ON applicant.id = l.applicant_id
+         LEFT JOIN users agent ON agent.id = l.agent_user_id
+         WHERE a.status = 'pending'
+           AND l.status = 'pending'
+           AND ($1 = 'super_admin' OR a.approver_id = $2)
+         ORDER BY l.submitted_at, l.id`,
+        [actor.role, actor.id],
+      ),
+      db.query<{
+        approval_id: string;
+        duty_record_id: string;
+        applicant_id: string;
+        applicant_name: string | null;
+        duty_date: string;
+        off_time: string | null;
+        hours: string;
+        content: string;
+        submitted_at: string;
+      }>(
+        `SELECT a.id AS approval_id, d.id AS duty_record_id,
+                d.user_id AS applicant_id, applicant.name AS applicant_name,
+                d.duty_date::text, d.off_time::text, d.hours::text, d.content,
+                a.created_at::text AS submitted_at
+         FROM approval_records a
+         JOIN duty_records d ON d.id = a.duty_record_id
+         JOIN users applicant ON applicant.id = d.user_id
+         WHERE a.status = 'pending'
+           AND d.status = 'pending'
+           AND ($1 = 'super_admin' OR a.approver_id = $2)
+         ORDER BY a.created_at, a.id`,
+        [actor.role, actor.id],
+      ),
+    ]);
+
+    const leaveItems = leaveResult.rows.map((item) => ({
+      id: item.approval_id,
+      bizType: "leave" as const,
+      leaveRequestId: item.leave_request_id,
+      applicant: { id: item.applicant_id, name: item.applicant_name },
+      agentName: item.agent_name,
+      leaveType: item.leave_type,
+      leaveTypeLabel: leavePolicies[item.leave_type].label,
+      startDate: item.start_date,
+      endDate: item.end_date,
+      requestedDays: Number(item.requested_days),
+      requestedHours: Number(item.requested_hours),
+      reason: item.reason,
+      submittedAt: item.submitted_at,
+    }));
+    const overtimeItems = overtimeResult.rows.map((item) => ({
+      id: item.approval_id,
+      bizType: "overtime" as const,
+      dutyRecordId: item.duty_record_id,
+      applicant: { id: item.applicant_id, name: item.applicant_name },
+      date: item.duty_date,
+      offTime: item.off_time ? item.off_time.slice(0, 5) : null,
+      hours: Number(item.hours),
+      content: item.content,
+      submittedAt: item.submitted_at,
+    }));
 
     return {
-      approvals: result.rows.map((item) => ({
-        id: item.approval_id,
-        leaveRequestId: item.leave_request_id,
-        applicant: { id: item.applicant_id, name: item.applicant_name },
-        agentName: item.agent_name,
-        leaveType: item.leave_type,
-        leaveTypeLabel: leavePolicies[item.leave_type].label,
-        startDate: item.start_date,
-        endDate: item.end_date,
-        requestedDays: Number(item.requested_days),
-        requestedHours: Number(item.requested_hours),
-        reason: item.reason,
-        submittedAt: item.submitted_at,
-      })),
+      approvals: [...leaveItems, ...overtimeItems].sort((a, b) =>
+        a.submittedAt === b.submittedAt ? a.id.localeCompare(b.id) : a.submittedAt.localeCompare(b.submittedAt),
+      ),
     };
   });
 
   app.get("/history", approvalHooks, async (request) => {
     const actor = request.actor!;
-    const result = await db.query<{
-      approval_id: string;
-      leave_request_id: string;
-      applicant_name: string | null;
-      leave_type: LeaveType;
-      start_date: string;
-      end_date: string;
-      requested_days: string;
-      requested_hours: string;
-      decided_at: string;
-    }>(
-      `SELECT approval.id AS approval_id, leave.id AS leave_request_id,
-              applicant.name AS applicant_name, leave.leave_type,
-              leave.start_date::text, leave.end_date::text,
-              leave.requested_days::text, leave.requested_hours::text,
-              approval.decided_at::text
-       FROM approval_records approval
-       JOIN leave_requests leave ON leave.id = approval.leave_request_id
-       JOIN users applicant ON applicant.id = leave.applicant_id
-       WHERE approval.status = 'approved'
-         AND leave.status = 'approved'
-         AND ($1 = 'super_admin' OR approval.approver_id = $2)
-       ORDER BY approval.decided_at DESC, approval.id
-       LIMIT 50`,
-      [actor.role, actor.id],
-    );
+    const [leaveResult, overtimeResult] = await Promise.all([
+      db.query<{
+        approval_id: string;
+        leave_request_id: string;
+        applicant_name: string | null;
+        leave_type: LeaveType;
+        start_date: string;
+        end_date: string;
+        requested_days: string;
+        requested_hours: string;
+        decided_at: string;
+      }>(
+        `SELECT approval.id AS approval_id, leave.id AS leave_request_id,
+                applicant.name AS applicant_name, leave.leave_type,
+                leave.start_date::text, leave.end_date::text,
+                leave.requested_days::text, leave.requested_hours::text,
+                approval.decided_at::text
+         FROM approval_records approval
+         JOIN leave_requests leave ON leave.id = approval.leave_request_id
+         JOIN users applicant ON applicant.id = leave.applicant_id
+         WHERE approval.status = 'approved'
+           AND leave.status = 'approved'
+           AND ($1 = 'super_admin' OR approval.approver_id = $2)
+         ORDER BY approval.decided_at DESC, approval.id
+         LIMIT 50`,
+        [actor.role, actor.id],
+      ),
+      db.query<{
+        approval_id: string;
+        duty_record_id: string;
+        applicant_name: string | null;
+        duty_date: string;
+        hours: string;
+        decided_at: string;
+      }>(
+        `SELECT approval.id AS approval_id, duty.id AS duty_record_id,
+                applicant.name AS applicant_name, duty.duty_date::text,
+                duty.hours::text, approval.decided_at::text
+         FROM approval_records approval
+         JOIN duty_records duty ON duty.id = approval.duty_record_id
+         JOIN users applicant ON applicant.id = duty.user_id
+         WHERE approval.status = 'approved'
+           AND duty.status NOT IN ('revoked', 'rejected')
+           AND ($1 = 'super_admin' OR approval.approver_id = $2)
+         ORDER BY approval.decided_at DESC, approval.id
+         LIMIT 50`,
+        [actor.role, actor.id],
+      ),
+    ]);
+
+    const leaveItems = leaveResult.rows.map((item) => ({
+      id: item.approval_id,
+      bizType: "leave" as const,
+      leaveRequestId: item.leave_request_id,
+      applicantName: item.applicant_name,
+      leaveType: item.leave_type,
+      leaveTypeLabel: leavePolicies[item.leave_type].label,
+      startDate: item.start_date,
+      endDate: item.end_date,
+      requestedDays: Number(item.requested_days),
+      requestedHours: Number(item.requested_hours),
+      decidedAt: item.decided_at,
+    }));
+    const overtimeItems = overtimeResult.rows.map((item) => ({
+      id: item.approval_id,
+      bizType: "overtime" as const,
+      dutyRecordId: item.duty_record_id,
+      applicantName: item.applicant_name,
+      date: item.duty_date,
+      hours: Number(item.hours),
+      decidedAt: item.decided_at,
+    }));
+
     return {
-      approvals: result.rows.map((item) => ({
-        id: item.approval_id,
-        leaveRequestId: item.leave_request_id,
-        applicantName: item.applicant_name,
-        leaveType: item.leave_type,
-        leaveTypeLabel: leavePolicies[item.leave_type].label,
-        startDate: item.start_date,
-        endDate: item.end_date,
-        requestedDays: Number(item.requested_days),
-        requestedHours: Number(item.requested_hours),
-        decidedAt: item.decided_at,
-      })),
+      approvals: [...leaveItems, ...overtimeItems]
+        .sort((a, b) => (a.decidedAt === b.decidedAt ? b.id.localeCompare(a.id) : b.decidedAt.localeCompare(a.decidedAt)))
+        .slice(0, 50),
     };
   });
 
@@ -127,6 +207,98 @@ export const approvalRoutes: FastifyPluginAsync = async (app) => {
     let approvalResult: ApprovalResultSnapshot | null = null;
     try {
       await client.query("BEGIN");
+      // 先只读分流审批目标：请假走原有流程，加班走下方独立分支。
+      const targetResult = await client.query<{
+        leave_request_id: string | null;
+        duty_record_id: string | null;
+      }>(
+        "SELECT leave_request_id, duty_record_id FROM approval_records WHERE id = $1",
+        [id.data],
+      );
+      const target = targetResult.rows[0];
+      if (!target) {
+        await client.query("ROLLBACK");
+        return reply.code(404).send({ code: "APPROVAL_NOT_FOUND", message: "审批任务不存在" });
+      }
+
+      if (target.duty_record_id) {
+        // ===== 加班审批：先锁加班记录、再锁审批记录（与撤销加班路径一致）=====
+        const dutyResult = await client.query<{
+          id: string;
+          user_id: string;
+          hours: string;
+          status: string;
+        }>(
+          `SELECT id, user_id, hours::text, status
+           FROM duty_records WHERE id = $1 FOR UPDATE`,
+          [target.duty_record_id],
+        );
+        const duty = dutyResult.rows[0];
+        if (!duty) {
+          await client.query("ROLLBACK");
+          return reply.code(404).send({ code: "APPROVAL_NOT_FOUND", message: "审批任务不存在" });
+        }
+        const overtimeApprovalResult = await client.query<{
+          approval_status: string;
+          approver_id: string;
+        }>(
+          `SELECT status AS approval_status, approver_id
+           FROM approval_records WHERE id = $1 FOR UPDATE`,
+          [id.data],
+        );
+        const overtimeApproval = overtimeApprovalResult.rows[0];
+        if (!overtimeApproval) {
+          await client.query("ROLLBACK");
+          return reply.code(404).send({ code: "APPROVAL_NOT_FOUND", message: "审批任务不存在" });
+        }
+        if (actor.role !== "super_admin" && overtimeApproval.approver_id !== actor.id) {
+          await client.query("ROLLBACK");
+          return reply.code(403).send({ code: "FORBIDDEN", message: "该申请不属于你的审批范围" });
+        }
+        if (overtimeApproval.approval_status !== "pending" || duty.status !== "pending") {
+          await client.query("ROLLBACK");
+          return reply.code(409).send({ code: "APPROVAL_ALREADY_DECIDED", message: "该申请已处理，请勿重复审批" });
+        }
+
+        const overtimeStatus = body.data.action === "approve" ? "approved" : "rejected";
+        if (overtimeStatus === "approved") {
+          // 审批通过才产生调休额度并转为可用。
+          await client.query(
+            `UPDATE duty_records
+             SET status = 'active', remaining_hours = hours, updated_at = now(), version = version + 1
+             WHERE id = $1`,
+            [duty.id],
+          );
+          await client.query(
+            `INSERT INTO timeoff_ledger (user_id, duty_record_id, entry_type, amount_hours, note)
+             VALUES ($1, $2, 'earn', $3, '加班审批通过产生调休额度')`,
+            [duty.user_id, duty.id, duty.hours],
+          );
+        } else {
+          await client.query(
+            `UPDATE duty_records
+             SET status = 'rejected', remaining_hours = 0, updated_at = now(), version = version + 1
+             WHERE id = $1`,
+            [duty.id],
+          );
+        }
+        await client.query(
+          `UPDATE approval_records
+           SET status = $1, comment = $2, decided_at = now()
+           WHERE id = $3`,
+          [overtimeStatus, body.data.comment ?? null, id.data],
+        );
+        await client.query(
+          `INSERT INTO audit_logs (actor_id, action, entity_type, entity_id, details)
+           VALUES ($1, $2, 'duty_record', $3, $4::jsonb)`,
+          [actor.id, `overtime.${body.data.action}`, duty.id, JSON.stringify({ comment: body.data.comment ?? null })],
+        );
+        await client.query("COMMIT");
+        // 事务提交后异步通知登记人审批结果，不阻塞本次响应。
+        void notifyOvertimeApplicantDecision(duty.id, overtimeStatus);
+        return { success: true, status: overtimeStatus, bizType: "overtime" };
+      }
+
       // 加锁顺序与「撤销请假」(routes/leaves.ts cancel:先锁 leave_requests 再动
       // approval_records)保持一致:先锁请假单、再锁审批记录。此前单条 SQL
       // `FOR UPDATE OF a, l` 的实际加锁顺序由连接计划决定,与撤销路径相反,
@@ -244,7 +416,7 @@ export const approvalRoutes: FastifyPluginAsync = async (app) => {
       // 审批结果仅固化到记录中，由申请人查看、复制和下载。
       // 事务提交后异步通知申请人审批结果，不阻塞本次响应。
       void notifyApplicantDecision(approval.leave_request_id, nextStatus === "approved" ? "approved" : "rejected");
-      return { success: true, status: nextStatus };
+      return { success: true, status: nextStatus, bizType: "leave" };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

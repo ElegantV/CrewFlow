@@ -1,6 +1,7 @@
 const me = require('../../services/me')
 const wxpusher = require('../../services/wxpusher')
 const { getApiBaseUrl } = require('../../config/env')
+const { showError } = require('../../utils/feedback')
 
 // 年假规则：满一年可休；工龄未满 5 年按 5 天；超过 5 年每多一年加一天，上限 15 天。
 function calculateAnnualLeave(workStartDate) {
@@ -147,7 +148,7 @@ Page({
       this.bindPollCount = 0
       this.pollBind()
     } catch (error) {
-      wx.showToast({ title: error.message || '获取二维码失败', icon: 'none' })
+      showError(error, '获取二维码失败')
     } finally {
       this.setData({ wxpusherLoading: false })
     }
@@ -185,7 +186,7 @@ Page({
       await wxpusher.test()
       wx.showToast({ title: '已发送提醒消息', icon: 'success' })
     } catch (error) {
-      wx.showToast({ title: error.message || '发送失败', icon: 'none' })
+      showError(error, '发送失败')
     }
   },
 
@@ -200,7 +201,7 @@ Page({
           this.setData({ wxpusherBound: false, wxpusherUid: '' })
           wx.showToast({ title: '已解绑', icon: 'success' })
         } catch (error) {
-          wx.showToast({ title: error.message || '解绑失败', icon: 'none' })
+          showError(error, '解绑失败')
         }
       }
     })
@@ -313,7 +314,7 @@ Page({
         this.setData({ signatureImage: '' })
       }
     } catch (error) {
-      wx.showToast({ title: error.message || '个人信息加载失败', icon: 'none' })
+      showError(error, '个人信息加载失败')
     }
   },
 
@@ -507,7 +508,7 @@ Page({
                 wx.showToast({ title: '头像已更新', icon: 'success' })
               } catch (error) {
                 this.setData({ savingAvatar: false })
-                wx.showToast({ title: error.message || '头像上传失败', icon: 'none' })
+                showError(error, '头像上传失败')
               }
             },
             fail: () => {
@@ -577,7 +578,7 @@ Page({
       wx.showToast({ title: '个人信息已保存', icon: 'success' })
     } catch (error) {
       this.setData({ saving: false })
-      wx.showToast({ title: error.message || '保存失败', icon: 'none', duration: 3000 })
+      showError(error, '保存失败')
     }
   },
 
@@ -645,7 +646,7 @@ Page({
               wx.showToast({ title: '审批签名已保存', icon: 'success' })
             } catch (error) {
               this.setData({ savingSignature: false })
-              wx.showToast({ title: error.message || '签名保存失败', icon: 'none' })
+              showError(error, '签名保存失败')
             }
           },
           fail: () => {

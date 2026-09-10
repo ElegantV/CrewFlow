@@ -1,4 +1,5 @@
 const overtime = require('../../services/overtime')
+const { showError } = require('../../utils/feedback')
 
 function today() {
   const date = new Date()
@@ -18,6 +19,8 @@ function daysAgo(days) {
 
 const statusLabels = {
   active: '可用',
+  pending: '待审批',
+  rejected: '已驳回',
   consumed: '已用完',
   revoked: '已撤销',
   expired: '已到期'
@@ -59,9 +62,13 @@ Page({
     try {
       const [list, balance] = await Promise.all([overtime.list(), overtime.balance()])
       this.setData({
-        records: list.records.map(item => Object.assign({}, item, {
-          statusLabel: statusLabels[item.status] || item.status
-        })),
+        records: list.records.map(item => {
+          const hasBalance = item.status === 'active' || item.status === 'consumed' || item.status === 'expired'
+          return Object.assign({}, item, {
+            statusLabel: statusLabels[item.status] || item.status,
+            metaText: `${item.offTime ? item.offTime + ' 下班 · ' : ''}${item.hours}小时${hasBalance ? ` · 剩余${item.remainingHours}小时` : ''}`
+          })
+        }),
         availableHours: balance.availableHours,
         nearestExpiry: balance.nearestExpiry,
         loading: false
@@ -104,7 +111,7 @@ Page({
     }
     this.setData({ submitting: true })
     try {
-      await overtime.create({
+      const result = await overtime.create({
         date: form.date,
         offTime: form.offTime,
         hours,
@@ -117,11 +124,14 @@ Page({
         'form.hoursIndex': 0,
         'form.content': ''
       })
-      wx.showToast({ title: `已登记${hours}小时`, icon: 'success' })
+      wx.showToast({
+        title: result.status === 'pending' ? '已提交，等待审批' : `加班已登记（${hours}小时）`,
+        icon: 'success'
+      })
       await this.loadData()
     } catch (error) {
       this.setData({ submitting: false })
-      wx.showToast({ title: error.message || '提交失败', icon: 'none' })
+      showError(error, '提交失败')
     }
   },
 
@@ -131,17 +141,19 @@ Page({
 
   revoke(event) {
     const id = event.currentTarget.dataset.id
+    const record = this.data.records.find(item => item.id === id)
+    const pending = record && record.status === 'pending'
     wx.showModal({
-      title: '撤销加班',
-      content: '撤销后将移除对应调休额度，是否继续？',
+      title: pending ? '撤回申请' : '撤销加班',
+      content: pending ? '确认撤回这条待审批的加班申请？' : '撤销后将移除对应调休额度，是否继续？',
       success: async result => {
         if (!result.confirm) return
         try {
           await overtime.revoke(id)
-          wx.showToast({ title: '已撤销', icon: 'success' })
+          wx.showToast({ title: pending ? '已撤回' : '已撤销', icon: 'success' })
           await this.loadData()
         } catch (error) {
-          wx.showToast({ title: error.message || '撤销失败', icon: 'none' })
+          showError(error, '撤销失败')
         }
       }
     })

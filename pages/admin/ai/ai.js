@@ -1,4 +1,5 @@
 const admin = require('../../../services/admin')
+const { showError } = require('../../../utils/feedback')
 
 Page({
   data: {
@@ -34,7 +35,7 @@ Page({
       })
       this.updateKeyPlaceholder()
     } catch (error) {
-      wx.showToast({ title: error.message || 'AI 配置加载失败', icon: 'none' })
+      showError(error, 'AI 配置加载失败')
     }
   },
 
@@ -80,7 +81,7 @@ Page({
       wx.showToast({ title: 'AI 配置已保存', icon: 'success' })
     } catch (error) {
       this.setData({ saving: false })
-      wx.showToast({ title: error.message || '保存失败，请重试', icon: 'none' })
+      showError(error, '保存失败，请重试')
     }
   }
 })

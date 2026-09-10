@@ -13,8 +13,34 @@ function validDate(year, month, day) {
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null
 }
 
+const weekdayMap = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 7, 天: 7 }
+
+function parseWeekday(text, now) {
+  const match = text.match(/(上|本|这|下)?(?:周|星期|礼拜)([一二三四五六日天])/)
+  if (!match) return null
+  const dow = now.getDay()
+  const thisMonday = shiftDate(now, -(dow + 6) % 7)
+  let base = thisMonday
+  if (match[1] === '上') base = shiftDate(base, -7)
+  else if (match[1] === '下') base = shiftDate(base, 7)
+  let date = shiftDate(base, weekdayMap[match[2]] - 1)
+  if (!match[1] && formatDate(date) < formatDate(now)) date = shiftDate(date, 7)
+  return formatDate(date)
+}
+
+function parseWeekend(now) {
+  const dow = now.getDay()
+  return formatDate(shiftDate(now, dow === 6 ? 0 : (6 - dow + 7) % 7))
+}
+
 function parseDate(text, now = new Date()) {
+  if (/大前天/.test(text)) return formatDate(shiftDate(now, -3))
+  if (/大后天/.test(text)) return formatDate(shiftDate(now, 3))
+  if (/前天/.test(text)) return formatDate(shiftDate(now, -2))
   if (/后天/.test(text)) return formatDate(shiftDate(now, 2))
+  const weekday = parseWeekday(text, now)
+  if (weekday) return weekday
+  if (/周末/.test(text)) return parseWeekend(now)
   if (/明天/.test(text)) return formatDate(shiftDate(now, 1))
   if (/今天|今日/.test(text)) return formatDate(now)
   if (/昨天/.test(text)) return formatDate(shiftDate(now, -1))
@@ -71,29 +97,33 @@ function parseCommand(input, options = {}) {
   }
 
   if (/(登记|记录|新增|添加|补录).{0,4}加班|加班\d.*小时/.test(text)) return parseOvertime(raw, now)
-  if (/调休余额|可用调休|还有多少调休|调休额度/.test(text)) return { status: 'ready', intent: 'overtime_balance', slots: {} }
+  if (/调休.*(?:余额|额度|还剩|还有|剩几|多少)|(?:余额|额度|还剩|还有|剩几|多少).*调休|可用调休|我的调休/.test(text)) return { status: 'ready', intent: 'overtime_balance', slots: {} }
+  if (/(?:年假).*(?:余额|额度|还剩|还有|剩几|多少)|(?:余额|额度|还剩|还有|剩几|多少).*(?:年假)/.test(text)) return { status: 'ready', intent: 'annual_balance', slots: {} }
   if (/我的加班|加班记录|加班历史/.test(text)) return { status: 'ready', intent: 'overtime_list', slots: {} }
-  if (/撤销|取消/.test(text) && /加班/.test(text)) return { status: 'ready', intent: 'overtime_revoke', slots: { date: parseDate(text, now) } }
+  if (/撤销|取消|撤回/.test(text) && /加班|值班/.test(text)) return { status: 'ready', intent: 'overtime_revoke', slots: { date: parseDate(text, now) } }
 
-  if (/撤销|取消/.test(text) && /(请假|调休|年假|病假|事假)/.test(text)) return { status: 'ready', intent: 'leave_cancel', slots: { date: parseDate(text, now) } }
+  if (/撤销|取消|撤回/.test(text) && /(请假|调休|年假|病假|事假)/.test(text)) return { status: 'ready', intent: 'leave_cancel', slots: { date: parseDate(text, now) } }
   if (/审批结果|请假单|下载.*PDF|PDF.*请假/.test(text)) return { status: 'ready', intent: 'leave_result', slots: {} }
   if (/我的请假|请假记录|请假进度|请假状态/.test(text)) return { status: 'ready', intent: 'leave_list', slots: {} }
 
   if (/待审批|待我审批|审批列表/.test(text)) return { status: 'ready', intent: 'approval_pending', slots: {} }
   if (/审批历史|已审批/.test(text)) return { status: 'ready', intent: 'approval_history', slots: {} }
-  if (/(通过|同意|批准|驳回|拒绝).*(申请|请假)|审批.*(通过|同意|批准|驳回|拒绝)/.test(text)) {
+  if (/(通过|同意|批准|驳回|拒绝).*(申请|请假|加班|值班|调休|年假|病假|事假|公出|产假|婚假|丧假|育儿假|陪产假|产检假|哺乳假)|审批.*(通过|同意|批准|驳回|拒绝)/.test(text)) {
     const reject = /驳回|拒绝/.test(text)
     const reason = reject ? ((raw.match(/(?:原因|理由)(?:是|为|[:：])?(.+)$/) || [])[1] || '').trim() : ''
-    const nameMatch = text.match(/(?:通过|同意|批准|驳回|拒绝)([\u4e00-\u9fa5·]{2,20}?)(?:的)?(?:申请|请假)/) || text.match(/审批([\u4e00-\u9fa5·]{2,20}?)(?:的)?(?:申请|请假)/)
+    const nameMatch = text.match(/(?:通过|同意|批准|驳回|拒绝)([\u4e00-\u9fa5·]{2,20}?)(?:的)?(?:申请|请假|加班|值班|调休|年假|病假|事假|公出|产假|婚假|丧假|育儿假|陪产假|产检假|哺乳假)/) || text.match(/审批(?:一下)?([\u4e00-\u9fa5·]{2,20}?)(?:的)?(?:申请|请假|加班|值班)/)
     return { status: 'ready', intent: 'approval_decide', slots: { action: reject ? 'reject' : 'approve', name: nameMatch && nameMatch[1] || '', reason } }
   }
-  if (/^(?:我要|帮我|请)?审批(?:一下)?(?:[\u4e00-\u9fa5·]{2,20}的?)?(?:请假|申请)?$|处理(?:一下)?请假申请/.test(text)) {
-    const nameMatch = text.match(/审批(?:一下)?([\u4e00-\u9fa5·]{2,20}?)(?:的)?(?:请假|申请)$/)
-    return { status: 'ready', intent: 'approval_decide', slots: { action: '', name: nameMatch && nameMatch[1] || '', reason: '' } }
+  if (/^(?:我要|帮我|请)?审批(?:一下)?(?:[\u4e00-\u9fa5·]{2,20}的?)?(?:请假|申请|加班|值班)?$|处理(?:一下)?请假申请/.test(text)) {
+    const nameMatch = text.match(/审批(?:一下)?([\u4e00-\u9fa5·]{2,20}?)(?:的)?(?:请假|申请|加班|值班)$/)
+    let name = nameMatch && nameMatch[1] || ''
+    name = name.replace(/(?:今天|明天|后天|大后天|昨天|前天|今日)$/, '')
+    if (/^(?:加班|值班|请假|申请|调休|年假|病假|事假|公出|产假|婚假|丧假|育儿假|陪产假|产检假|哺乳假)$/.test(name)) name = ''
+    return { status: 'ready', intent: 'approval_decide', slots: { action: '', name, reason: '' } }
   }
 
   if (/(修改|编辑|维护|完善).*(个人信息|我的资料)|(设置|修改).*(头像|签名)/.test(text)) return { status: 'ready', intent: 'profile_open', slots: {} }
-  if (/我的信息|个人信息|我的资料|我的审批人|我的代理人|我的年假/.test(text)) return { status: 'ready', intent: 'profile_query', slots: {} }
+  if (/我的信息|个人信息|我的资料|我的审批人|我的代理人|我的年假|(?:代理人|审批人)(?:是谁|是哪位)/.test(text)) return { status: 'ready', intent: 'profile_query', slots: {} }
   if (/用户列表|所有用户|用户信息/.test(text)) return { status: 'ready', intent: 'admin_users', slots: {} }
 
   if (/联系方式|联系信息|联系电话|手机号|手机|电话|通讯录|联系人|(?:查询|查看|查).+(?:资料|信息)/.test(text)) {
@@ -103,27 +133,38 @@ function parseCommand(input, options = {}) {
     return { status: 'ready', intent: 'contact_query', slots: { name, system: systemMatch && systemMatch[1].trim() } }
   }
 
-  if (/(是否|有没有|有没|谁|哪些人|人员|情况).*(请假|加班)|(请假|加班).*(是否|有没有|有没|谁|哪些人|人员|情况)/.test(text)) {
+  if (/(是否|有没有|有没|谁|哪些人|人员|情况|有人).*(请假|加班|值班)|(请假|加班|值班).*(是否|有没有|有没|谁|哪些人|人员|情况|有人)/.test(text) ||
+      (/吗|么/.test(text) && /请假|加班|值班/.test(text) && /谁|有人|今天|明天|后天|昨天|前天|今日|20\d{2}年|\d{1,2}月/.test(text))) {
     const date = parseDate(text, now)
     if (date === 'invalid') return { status: 'invalid', message: '日期不存在，请检查后重试。' }
-    const activity = /加班/.test(text) && !/请假/.test(text) ? 'overtime' : /请假/.test(text) && !/加班/.test(text) ? 'leave' : 'all'
-    const nameMatch = text.match(/([\u4e00-\u9fa5·]{2,20})(?:在)?(?:今天|明天|后天|昨天|20\d{2}年|\d{1,2}月).*(?:是否|有没有|有没)/) || text.match(/^([\u4e00-\u9fa5·]{2,20})(?:是否|有没有|有没)/)
+    const activity = /加班|值班/.test(text) && !/请假/.test(text) ? 'overtime' : /请假/.test(text) && !/加班|值班/.test(text) ? 'leave' : 'all'
+    const nameMatch = text.match(/([\u4e00-\u9fa5·]{2,20}?)(?:在)?(?:今天|明天|后天|大后天|昨天|前天|今日|20\d{2}年|\d{1,2}月\d{1,2}[日号]?).{0,4}(?:是否|有没有|有没|吗|么|请假|加班|值班)/) || text.match(/^([\u4e00-\u9fa5·]{2,20}?)(?:是否|有没有|有没)/)
     let name = nameMatch && nameMatch[1] || ''
-    if (name && /^(谁|哪些人|人员|员工|大家)$/.test(name)) name = ''
+    if (/^(?:我|你|他|她|谁|有人|哪些|请问|麻烦|今天|明天|后天|昨天|前天|今日)/.test(text)) name = ''
+    name = name.replace(/^(?:帮我|请|麻烦|请问)+/, '').replace(/^(?:查一下|查询|查看|查查|看看|查找|查问)+/, '').trim()
+    if (name && /^(谁|哪些人|人员|员工|大家|有人)$/.test(name)) name = ''
     const slots = { date, activity, name }
     if (!date) return clarify('situation_query', slots, 'date', '要查看哪一天的员工情况？', [], true)
     return { status: 'ready', intent: 'situation_query', slots }
   }
 
-  if (/设置|修改|更换/.test(text) && /代理人/.test(text)) {
-    const match = raw.match(/代理人(?:设置|修改|更换)?(?:成|为|是)?\s*([\u4e00-\u9fa5·]{2,20})/)
+  if (/加班|值班/.test(text) && !/不加班|不用加班|别加班|无需加班|没有加班|谁|哪些|是否|有没有|有没|有人|查询|查看|查一下|统计|记录|余额|额度|撤销|取消|撤回|打开|进入|前往|跳转|情况|人员|的人|吗|么|通过|同意|批准|驳回|拒绝/.test(text)) {
+    return parseOvertime(raw, now)
+  }
+
+  if (/代理人/.test(text) && /设置|修改|更换|改成|换成|设为|指定|安排/.test(text)) {
+    const match = raw.match(/代理人(?:设置|修改|更换|改成|换成|设为|指定|安排)?(?:成|为|是)?\s*([\u4e00-\u9fa5·]{2,20})/)
     return { status: 'ready', intent: 'agent_set', slots: { name: match && match[1] } }
   }
-  if (/(启用|激活|停用|禁用).*(用户|账号)|把.+(设为|改为).*(普通用户|管理员|超级管理员)/.test(text)) {
+  if (/代理人(?:是|为|叫)(?!谁|哪)/.test(text)) {
+    const match = raw.match(/代理人(?:是|为|叫)\s*([\u4e00-\u9fa5·]{2,20})/)
+    return { status: 'ready', intent: 'agent_set', slots: { name: match && match[1] } }
+  }
+  if (/(启用|激活|停用|禁用).*(用户|账号)|(?:把|给).+(?:设为|改为|调成|设置成|变更为).*(普通用户|管理员|超级管理员)/.test(text)) {
     const status = /启用|激活/.test(text) ? 'active' : /停用|禁用/.test(text) ? 'disabled' : null
     const role = /超级管理员/.test(text) ? 'super_admin' : /普通用户/.test(text) ? 'user' : /管理员/.test(text) ? 'admin' : null
     const nameMatch = raw.match(/(?:启用|激活|停用|禁用)\s*([\u4e00-\u9fa5·]{2,20}?)(?:的)?(?:用户|账号)(?:$|[，。])/)
-      || raw.match(/把\s*([\u4e00-\u9fa5·]{2,20}?)\s*(?:设为|改为)/)
+      || raw.match(/(?:把|给)?\s*([\u4e00-\u9fa5·]{2,20}?)\s*(?:设为|改为|调成|设置成|变更为)/)
     return { status: 'ready', intent: 'admin_update', slots: { name: nameMatch && nameMatch[1] || '', status, role } }
   }
 

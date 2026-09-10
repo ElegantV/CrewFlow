@@ -2,6 +2,7 @@ const { isApiConfigured, isDevelopment } = require('../../config/env')
 const me = require('../../services/me')
 const onboard = require('../../utils/onboard')
 const { BRAND_DEEP } = require('../../utils/theme')
+const { showError } = require('../../utils/feedback')
 
 function emptyReminders() {
   return { overtimeExpiring: [], pendingApprovals: null, dutyConflicts: [] }
@@ -117,8 +118,8 @@ Page({
     const shortcuts = BASE_SHORTCUTS.filter(item => !['approval', 'admin', 'dev'].includes(item.key))
     if (user && (user.role === 'admin' || user.role === 'super_admin')) {
       shortcuts.push({
-        key: 'approval', icon: '/assets/icons/approval.png', title: '请假审批',
-        description: '处理普通用户的一级审批', url: '/pages/approval/index', accent: 'orange'
+        key: 'approval', icon: '/assets/icons/approval.png', title: '审批中心',
+        description: '处理请假与加班审批', url: '/pages/approval/index', accent: 'orange'
       })
     }
     if (user && user.role === 'super_admin') {
@@ -228,7 +229,7 @@ Page({
       wx.showToast({ title: '菜单已更新', icon: 'success' })
     } catch (error) {
       this.setData({ menuSaving: false })
-      wx.showToast({ title: error.message || '保存失败', icon: 'none' })
+      showError(error, '保存失败')
     }
   },
 

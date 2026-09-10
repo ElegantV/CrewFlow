@@ -87,6 +87,52 @@ test('多轮加班补充信息后变成可执行任务', () => {
   assert.equal(ready.slots.content, '故障处理')
 })
 
+test('裸加班指令进入登记流程并追问时长', () => {
+  const result = command.parseCommand('今天加班', { now })
+  assert.equal(result.status, 'clarify')
+  assert.equal(result.intent, 'overtime_create')
+  assert.equal(result.field, 'hours')
+  assert.equal(result.slots.date, '2026-08-13')
+})
+
+test('裸加班指令可继续补充时长与内容', () => {
+  const first = command.parseCommand('今天加班', { now })
+  const second = command.applyChoice(first, 2, '2小时', { now })
+  assert.equal(second.field, 'content')
+  const ready = command.applyChoice(second, '生产发布', '生产发布', { now })
+  assert.equal(ready.status, 'ready')
+  assert.equal(ready.slots.hours, 2)
+  assert.equal(ready.slots.content, '生产发布')
+})
+
+test('加班查询与撤销指令不被误判为登记', () => {
+  assert.equal(command.parseCommand('今天谁加班', { now }).intent, 'situation_query')
+  assert.equal(command.parseCommand('查看我的加班记录', { now }).intent, 'overtime_list')
+  assert.equal(command.parseCommand('撤销今天的加班', { now }).intent, 'overtime_revoke')
+})
+
+test('员工情况查询不把“查一下”等查询词当作姓名', () => {
+  const plain = command.parseCommand('查一下今天加班人员', { now })
+  assert.equal(plain.intent, 'situation_query')
+  assert.equal(plain.slots.name, '')
+  assert.equal(command.parseCommand('查一下今天谁请假', { now }).slots.name, '')
+  const withName = command.parseCommand('帮我查一下张三今天是否加班', { now })
+  assert.equal(withName.intent, 'situation_query')
+  assert.equal(withName.slots.name, '张三')
+})
+
+test('“审批加班”进入选择流程而非直接通过', () => {
+  const result = command.parseCommand('审批加班', { now })
+  assert.equal(result.intent, 'approval_decide')
+  assert.equal(result.slots.action, '')
+  const named = command.parseCommand('审批张三的加班', { now })
+  assert.equal(named.slots.action, '')
+  assert.equal(named.slots.name, '张三')
+  const approved = command.parseCommand('通过张三的加班申请', { now })
+  assert.equal(approved.slots.action, 'approve')
+  assert.equal(approved.slots.name, '张三')
+})
+
 test('支持专用页面和审批结果能力', () => {
   assert.equal(command.parseCommand('修改我的头像', { now }).intent, 'profile_open')
   assert.equal(command.parseCommand('下载请假审批结果PDF', { now }).intent, 'leave_result')

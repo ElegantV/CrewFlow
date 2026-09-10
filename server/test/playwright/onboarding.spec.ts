@@ -50,6 +50,11 @@ test.beforeAll(async () => {
   adminSig = await insertUser("pw-onboard-admin-2", "管理员已签", "admin", "bank");
   superAdmin = await insertUser("pw-onboard-admin-3", "超级管理员", "super_admin", "bank");
   await db.query("UPDATE users SET manager_id = $1 WHERE id = $2", [superAdmin.id, bankReady.id]);
+  // 资料齐全账号需有工作开始时间（年假计算），否则会进入必填引导。
+  await db.query(
+    "UPDATE users SET work_start_date = '2020-01-01' WHERE id IN ($1, $2)",
+    [bankReady.id, adminSig.id],
+  );
   delCleanTarget = await insertUser("pw-onboard-del-clean", null, "user", "digital");
   delEntangledTarget = await insertUser("pw-onboard-del-entangled", "关联用户", "user", "vendor");
   delSub = await insertUser("pw-onboard-del-sub", "下属用户", "user", "vendor");
@@ -78,7 +83,7 @@ async function getMe(user: SeededUser) {
 
 test("新用户返回缺失姓名、审批人与代理人", async () => {
   const profile = await getMe(vendorNew);
-  expect(profile.missingRequired).toEqual(["name", "manager", "agent"]);
+  expect(profile.missingRequired).toEqual(["name", "manager", "agent", "workStartDate"]);
 });
 
 test("资料齐全的行员返回空数组", async () => {
@@ -88,7 +93,7 @@ test("资料齐全的行员返回空数组", async () => {
 
 test("缺审批签名的管理员返回 signature", async () => {
   const profile = await getMe(adminNoSig);
-  expect(profile.missingRequired).toEqual(["signature"]);
+  expect(profile.missingRequired).toEqual(["signature", "workStartDate"]);
 });
 
 test("非行员保存资料缺代理人被拒", async () => {
@@ -114,7 +119,7 @@ test("设置代理人后提交完整资料,missingRequired 逐级收敛", async 
   expect(bound.ok()).toBeTruthy();
 
   const afterAgent = await getMe(vendorNew);
-  expect(afterAgent.missingRequired).toEqual(["name", "manager"]);
+  expect(afterAgent.missingRequired).toEqual(["name", "manager", "workStartDate"]);
 
   const setManager = await api.put("/api/v1/me/manager", {
     headers: auth(vendorNew),
@@ -123,7 +128,7 @@ test("设置代理人后提交完整资料,missingRequired 逐级收敛", async 
   expect(setManager.ok()).toBeTruthy();
 
   const afterManager = await getMe(vendorNew);
-  expect(afterManager.missingRequired).toEqual(["name"]);
+  expect(afterManager.missingRequired).toEqual(["name", "workStartDate"]);
 
   const saved = await api.put("/api/v1/me/profile", {
     headers: auth(vendorNew),
@@ -132,6 +137,7 @@ test("设置代理人后提交完整资料,missingRequired 逐级收敛", async 
       personnelType: "vendor",
       agentUserId: vendorAgent.id,
       itlStatus: "no",
+      workStartDate: "2020-01-01",
     },
   });
   expect(saved.ok()).toBeTruthy();

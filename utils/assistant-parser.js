@@ -47,8 +47,34 @@ function addWorkdays(startDate, workdays) {
   return formatDate(cursor)
 }
 
+const weekdayMap = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 7, 天: 7 }
+
+function parseWeekday(text, now) {
+  const match = text.match(/(上|本|这|下)?(?:周|星期|礼拜)([一二三四五六日天])/)
+  if (!match) return null
+  const dow = now.getDay()
+  const thisMonday = shiftDate(now, -(dow + 6) % 7)
+  let base = thisMonday
+  if (match[1] === '上') base = shiftDate(base, -7)
+  else if (match[1] === '下') base = shiftDate(base, 7)
+  let date = shiftDate(base, weekdayMap[match[2]] - 1)
+  if (!match[1] && formatDate(date) < formatDate(now)) date = shiftDate(date, 7)
+  return { value: formatDate(date), explicit: match[0] }
+}
+
+function parseWeekend(now) {
+  const dow = now.getDay()
+  return formatDate(shiftDate(now, dow === 6 ? 0 : (6 - dow + 7) % 7))
+}
+
 function parseDate(text, now) {
+  if (text.includes('大前天')) return { value: formatDate(shiftDate(now, -3)), explicit: '大前天' }
+  if (text.includes('大后天')) return { value: formatDate(shiftDate(now, 3)), explicit: '大后天' }
+  if (text.includes('前天')) return { value: formatDate(shiftDate(now, -2)), explicit: '前天' }
   if (text.includes('后天')) return { value: formatDate(shiftDate(now, 2)), explicit: '后天' }
+  const weekday = parseWeekday(text, now)
+  if (weekday) return weekday
+  if (text.includes('周末')) return { value: parseWeekend(now), explicit: '周末' }
   if (text.includes('明天')) return { value: formatDate(shiftDate(now, 1)), explicit: '明天' }
   if (text.includes('今天') || text.includes('今日')) return { value: formatDate(now), explicit: '今天' }
 
@@ -160,7 +186,7 @@ function parsePrompt(input, options) {
   const availableTypes = options && options.availableTypes ? options.availableTypes : leaveTypeAliases
   if (!text) return { status: 'invalid', message: '请输入要执行的任务。' }
   if (!/(请假|请.{0,8}假|休假|调休|年假|病假|事假|公出|产假|婚假|丧假|育儿假|陪产假|产检假|哺乳假)/.test(text)) {
-    return { status: 'invalid', message: '这不是可执行的请假指令。你可以试试“8月13号请一天调休假”。' }
+    return { status: 'invalid', message: '没有识别到可执行的指令。你可以试试“今天登记加班2小时，内容：生产发布”或“8月13号请一天调休假”。' }
   }
 
   const date = parseDate(text, now)

@@ -5,8 +5,14 @@ const situation = require('../../services/situation')
 const me = require('../../services/me')
 const approval = require('../../services/approval')
 const admin = require('../../services/admin')
+const holidays = require('../../config/holidays')
 const parser = require('../../utils/assistant-parser')
 const command = require('../../utils/assistant-command')
+
+function trimDays(value) {
+  const num = Number(value)
+  return Number.isInteger(num) ? String(num) : String(Math.round(num * 10) / 10)
+}
 
 const fallbackTypes = [
   { value: 'comp_time', label: '调休' }, { value: 'annual', label: '年假' },
@@ -296,7 +302,12 @@ Page({
     this.showFeedback(`已解析：${result.summary}。正在提交申请…`, 'running')
     try {
       const response = await leave.create(parser.toLeaveRequest(result.draft))
-      this.showFeedback(`办理成功：已提交 ${response.requestedDays} 天申请，当前状态为待审批。`, 'success')
+      const statusText = response.approvalRequired ? '当前状态为待审批' : '已直接生效'
+      let feedback = `办理成功：已提交 ${response.requestedDays} 天申请，${statusText}。`
+      if (response.warnings && response.warnings.length) {
+        feedback += `\n提醒：${response.warnings.map(item => item.message).join('；')}`
+      }
+      this.showFeedback(feedback, 'success')
     } catch (error) {
       this.showFeedback(`办理失败：${error.message || '服务暂时不可用，请稍后重试。'}`, 'error')
     } finally {
@@ -324,6 +335,25 @@ Page({
     if (intent === 'overtime_balance') {
       const result = await overtime.balance()
       return `你当前有 ${result.availableHours} 小时可用调休${result.nearestExpiry ? `，最近一笔将于 ${result.nearestExpiry} 到期` : ''}。`
+    }
+    if (intent === 'annual_balance') {
+      const [profile, listResult] = await Promise.all([me.get(), leave.list()])
+      const entitlement = profile.annualLeave ? profile.annualLeave.annualLeaveDays : 0
+      const year = new Date().getFullYear()
+      const yearStart = `${year}-01-01`
+      const yearEnd = `${year}-12-31`
+      const used = (listResult.requests || []).reduce((total, request) => {
+        if (request.leaveType !== 'annual' || (request.status !== 'pending' && request.status !== 'approved')) return total
+        const start = request.startDate > yearStart ? request.startDate : yearStart
+        const end = request.endDate < yearEnd ? request.endDate : yearEnd
+        if (start > end) return total
+        const rangeTotal = holidays.countWorkdays(request.startDate, request.endDate)
+        const overlap = holidays.countWorkdays(start, end)
+        const ratio = rangeTotal > 0 ? overlap / rangeTotal : 1
+        return total + (request.requestedDays || 0) * ratio
+      }, 0)
+      const remaining = Math.max(0, entitlement - used)
+      return `你当前年假共 ${trimDays(entitlement)} 天，已申请 ${trimDays(used)} 天，剩余 ${trimDays(remaining)} 天。`
     }
     if (intent === 'overtime_list') {
       const result = await overtime.list()
@@ -416,7 +446,12 @@ Page({
     const result = history ? await approval.history() : await approval.pending()
     const records = result.approvals || []
     if (!records.length) return history ? '暂无审批历史。' : '当前没有待审批申请。'
-    return `${history ? '最近审批历史' : '待审批申请'}：\n${records.slice(0, 10).map(item => `${item.applicantName || (item.applicant && item.applicant.name) || '未命名用户'} · ${item.leaveTypeLabel} · ${item.startDate} 至 ${item.endDate} · ${item.requestedDays}天`).join('\n')}`
+    const lines = records.slice(0, 10).map(item => {
+      const name = item.applicantName || (item.applicant && item.applicant.name) || '未命名用户'
+      if (item.bizType === 'overtime') return `${name} · 加班 · ${item.date} · ${item.hours}小时`
+      return `${name} · ${item.leaveTypeLabel} · ${item.startDate} 至 ${item.endDate} · ${item.requestedDays}天`
+    })
+    return `${history ? '最近审批历史' : '待审批申请'}：\n${lines.join('\n')}`
   },
 
   async revokeOvertime(slots) {
@@ -483,7 +518,11 @@ Page({
       const result = await approval.pending()
       let records = result.approvals || []
       if (slots.name) records = records.filter(item => (item.applicant && item.applicant.name || '').includes(slots.name))
-      return this.selectRecord(records, 'approval_select', '请选择要处理的审批申请。', item => `${item.applicant && item.applicant.name || '未命名用户'} · ${item.leaveTypeLabel} · ${item.startDate} 至 ${item.endDate}`, slots)
+      return this.selectRecord(records, 'approval_select', '请选择要处理的审批申请。', item => {
+        const name = item.applicant && item.applicant.name || '未命名用户'
+        if (item.bizType === 'overtime') return `${name} · 加班 · ${item.date} · ${item.hours}小时`
+        return `${name} · ${item.leaveTypeLabel} · ${item.startDate} 至 ${item.endDate}`
+      }, slots)
     }
     await approval.decide(slots.id, slots.action, slots.reason || '')
     return `办理成功：申请已${slots.action === 'approve' ? '通过' : '驳回'}。`

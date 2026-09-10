@@ -95,10 +95,10 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
                 duty.hours::text, duty.content
          FROM duty_records duty
          JOIN users person ON person.id = duty.user_id
-         WHERE duty.duty_date >= $1::date
-           AND duty.duty_date < ($2::date + interval '1 month')
-           AND duty.status <> 'revoked'
-         ORDER BY duty.duty_date, person.name NULLS LAST, duty.id`,
+          WHERE duty.duty_date >= $1::date
+            AND duty.duty_date < ($2::date + interval '1 month')
+            AND duty.status NOT IN ('revoked', 'pending', 'rejected')
+          ORDER BY duty.duty_date, person.name NULLS LAST, duty.id`,
         [rangeStart, rangeEndMonth],
       ),
       // 头像按人去重单独返回:此前每行展开记录都重复携带头像 bytea(单张可达数百 KB),
@@ -118,7 +118,7 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
            UNION
            SELECT user_id FROM duty_records
            WHERE duty_date >= $1::date AND duty_date < ($2::date + interval '1 month')
-             AND status <> 'revoked'
+             AND status NOT IN ('revoked', 'pending', 'rejected')
          )`,
         [rangeStart, rangeEndMonth],
       ),

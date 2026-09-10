@@ -20,6 +20,7 @@ page {
 .required { color: #ef4444; }
 .field-input { width: 100%; min-height: 82rpx; padding: 20rpx 22rpx; border: 1rpx solid #dce3ec; border-radius: var(--r-md); color: #172033; background: var(--c-bg-subtle); font-size: 28rpx; box-sizing: border-box; }
 .field-picker { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+.field-placeholder { color: #a0a7b3; }
 .picker-arrow { color: #94a3b8; font-size: 30rpx; }
 .field-help { display: block; margin-top: 14rpx; color: #8a9099; font-size: 22rpx; line-height: 1.7; }
 .step-button { width: 100%; height: 88rpx; margin: 44rpx 0 0; }

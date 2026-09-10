@@ -24,6 +24,7 @@ declare module "fastify" {
       managerId: string | null;
       agentUserId: string | null;
       personnelType: "bank" | "digital" | "vendor";
+      department: string | null;
     };
   }
 }
