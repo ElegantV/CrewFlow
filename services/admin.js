@@ -35,6 +35,15 @@ module.exports = {
   },
   syncCalendar() {
     return request({ url: '/api/v1/admin/calendar/sync', method: 'POST', timeout: 30000 })
+  },
+  createDict(type, data) {
+    return request({ url: `/api/v1/admin/dicts/${type}`, method: 'POST', data })
+  },
+  updateDict(type, id, data) {
+    return request({ url: `/api/v1/admin/dicts/${type}/${id}`, method: 'PUT', data })
+  },
+  deleteDict(type, id) {
+    return request({ url: `/api/v1/admin/dicts/${type}/${id}`, method: 'DELETE' })
   }
 }
 

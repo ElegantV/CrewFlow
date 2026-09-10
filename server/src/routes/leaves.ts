@@ -75,7 +75,7 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
        LEFT JOIN approval_records approval ON approval.leave_request_id = l.id AND approval.step_no = 1
        LEFT JOIN users approver ON approver.id = approval.approver_id
        WHERE l.applicant_id = $1
-       ORDER BY l.submitted_at DESC`,
+       ORDER BY l.submitted_at DESC, l.id`,
       [request.actor!.id],
     );
 

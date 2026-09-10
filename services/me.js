@@ -39,5 +39,8 @@ module.exports = {
   },
   setAiAgent(enabled) {
     return request({ url: '/api/v1/me/ai-agent', method: 'PUT', data: { enabled } })
+  },
+  dicts() {
+    return request({ url: '/api/v1/dicts' })
   }
 }

@@ -25,6 +25,7 @@ Page({
 
   openUsers() { wx.navigateTo({ url: '/pages/admin/users' }) },
   openCalendar() { wx.navigateTo({ url: '/pages/admin/calendar/calendar' }) },
+  openDicts() { wx.navigateTo({ url: '/pages/admin/dicts/index' }) },
 
   // 导出弹窗首次打开时才拉用户列表;失败不阻断导出,仍可按“全部用户”导出。
   async openExport() {

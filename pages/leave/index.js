@@ -497,12 +497,12 @@ Page({
       }
       const usesDay = form.startPeriod === 'day' || form.endPeriod === 'day'
       if (usesDay && form.startPeriod !== form.endPeriod) {
-        wx.showToast({ title: '同一天选择全天时，开始和结束都须选全天', icon: 'none', duration: 3000 })
+        wx.showToast({ title: '同一天选全天须起止均为全天', icon: 'none', duration: 3000 })
         return
       }
     }
     if (this.data.quotaInsufficient) {
-      wx.showToast({ title: '超出剩余额度，请调整请假范围或先补登记加班', icon: 'none' })
+      wx.showToast({ title: '超出剩余额度，请先补登记加班', icon: 'none', duration: 3000 })
       return
     }
     this.setData({ submitting: true })
@@ -510,7 +510,7 @@ Page({
       const result = await leave.create(this.data.form)
       this.setData({ showForm: false, submitting: false })
       this.clearDateRange()
-      wx.showToast({ title: `已提交${result.requestedDays}天`, icon: 'success' })
+      wx.showToast({ title: `已提交${result.requestedDays}天`, icon: 'none' })
       if (result.warnings && result.warnings.length) {
         wx.showModal({
           title: '值班时间冲突提醒',
@@ -551,6 +551,23 @@ Page({
 
   async downloadApprovalPdf() {
     if (!this.data.resultLeaveId || this.data.downloading) return
+    const request = this.data.requests.find(item => item.id === this.data.resultLeaveId)
+    const startDate = request ? request.startDate.replace(/-/g, '') : ''
+    const filename = `${this.data.profile && this.data.profile.name ? this.data.profile.name : '员工'}_${startDate}_请假单.pdf`
+    wx.showModal({
+      title: '下载请假单',
+      content: `将下载文件：${filename}`,
+      confirmText: '下载',
+      cancelText: '取消',
+      success: async result => {
+        if (!result.confirm) return
+        await this.doDownloadPdf()
+      }
+    })
+  },
+
+  async doDownloadPdf() {
+    if (this.data.downloading) return
     this.setData({ downloading: true })
     try {
       const filePath = await leave.downloadPdf(this.data.resultLeaveId)

@@ -1,0 +1,97 @@
+<navigation-bar title="字段维护" color="#1F2329" background="#F7F8FA"></navigation-bar>
+<view class="dict-tabs">
+  <view
+    class="dict-tab {{activeTab === item.value ? 'dict-tab--active' : ''}}"
+    wx:for="{{tabs}}"
+    wx:key="value"
+    data-tab="{{item.value}}"
+    bindtap="switchTab"
+  >{{item.label}}</view>
+</view>
+
+<scroll-view class="scrollarea" scroll-y wx:if="{{activeTab !== 'bank-projects'}}">
+  <view class="page-shell">
+    <view class="dict-list" wx:if="{{!loading && !loadError}}">
+      <view class="dict-card card" wx:for="{{activeTab === 'departments' ? departments : locations}}" wx:key="id">
+        <view class="dict-card__main">
+          <text class="dict-card__name">{{item.name}}</text>
+        </view>
+        <view class="dict-card__actions">
+          <text class="dict-action" data-id="{{item.id}}" bindtap="openEdit">编辑</text>
+          <text class="dict-action dict-action--danger" data-id="{{item.id}}" bindtap="remove">删除</text>
+        </view>
+      </view>
+      <view class="dict-empty" wx:if="{{activeTab === 'departments' ? !departments.length : !locations.length}}">暂无数据，点击下方新增</view>
+    </view>
+    <view class="loading" wx:elif="{{loading}}">加载中…</view>
+    <view class="list-error card" wx:elif="{{loadError}}">
+      <text>{{loadError}}</text>
+      <button class="list-retry" bindtap="loadData">重新加载</button>
+    </view>
+
+    <view class="dict-footer" wx:if="{{!loading && !loadError}}">
+      <button class="primary-button dict-add" bindtap="openAdd">新增{{activeTab === 'departments' ? '行内处室' : '打卡地点'}}</button>
+    </view>
+  </view>
+</scroll-view>
+
+<view class="dict-split" wx:elif="{{activeTab === 'bank-projects'}}">
+  <view class="dict-split__left">
+    <scroll-view class="dict-split__scroll" scroll-y>
+      <view
+        class="dict-split__dept {{projectDeptIndex === index ? 'dict-split__dept--active' : ''}}"
+        wx:for="{{departmentOptions}}"
+        wx:key="id"
+        data-index="{{index}}"
+        bindtap="onProjectDeptChange"
+      >{{item.name}}</view>
+      <view class="dict-split__hint" wx:if="{{!departmentOptions.length}}">暂无行内处室</view>
+    </scroll-view>
+  </view>
+  <view class="dict-split__right">
+    <scroll-view class="dict-split__scroll" scroll-y>
+      <view class="dict-split__body">
+        <view class="loading" wx:if="{{loading}}">加载中…</view>
+        <view class="list-error card" wx:elif="{{loadError}}">
+          <text>{{loadError}}</text>
+          <button class="list-retry" bindtap="loadData">重新加载</button>
+        </view>
+        <block wx:else>
+          <view class="dict-card card" wx:for="{{deptProjects}}" wx:key="id">
+            <view class="dict-card__main">
+              <text class="dict-card__name">{{item.name}}</text>
+            </view>
+            <view class="dict-card__actions">
+              <text class="dict-action" data-id="{{item.id}}" bindtap="openEdit">编辑</text>
+              <text class="dict-action dict-action--danger" data-id="{{item.id}}" bindtap="remove">删除</text>
+            </view>
+          </view>
+          <view class="dict-empty" wx:if="{{!deptProjects.length}}">该处室暂无项目</view>
+          <button class="primary-button dict-add" bindtap="openAdd">新增行内项目</button>
+        </block>
+      </view>
+    </scroll-view>
+  </view>
+</view>
+
+<view class="modal-mask" wx:if="{{editing}}" bindtap="close">
+  <view class="form-card" catchtap="noop">
+    <scroll-view class="form-scroll" scroll-y>
+      <view class="form-content">
+        <text class="form-title">{{form.id ? '编辑' : '新增'}}{{activeTab === 'departments' ? '行内处室' : (activeTab === 'attendance-locations' ? '打卡地点' : '行内项目')}}</text>
+        <view class="field"><text class="label">名称</text><input class="control" value="{{form.name}}" bindinput="onNameInput" maxlength="160" placeholder="请输入名称" /></view>
+        <view class="field" wx:if="{{activeTab === 'bank-projects'}}">
+          <text class="label">所属处室</text>
+          <picker range="{{departmentOptions}}" range-key="name" value="{{departmentIndex}}" bindchange="onDepartmentChange">
+            <view class="control">{{departmentOptions[departmentIndex] ? departmentOptions[departmentIndex].name : '请先创建处室'}}<text class="picker-arrow">›</text></view>
+          </picker>
+        </view>
+        <view class="actions">
+          <button class="secondary" bindtap="close">取消</button>
+          <button class="primary-button" loading="{{saving}}" disabled="{{deleting}}" bindtap="save">保存</button>
+        </view>
+        <text class="danger-help" wx:if="{{activeTab === 'bank-projects'}}">删除处室会级联删除其下所有项目；已被用户引用的字典项无法删除。</text>
+      </view>
+    </scroll-view>
+  </view>
+</view>

@@ -8,7 +8,7 @@
       <text class="summary-note" wx:else>暂无可用调休额度</text>
     </view>
 
-    <view class="rule-tip"><text class="rule-tag">规则</text><text class="rule-text">开始与结束时间自选（可跨零点），时长按已满整小时向下取整，登记 2 至 6 小时；加班发生后三个月内可补录，额度自加班日起三个月有效。</text></view>
+    <view class="rule-tip"><text class="rule-tag">规则</text><text class="rule-text">选择下班时间与加班时长（2 至 6 个整小时），实际加班时间以此为准；加班发生后三个月内可补录，额度自加班日起三个月有效。</text></view>
 
     <view class="ledger-entry card" bindtap="openLedger">
       <view class="ledger-entry-icon">记</view>
@@ -31,7 +31,7 @@
           <text class="status status--{{item.status}}">{{item.statusLabel}}</text>
         </view>
         <text class="record-content">{{item.content}}</text>
-        <text class="record-meta">{{item.startTime}}–{{item.endTime}} · {{item.hours}}小时 · 剩余{{item.remainingHours}}小时</text>
+        <text class="record-meta">{{item.offTime ? item.offTime + ' 下班 · ' : ''}}{{item.hours}}小时 · 剩余{{item.remainingHours}}小时</text>
         <text class="record-expiry">有效期至 {{item.expiresAt}}</text>
         <button wx:if="{{item.canRevoke}}" class="text-button" data-id="{{item.id}}" bindtap="revoke">撤销</button>
       </view>
@@ -66,18 +66,17 @@
           </picker>
         </view>
         <view class="field">
-          <text class="field-label">开始时间</text>
-          <picker mode="time" value="{{form.startTime}}" bindchange="onStartTimeChange">
-            <view class="field-control">{{form.startTime}}</view>
+          <text class="field-label">下班时间</text>
+          <picker mode="time" value="{{form.offTime}}" bindchange="onOffTimeChange">
+            <view class="field-control">{{form.offTime}}</view>
           </picker>
         </view>
         <view class="field">
-          <text class="field-label">结束时间</text>
-          <picker mode="time" value="{{form.endTime}}" bindchange="onEndTimeChange">
-            <view class="field-control">{{form.endTime}}</view>
+          <text class="field-label">加班时长</text>
+          <picker range="{{hoursOptions}}" value="{{form.hoursIndex}}" bindchange="onHoursChange">
+            <view class="field-control">{{hoursOptions[form.hoursIndex]}} 小时</view>
           </picker>
-          <text class="field-help">按已满整小时计（如 17:30-19:29 计1小时、17:30-20:29 计2小时），不足2小时或超6小时无法登记；结束早于开始按跨零点处理。</text>
-          <text class="field-help {{timeSummaryDanger ? 'field-help--danger' : ''}}" wx:if="{{timeSummary}}">{{timeSummary}}</text>
+          <text class="field-help">实际加班时间以此为准。</text>
         </view>
         <view class="field">
           <text class="field-label">工作内容</text>

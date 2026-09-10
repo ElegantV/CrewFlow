@@ -264,19 +264,55 @@ function render(svgPath, outPath) {
 }
 
 /* ---------- 主流程:默认只修复"全不透明"的坏图 ---------- */
+// 坏图(qlmanage 白底转换)整图 alpha 均为 255,而本脚本生成的图标是透明底。
+// 早期实现只解压首行且假定 filter=0,曾漏检 list.png(非 filter-0 且首行恰好有
+// 透明像素):这里做全图解码 + 全量 alpha 校验,正确还原 PNG filter 后再判定。
+function decodeRgba(raw, w, h) {
+  const rgba = new Uint8Array(w * h * 4);
+  const stride = w * 4;
+  for (let y = 0; y < h; y++) {
+    const filter = raw[y * (stride + 1)];
+    const row = y * (stride + 1) + 1;
+    const out = y * stride;
+    for (let x = 0; x < stride; x++) {
+      const v = raw[row + x];
+      const left = x >= 4 ? rgba[out + x - 4] : 0;
+      const up = y > 0 ? rgba[out - stride + x] : 0;
+      const ul = x >= 4 && y > 0 ? rgba[out - stride + x - 4] : 0;
+      let r;
+      switch (filter) {
+        case 1: r = v + left; break;
+        case 2: r = v + up; break;
+        case 3: r = v + ((left + up) >> 1); break;
+        case 4: {
+          const p = left + up - ul;
+          const pa = Math.abs(p - left), pb = Math.abs(p - up), pc = Math.abs(p - ul);
+          r = v + (pa <= pb && pa <= pc ? left : pb <= pc ? up : ul);
+          break;
+        }
+        default: r = v; break;
+      }
+      rgba[out + x] = r & 0xff;
+    }
+  }
+  return rgba;
+}
+
 function isFullyOpaque(file) {
   if (!fs.existsSync(file)) return true;
-  // 快速判别:坏图是均匀纯色,文件极小;再校验首行 alpha 无 0 值
   const buf = fs.readFileSync(file);
-  // 找到 IDAT 并解压首行
+  // 找到 IDAT 并解压全图
   let off = 8;
   while (off < buf.length) {
     const len = buf.readUInt32BE(off);
     const type = buf.toString('ascii', off + 4, off + 8);
     if (type === 'IDAT') {
       const raw = zlib.inflateSync(buf.subarray(off + 8, off + 8 + len));
-      // 首行 1 + 128*4 字节,filter 0
-      for (let x = 0; x < SIZE; x++) if (raw[1 + x * 4 + 3] < 8) return false;
+      if (raw.length < 1 + SIZE * 4) return true; // 数据异常视为坏图
+      const rgba = decodeRgba(raw, SIZE, SIZE);
+      for (let i = 0; i < SIZE * SIZE; i++) {
+        if (rgba[i * 4 + 3] < 8) return false;
+      }
       return true;
     }
     off += 12 + len;

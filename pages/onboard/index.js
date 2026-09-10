@@ -1,6 +1,23 @@
 const me = require('../../services/me')
 const onboard = require('../../utils/onboard')
 
+// 从人员列表提取"处室 → 一级选项"（含"全部处室"兜底）。
+function buildDeptOptions(people) {
+  const options = [{ value: '', label: '全部处室' }]
+  const seen = new Set()
+  people.forEach(person => {
+    const dept = (person.department || '').trim()
+    if (!dept || seen.has(dept)) return
+    seen.add(dept)
+    options.push({ value: dept, label: dept })
+  })
+  return options
+}
+
+function filterByDept(people, dept) {
+  return dept ? people.filter(person => person.department === dept) : people
+}
+
 const STEP_META = {
   basic: { title: '基本信息', description: '填写姓名并选择人员类型' },
   relations: { title: '审批人与代理人', description: '一次性选择审批管理员与工作代理人' },
@@ -24,8 +41,16 @@ Page({
     personnelTypeIndex: 1,
     people: [],
     selectedAgentIndex: -1,
+    selectedAgentId: '',
     managers: [],
     selectedManagerIndex: -1,
+    selectedManagerId: '',
+    agentDepartments: [{ value: '', label: '全部处室' }],
+    selectedAgentDeptIndex: 0,
+    filteredPeople: [],
+    managerDepartments: [{ value: '', label: '全部处室' }],
+    selectedManagerDeptIndex: 0,
+    filteredManagers: [],
     saving: false,
     signatureDirty: false,
     savingSignature: false
@@ -74,8 +99,22 @@ Page({
     try {
       const result = await me.people()
       const people = result.people || []
-      const selectedAgentIndex = current.agent ? people.findIndex(person => person.id === current.agent.id) : -1
-      this.setData({ people, selectedAgentIndex })
+      const selectedAgentId = current.agent ? current.agent.id : ''
+      const agentDepartments = buildDeptOptions(people)
+      const selectedAgentDeptIndex = current.agent && current.agent.department
+        ? Math.max(0, agentDepartments.findIndex(item => item.value === current.agent.department))
+        : 0
+      const filteredPeople = filterByDept(people, agentDepartments[selectedAgentDeptIndex].value)
+      this.setData({
+        people,
+        agentDepartments,
+        selectedAgentDeptIndex,
+        filteredPeople,
+        selectedAgentId,
+        selectedAgentIndex: selectedAgentId
+          ? filteredPeople.findIndex(person => person.id === selectedAgentId)
+          : -1
+      })
     } catch (error) {
       this.setData({ people: [] })
     }
@@ -87,8 +126,22 @@ Page({
     try {
       const result = await me.managers()
       const managers = result.managers || []
-      const selectedManagerIndex = current.manager ? managers.findIndex(manager => manager.id === current.manager.id) : -1
-      this.setData({ managers, selectedManagerIndex })
+      const selectedManagerId = current.manager ? current.manager.id : ''
+      const managerDepartments = buildDeptOptions(managers)
+      const selectedManagerDeptIndex = current.manager && current.manager.department
+        ? Math.max(0, managerDepartments.findIndex(item => item.value === current.manager.department))
+        : 0
+      const filteredManagers = filterByDept(managers, managerDepartments[selectedManagerDeptIndex].value)
+      this.setData({
+        managers,
+        managerDepartments,
+        selectedManagerDeptIndex,
+        filteredManagers,
+        selectedManagerId,
+        selectedManagerIndex: selectedManagerId
+          ? filteredManagers.findIndex(manager => manager.id === selectedManagerId)
+          : -1
+      })
     } catch (error) {
       this.setData({ managers: [] })
     }
@@ -104,24 +157,66 @@ Page({
     this.setData({ personnelTypeIndex: index, 'form.personnelType': this.data.personnelTypes[index].value })
   },
 
+  onAgentDeptChange(event) {
+    const index = Number(event.detail.value)
+    const dept = this.data.agentDepartments[index].value
+    const filteredPeople = filterByDept(this.data.people, dept)
+    const selectedAgentId = filteredPeople.some(person => person.id === this.data.selectedAgentId)
+      ? this.data.selectedAgentId
+      : ''
+    this.setData({
+      selectedAgentDeptIndex: index,
+      filteredPeople,
+      selectedAgentId,
+      selectedAgentIndex: selectedAgentId
+        ? filteredPeople.findIndex(person => person.id === selectedAgentId)
+        : -1
+    })
+  },
+
+  onManagerDeptChange(event) {
+    const index = Number(event.detail.value)
+    const dept = this.data.managerDepartments[index].value
+    const filteredManagers = filterByDept(this.data.managers, dept)
+    const selectedManagerId = filteredManagers.some(manager => manager.id === this.data.selectedManagerId)
+      ? this.data.selectedManagerId
+      : ''
+    this.setData({
+      selectedManagerDeptIndex: index,
+      filteredManagers,
+      selectedManagerId,
+      selectedManagerIndex: selectedManagerId
+        ? filteredManagers.findIndex(manager => manager.id === selectedManagerId)
+        : -1
+    })
+  },
+
   onAgentChange(event) {
-    this.setData({ selectedAgentIndex: Number(event.detail.value) })
+    const index = Number(event.detail.value)
+    this.setData({
+      selectedAgentIndex: index,
+      selectedAgentId: index >= 0 ? this.data.filteredPeople[index].id : ''
+    })
   },
 
   onManagerChange(event) {
-    this.setData({ selectedManagerIndex: Number(event.detail.value) })
+    const index = Number(event.detail.value)
+    this.setData({
+      selectedManagerIndex: index,
+      selectedManagerId: index >= 0 ? this.data.filteredManagers[index].id : ''
+    })
   },
 
   // PUT /profile 是整行更新，这里带上已加载的资料一起提交，避免把其他字段清成空。
   async saveBasic() {
-    const { form, profile, people, selectedAgentIndex, saving } = this.data
+    const { form, profile, filteredPeople, selectedAgentIndex, saving } = this.data
     if (saving) return
     const name = (form.name || '').trim()
     if (!name) {
       wx.showToast({ title: '请填写中文姓名', icon: 'none' })
       return
     }
-    const agent = people[selectedAgentIndex]
+    const agent = filteredPeople[selectedAgentIndex]
     if (form.personnelType !== 'bank' && !agent && !(profile.agent && profile.agent.id)) {
       wx.showToast({ title: '非行员请选择工作代理人', icon: 'none' })
       return
@@ -163,12 +258,12 @@ Page({
   },
 
   async saveRelations() {
-    const { saving, profile, people, managers, selectedAgentIndex, selectedManagerIndex } = this.data
+    const { saving, profile, filteredPeople, filteredManagers, selectedAgentIndex, selectedManagerIndex } = this.data
     if (saving) return
     const needManager = profile.role === 'user'
     const needAgent = profile.personnelType !== 'bank'
-    const manager = managers[selectedManagerIndex]
-    const agent = people[selectedAgentIndex]
+    const manager = filteredManagers[selectedManagerIndex]
+    const agent = filteredPeople[selectedAgentIndex]
     if (needManager && !manager) {
       wx.showToast({ title: '请选择审批人', icon: 'none' })
       return

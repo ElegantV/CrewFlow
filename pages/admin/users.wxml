@@ -27,6 +27,7 @@
         <text class="form-title">编辑用户</text>
         <view class="field"><text class="label">姓名</text><input class="control" value="{{form.name}}" bindinput="onNameInput" /></view>
         <view class="field"><text class="label">工号</text><input class="control" value="{{form.employeeNo}}" bindinput="onEmployeeNoInput" /></view>
+        <view class="field"><text class="label">行内级别</text><input class="control" value="{{form.bankLevel}}" bindinput="onBankLevelInput" maxlength="80" /></view>
         <view class="field"><text class="label">角色</text><picker range="{{roles}}" range-key="label" value="{{roleIndex}}" bindchange="onRoleChange"><view class="control">{{roles[roleIndex].label}}</view></picker></view>
         <view class="field"><text class="label">状态</text><picker range="{{statuses}}" range-key="label" value="{{statusIndex}}" bindchange="onStatusChange"><view class="control">{{statuses[statusIndex].label}}</view></picker></view>
         <view class="field"><text class="label">审批管理员</text><picker range="{{managers}}" range-key="name" value="{{managerIndex}}" bindchange="onManagerChange"><view class="control">{{managers[managerIndex].name}}</view></picker></view>

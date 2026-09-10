@@ -250,7 +250,7 @@ Page({
       // 待激活账号由请求层统一跳转注册页，这里无需处理。
       if (error.code === 'ACCOUNT_PENDING') return null
       // 其余失败(断网/5xx)保留上次资料并提示,避免静默失败造成陈旧数据的错觉。
-      wx.showToast({ title: '个人信息刷新失败，请检查网络后重试', icon: 'none' })
+      wx.showToast({ title: '个人信息刷新失败，请稍后重试', icon: 'none' })
       return null
     }
   },

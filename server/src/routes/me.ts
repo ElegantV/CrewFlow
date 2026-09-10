@@ -34,7 +34,6 @@ const profileSchema = z.object({
   bankProject: nullableText(160),
   agentUserId: z.string().uuid().nullable(),
   attendanceLocation: nullableText(160),
-  bankLevel: nullableText(80),
   itlStatus: z.enum(["yes", "no", "ops"]),
   workStartDate: z.preprocess(value => value === "" || value === undefined ? null : value,
     z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable()),
@@ -211,11 +210,11 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/people", protectedHooks, async (request) => {
-    const result = await db.query<{ id: string; name: string | null; employee_no: string | null }>(
-      `SELECT id, name, employee_no
+    const result = await db.query<{ id: string; name: string | null; employee_no: string | null; department: string | null }>(
+      `SELECT id, name, employee_no, department
        FROM users
        WHERE status = 'active' AND id <> $1 AND personnel_type <> 'bank'
-       ORDER BY name NULLS LAST, employee_no NULLS LAST`,
+       ORDER BY name NULLS LAST, employee_no NULLS LAST, id`,
       [request.actor!.id],
     );
     return {
@@ -223,6 +222,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
         id: person.id,
         name: person.name,
         employeeNo: person.employee_no,
+        department: person.department,
       })),
     };
   });
@@ -248,11 +248,11 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/managers", protectedHooks, async (request) => {
-    const result = await db.query<{ id: string; name: string | null; employee_no: string | null }>(
-      `SELECT id, name, employee_no
+    const result = await db.query<{ id: string; name: string | null; employee_no: string | null; department: string | null }>(
+      `SELECT id, name, employee_no, department
        FROM users
        WHERE status = 'active' AND role IN ('admin', 'super_admin') AND id <> $1
-       ORDER BY name NULLS LAST, employee_no NULLS LAST`,
+       ORDER BY name NULLS LAST, employee_no NULLS LAST, id`,
       [request.actor!.id],
     );
     return {
@@ -260,6 +260,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
         id: manager.id,
         name: manager.name,
         employeeNo: manager.employee_no,
+        department: manager.department,
       })),
     };
   });
@@ -305,13 +306,13 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
       await db.query(
         `UPDATE users SET name = $1, account_name = $2, oa_account = $3, id_card_no = $4,
           personnel_type = $5, digital_employee_no = $6, department = $7, bank_project = $8,
-          agent_user_id = $9, attendance_location = $10, bank_level = $11, itl_status = $12,
-          work_start_date = $13, mobile = $14, address = $15,
-          emergency_contact_name = $16, emergency_contact_phone = $17, updated_at = now()
-         WHERE id = $18`,
+          agent_user_id = $9, attendance_location = $10, itl_status = $11,
+          work_start_date = $12, mobile = $13, address = $14,
+          emergency_contact_name = $15, emergency_contact_phone = $16, updated_at = now()
+         WHERE id = $17`,
         [profile.name, profile.accountName, profile.oaAccount, profile.idCardNo?.toUpperCase() ?? null,
           profile.personnelType, profile.digitalEmployeeNo, profile.department, profile.bankProject,
-          profile.agentUserId, profile.attendanceLocation, profile.bankLevel, profile.itlStatus,
+          profile.agentUserId, profile.attendanceLocation, profile.itlStatus,
           profile.workStartDate, profile.mobile, profile.address, profile.emergencyContactName,
           profile.emergencyContactPhone, request.actor!.id],
       );
@@ -375,7 +376,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
          FROM leave_requests
          WHERE applicant_id = $1
            AND start_date <= $3 AND end_date >= $2
-         ORDER BY start_date DESC, submitted_at DESC`,
+         ORDER BY start_date DESC, submitted_at DESC, id`,
         [actor.id, rangeStart, rangeEnd],
       ),
       db.query<{
@@ -391,7 +392,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
                 content, status, expires_at::text
          FROM duty_records
          WHERE user_id = $1 AND duty_date >= $2 AND duty_date <= $3
-         ORDER BY duty_date DESC`,
+         ORDER BY duty_date DESC, id`,
         [actor.id, rangeStart, rangeEnd],
       ),
     ]);
@@ -475,7 +476,7 @@ export const meRoutes: FastifyPluginAsync = async (app) => {
          WHERE user_id = $1 AND status = 'active' AND remaining_hours > 0
            AND expires_at >= current_date
            AND expires_at <= current_date + $2::int
-         ORDER BY expires_at, duty_date`,
+         ORDER BY expires_at, duty_date, id`,
         [actor.id, expiringDays],
       );
 

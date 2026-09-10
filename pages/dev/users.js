@@ -58,7 +58,7 @@ Page({
     try {
       const session = await auth.devLogin(userId)
       getApp().globalData.user = session.user
-      wx.showToast({ title: `已切换为${session.user.name}`, icon: 'success' })
+      wx.showToast({ title: `已切换为${session.user.name}`, icon: 'none' })
       setTimeout(() => wx.reLaunch({ url: '/pages/index/index' }), 500)
     } catch (error) {
       this.setData({ switchingId: '' })

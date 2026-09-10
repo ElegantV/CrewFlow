@@ -92,7 +92,7 @@ test("overtime, FIFO timeoff, duplicate leave, cancellation and permissions", as
     method: "POST",
     url: "/api/v1/overtime",
     headers: auth(agentUser),
-    payload: { date: today, endTime: "20:00", content: "两小时半按两小时计算" },
+    payload: { date: today, offTime: "18:00", hours: 2, content: "下班后两小时" },
   });
   assert.equal(rounded.statusCode, 201, rounded.body);
   assert.equal(rounded.json().hours, 2);
@@ -101,7 +101,7 @@ test("overtime, FIFO timeoff, duplicate leave, cancellation and permissions", as
     method: "POST",
     url: "/api/v1/overtime",
     headers: auth(adminUser),
-    payload: { date: today, hours: 3, content: "直接填写三小时" },
+    payload: { date: today, offTime: "18:30", hours: 3, content: "直接填写三小时" },
   });
   assert.equal(directHours.statusCode, 201, directHours.body);
   assert.equal(directHours.json().hours, 3);
@@ -110,7 +110,7 @@ test("overtime, FIFO timeoff, duplicate leave, cancellation and permissions", as
     method: "POST",
     url: "/api/v1/overtime",
     headers: auth(superAdmin),
-    payload: { date: today, hours: 2.5, content: "非整小时" },
+    payload: { date: today, offTime: "18:00", hours: 2.5, content: "非整小时" },
   });
   assert.equal(invalidDirectHours.statusCode, 400);
   assert.equal(invalidDirectHours.json().code, "INVALID_OVERTIME");
@@ -119,16 +119,16 @@ test("overtime, FIFO timeoff, duplicate leave, cancellation and permissions", as
     method: "POST",
     url: "/api/v1/overtime",
     headers: auth(superAdmin),
-    payload: { date: today, endTime: "19:29", content: "不足两小时" },
+    payload: { date: today, offTime: "18:00", hours: 1, content: "不足两小时" },
   });
   assert.equal(tooShort.statusCode, 400);
-  assert.equal(tooShort.json().code, "INVALID_OVERTIME_TIME");
+  assert.equal(tooShort.json().code, "INVALID_OVERTIME");
 
   const oldBackfill = await app.inject({
     method: "POST",
     url: "/api/v1/overtime",
     headers: auth(superAdmin),
-    payload: { date: addDays(today, -8), endTime: "19:30", content: "补录任意过去日期" },
+    payload: { date: addDays(today, -8), offTime: "18:00", hours: 2, content: "补录任意过去日期" },
   });
   assert.equal(oldBackfill.statusCode, 201, oldBackfill.body);
   assert.equal(oldBackfill.json().hours, 2);
@@ -137,7 +137,7 @@ test("overtime, FIFO timeoff, duplicate leave, cancellation and permissions", as
     method: "POST",
     url: "/api/v1/overtime",
     headers: auth(normalUser),
-    payload: { date: olderDate, endTime: "19:30", content: "较早加班" },
+    payload: { date: olderDate, offTime: "18:00", hours: 2, content: "较早加班" },
   });
   assert.equal(older.statusCode, 201, older.body);
   assert.equal(older.json().hours, 2);
@@ -146,7 +146,7 @@ test("overtime, FIFO timeoff, duplicate leave, cancellation and permissions", as
     method: "POST",
     url: "/api/v1/overtime",
     headers: auth(normalUser),
-    payload: { date: newerDate, endTime: "21:30", content: "较新加班" },
+    payload: { date: newerDate, offTime: "18:00", hours: 4, content: "较新加班" },
   });
   assert.equal(newer.statusCode, 201, newer.body);
   assert.equal(newer.json().hours, 4);
@@ -155,7 +155,7 @@ test("overtime, FIFO timeoff, duplicate leave, cancellation and permissions", as
     method: "POST",
     url: "/api/v1/overtime",
     headers: auth(normalUser),
-    payload: { date: newerDate, endTime: "20:30", content: "重复加班" },
+    payload: { date: newerDate, offTime: "18:00", hours: 3, content: "重复加班" },
   });
   assert.equal(duplicateOvertime.statusCode, 409);
   assert.equal(duplicateOvertime.json().code, "OVERTIME_DUPLICATE");
@@ -372,7 +372,7 @@ test("overtime, FIFO timeoff, duplicate leave, cancellation and permissions", as
     method: "POST",
     url: "/api/v1/overtime",
     headers: auth(normalUser),
-    payload: { date: addDays(today, -1), endTime: "19:30", content: "审批退回测试" },
+    payload: { date: addDays(today, -1), offTime: "18:00", hours: 2, content: "审批退回测试" },
   });
   assert.equal(extraOvertime.statusCode, 201, extraOvertime.body);
 
@@ -751,7 +751,7 @@ test("加班补录超过三个月返回 OVERTIME_EXPIRED,三个月整仍可补�
     method: "POST",
     url: "/api/v1/overtime",
     headers: auth(normalUser),
-    payload: { date: addDays(boundary, -1), hours: 2, content: "超过三个月补录" },
+    payload: { date: addDays(boundary, -1), offTime: "18:00", hours: 2, content: "超过三个月补录" },
   });
   assert.equal(tooOld.statusCode, 400, tooOld.body);
   assert.equal(tooOld.json().code, "OVERTIME_EXPIRED");
@@ -760,7 +760,7 @@ test("加班补录超过三个月返回 OVERTIME_EXPIRED,三个月整仍可补�
     method: "POST",
     url: "/api/v1/overtime",
     headers: auth(normalUser),
-    payload: { date: boundary, hours: 2, content: "三个月整补录" },
+    payload: { date: boundary, offTime: "18:00", hours: 2, content: "三个月整补录" },
   });
   assert.equal(boundaryOk.statusCode, 201, boundaryOk.body);
 });

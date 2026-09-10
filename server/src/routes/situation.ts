@@ -77,7 +77,7 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
          CROSS JOIN LATERAL generate_series(leave.start_date, leave.end_date, interval '1 day') AS dates(day)
          WHERE leave.status IN ('pending', 'approved')
            AND day >= $1::date AND day < ($2::date + interval '1 month')
-         ORDER BY day, person.name NULLS LAST`,
+         ORDER BY day, person.name NULLS LAST, leave.id`,
         [rangeStart, rangeEndMonth],
       ),
       db.query<{
@@ -98,7 +98,7 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
          WHERE duty.duty_date >= $1::date
            AND duty.duty_date < ($2::date + interval '1 month')
            AND duty.status <> 'revoked'
-         ORDER BY duty.duty_date, person.name NULLS LAST`,
+         ORDER BY duty.duty_date, person.name NULLS LAST, duty.id`,
         [rangeStart, rangeEndMonth],
       ),
       // 头像按人去重单独返回:此前每行展开记录都重复携带头像 bytea(单张可达数百 KB),

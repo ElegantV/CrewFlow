@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { z } from "zod";
 import { allowRoles, loadActiveActor } from "../authz.js";
 import { db } from "../db.js";
@@ -18,6 +18,7 @@ const updateUserSchema = z.object({
   role: z.enum(["user", "admin", "super_admin"]).optional(),
   status: z.enum(["pending", "active", "disabled"]).optional(),
   managerId: z.string().uuid().nullable().optional(),
+  bankLevel: z.string().trim().min(1).max(80).nullable().optional(),
 }).refine((value) => Object.keys(value).length > 0);
 
 export const adminRoutes: FastifyPluginAsync = async (app) => {
@@ -33,14 +34,15 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       employee_no: string | null;
       role: string;
       status: string;
+      bank_level: string | null;
       manager_id: string | null;
       manager_name: string | null;
     }>(
-      `SELECT u.id, u.openid, u.name, u.employee_no, u.role, u.status,
+      `SELECT u.id, u.openid, u.name, u.employee_no, u.role, u.status, u.bank_level,
               u.manager_id, manager.name AS manager_name
        FROM users u
        LEFT JOIN users manager ON manager.id = u.manager_id
-       ORDER BY u.created_at`,
+       ORDER BY u.created_at, u.id`,
     );
     return {
       users: result.rows.map((user) => ({
@@ -50,6 +52,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         employeeNo: user.employee_no,
         role: user.role,
         status: user.status,
+        bankLevel: user.bank_level,
         manager: user.manager_id ? { id: user.manager_id, name: user.manager_name } : null,
       })),
     };
@@ -79,8 +82,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    const current = await db.query<{ name: string | null; employee_no: string | null; role: string; status: string; manager_id: string | null }>(
-      "SELECT name, employee_no, role, status, manager_id FROM users WHERE id = $1",
+    const current = await db.query<{ name: string | null; employee_no: string | null; role: string; status: string; manager_id: string | null; bank_level: string | null }>(
+      "SELECT name, employee_no, role, status, manager_id, bank_level FROM users WHERE id = $1",
       [id.data],
     );
     const existing = current.rows[0];
@@ -94,6 +97,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       role: body.data.role ?? existing.role,
       status: body.data.status ?? existing.status,
       managerId: body.data.managerId === undefined ? existing.manager_id : body.data.managerId,
+      bankLevel: body.data.bankLevel === undefined ? existing.bank_level : body.data.bankLevel,
     };
     if (next.role === "user" && next.status === "active" && !next.managerId) {
       return reply.code(400).send({ code: "MANAGER_REQUIRED", message: "启用普通用户前必须指定审批管理员" });
@@ -101,9 +105,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     await db.query(
       `UPDATE users
-       SET name = $1, employee_no = $2, role = $3, status = $4, manager_id = $5, updated_at = now()
-       WHERE id = $6`,
-      [next.name, next.employeeNo, next.role, next.status, next.managerId, id.data],
+       SET name = $1, employee_no = $2, role = $3, status = $4, manager_id = $5, bank_level = $6, updated_at = now()
+       WHERE id = $7`,
+      [next.name, next.employeeNo, next.role, next.status, next.managerId, next.bankLevel, id.data],
     );
     return { success: true };
   });
@@ -227,7 +231,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
          LEFT JOIN users approver ON approver.id = approval.approver_id
          WHERE leave.start_date <= $2::date AND leave.end_date >= $1::date
          ${userId ? "AND leave.applicant_id = $3::uuid" : ""}
-         ORDER BY leave.start_date, applicant.name NULLS LAST`,
+         ORDER BY leave.start_date, applicant.name NULLS LAST, leave.id`,
         userId ? [start, end, userId] : [start, end],
       ),
       db.query<OvertimeRow>(
@@ -237,7 +241,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
          JOIN users person ON person.id = duty.user_id
          WHERE duty.duty_date >= $1::date AND duty.duty_date <= $2::date
          ${userId ? "AND duty.user_id = $3::uuid" : ""}
-         ORDER BY duty.duty_date, person.name NULLS LAST`,
+         ORDER BY duty.duty_date, person.name NULLS LAST, duty.id`,
         userId ? [start, end, userId] : [start, end],
       ),
     ]);
@@ -334,5 +338,115 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // 公告发布后可手动触发拉取(平时由每日定时任务维护)。
   app.post("/calendar/sync", superAdminHooks, async () => syncCalendar(app.log));
+
+  // ===== 行内字典维护(处室/打卡地点/行内项目) =====
+  // 用户表仍存字典名称文本;删除前检查用户是否引用,被引用则拒绝。
+
+  const dictNameSchema = z.object({ name: z.string().trim().min(1).max(160) });
+
+  async function dictNameTaken(table: string, name: string, excludeId?: string) {
+    const result = await db.query(
+      `SELECT 1 FROM ${table} WHERE name = $1 ${excludeId ? "AND id <> $2" : ""} LIMIT 1`,
+      excludeId ? [name, excludeId] : [name],
+    );
+    return Boolean(result.rowCount);
+  }
+
+  async function dictRefCheck(reply: FastifyReply, table: string, id: string, userColumn: string, label: string) {
+    const used = await db.query(
+      `SELECT 1 FROM users WHERE ${userColumn} = (SELECT name FROM ${table} WHERE id = $1) LIMIT 1`,
+      [id],
+    );
+    if (used.rowCount) {
+      reply.code(409).send({ code: "DICT_IN_USE", message: `该${label}已被用户引用，无法删除` });
+      return true;
+    }
+    return false;
+  }
+
+  function registerDictCrud(path: string, table: string, userColumn: string, label: string) {
+    app.post(`/dicts/${path}`, superAdminHooks, async (request, reply) => {
+      const parsed = dictNameSchema.safeParse(request.body);
+      if (!parsed.success) return reply.code(400).send({ code: "INVALID_DICT", message: "名称无效" });
+      if (await dictNameTaken(table, parsed.data.name)) {
+        return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该名称已存在" });
+      }
+      const result = await db.query(`INSERT INTO ${table} (name) VALUES ($1) RETURNING id, name`, [parsed.data.name]);
+      return { item: result.rows[0] };
+    });
+
+    app.put(`/dicts/${path}/:id`, superAdminHooks, async (request, reply) => {
+      const id = z.string().uuid().safeParse((request.params as { id?: string }).id);
+      const parsed = dictNameSchema.safeParse(request.body);
+      if (!id.success || !parsed.success) return reply.code(400).send({ code: "INVALID_DICT", message: "名称无效" });
+      if (await dictNameTaken(table, parsed.data.name, id.data)) {
+        return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该名称已存在" });
+      }
+      const result = await db.query(
+        `UPDATE ${table} SET name = $1, updated_at = now() WHERE id = $2 RETURNING id, name`,
+        [parsed.data.name, id.data],
+      );
+      if (!result.rowCount) return reply.code(404).send({ code: "DICT_NOT_FOUND", message: "字典项不存在" });
+      return { item: result.rows[0] };
+    });
+
+    app.delete(`/dicts/${path}/:id`, superAdminHooks, async (request, reply) => {
+      const id = z.string().uuid().safeParse((request.params as { id?: string }).id);
+      if (!id.success) return reply.code(400).send({ code: "INVALID_DICT", message: "参数无效" });
+      if (await dictRefCheck(reply, table, id.data, userColumn, label)) return;
+      const result = await db.query(`DELETE FROM ${table} WHERE id = $1 RETURNING id`, [id.data]);
+      if (!result.rowCount) return reply.code(404).send({ code: "DICT_NOT_FOUND", message: "字典项不存在" });
+      return { success: true };
+    });
+  }
+
+  registerDictCrud("departments", "departments", "department", "行内处室");
+  registerDictCrud("attendance-locations", "attendance_locations", "attendance_location", "打卡地点");
+
+  // 行内项目:名称 + 所属处室(处室被删时项目级联删除)。
+  const bankProjectSchema = z.object({
+    name: z.string().trim().min(1).max(160),
+    departmentId: z.string().uuid(),
+  });
+
+  app.post("/dicts/bank-projects", superAdminHooks, async (request, reply) => {
+    const parsed = bankProjectSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ code: "INVALID_DICT", message: "项目或处室无效" });
+    const dep = await db.query("SELECT 1 FROM departments WHERE id = $1", [parsed.data.departmentId]);
+    if (!dep.rowCount) return reply.code(404).send({ code: "DEPARTMENT_NOT_FOUND", message: "所属处室不存在" });
+    if (await dictNameTaken("bank_projects", parsed.data.name)) {
+      return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该名称已存在" });
+    }
+    const result = await db.query(
+      `INSERT INTO bank_projects (department_id, name) VALUES ($1, $2)
+       RETURNING id, department_id, name`,
+      [parsed.data.departmentId, parsed.data.name],
+    );
+    return { item: result.rows[0] };
+  });
+
+  app.put("/dicts/bank-projects/:id", superAdminHooks, async (request, reply) => {
+    const id = z.string().uuid().safeParse((request.params as { id?: string }).id);
+    const parsed = bankProjectSchema.safeParse(request.body);
+    if (!id.success || !parsed.success) return reply.code(400).send({ code: "INVALID_DICT", message: "项目或处室无效" });
+    const dep = await db.query("SELECT 1 FROM departments WHERE id = $1", [parsed.data.departmentId]);
+    if (!dep.rowCount) return reply.code(404).send({ code: "DEPARTMENT_NOT_FOUND", message: "所属处室不存在" });
+    const result = await db.query(
+      `UPDATE bank_projects SET name = $1, department_id = $2, updated_at = now()
+       WHERE id = $3 RETURNING id, department_id, name`,
+      [parsed.data.name, parsed.data.departmentId, id.data],
+    );
+    if (!result.rowCount) return reply.code(404).send({ code: "DICT_NOT_FOUND", message: "字典项不存在" });
+    return { item: result.rows[0] };
+  });
+
+  app.delete("/dicts/bank-projects/:id", superAdminHooks, async (request, reply) => {
+    const id = z.string().uuid().safeParse((request.params as { id?: string }).id);
+    if (!id.success) return reply.code(400).send({ code: "INVALID_DICT", message: "参数无效" });
+    if (await dictRefCheck(reply, "bank_projects", id.data, "bank_project", "行内项目")) return;
+    const result = await db.query("DELETE FROM bank_projects WHERE id = $1 RETURNING id", [id.data]);
+    if (!result.rowCount) return reply.code(404).send({ code: "DICT_NOT_FOUND", message: "字典项不存在" });
+    return { success: true };
+  });
 };
 

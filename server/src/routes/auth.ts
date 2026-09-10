@@ -201,7 +201,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
        FROM users
        WHERE name = $1 AND mobile = $2 AND id <> $3
          AND status = 'active' AND role = 'user'
-       ORDER BY created_at
+       ORDER BY created_at, id
        LIMIT 1`,
       [parsed.data.name, parsed.data.mobile, user.id],
     );
@@ -264,7 +264,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
        LEFT JOIN users manager ON manager.id = u.manager_id
        WHERE u.openid LIKE 'crewflow-test-%'
        ORDER BY CASE u.role WHEN 'super_admin' THEN 1 WHEN 'admin' THEN 2 ELSE 3 END,
-                u.employee_no NULLS LAST`,
+                u.employee_no NULLS LAST, u.id`,
     );
     return {
       users: result.rows.map((user) => ({

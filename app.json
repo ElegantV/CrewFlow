@@ -14,6 +14,7 @@
     "pages/admin/users",
     "pages/admin/system/system",
     "pages/admin/calendar/calendar",
+    "pages/admin/dicts/index",
     "pages/dev/users"
   ],
   "window": {

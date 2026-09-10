@@ -48,33 +48,49 @@
       </view>
       <view class="field">
         <text class="field-label">行内处室</text>
-        <input class="field-control" value="{{form.department}}" data-field="department" bindinput="onInput" maxlength="120" placeholder="请输入行内处室" />
+        <picker range="{{departments}}" range-key="name" value="{{departmentIndex}}" bindchange="onDepartmentChange">
+          <view class="field-control field-picker {{departments[departmentIndex] ? '' : 'field-placeholder'}}">{{departments[departmentIndex] ? departments[departmentIndex].name : '请选择行内处室'}}<text class="picker-arrow">›</text></view>
+        </picker>
       </view>
       <view class="field">
         <text class="field-label">对应行内项目</text>
-        <input class="field-control" value="{{form.bankProject}}" data-field="bankProject" bindinput="onInput" maxlength="160" placeholder="请输入对应项目" />
+        <picker range="{{projectOptions}}" range-key="name" value="{{projectIndex}}" bindchange="onProjectChange" disabled="{{!projectOptions.length}}">
+          <view class="field-control field-picker {{projectOptions[projectIndex] ? '' : 'field-placeholder'}}">{{projectOptions[projectIndex] ? projectOptions[projectIndex].name : '请先选择行内处室'}}<text class="picker-arrow">›</text></view>
+        </picker>
       </view>
       <view class="field">
         <text class="field-label">对应审批人（管理员）</text>
-        <picker range="{{managers}}" range-key="name" value="{{selectedManagerIndex}}" bindchange="onManagerChange">
-          <view class="field-control field-picker">{{selectedManagerIndex >= 0 ? managers[selectedManagerIndex].name : (profile.manager ? profile.manager.name : '请选择审批人')}}<text class="picker-arrow">›</text></view>
+        <picker mode="multiSelector" range="{{managerMultiRange}}" range-key="name" value="{{managerMultiIndex}}" bindchange="onManagerMultiChange" bindcolumnchange="onManagerMultiColumnChange">
+          <view class="field-control field-picker">
+            <text class="{{selectedManagerIndex >= 0 || profile.manager ? '' : 'field-placeholder'}}">{{selectedManagerIndex >= 0 ? filteredManagers[selectedManagerIndex].name : (profile.manager ? profile.manager.name : '请选择审批人')}}</text>
+            <text class="picker-arrow">›</text>
+          </view>
         </picker>
         <text class="field-help" wx:if="{{!managers.length}}">暂无可选审批人，请联系超级管理员分配审批关系。</text>
-        <text class="field-help" wx:else>请假申请将提交给所选的审批管理员处理。</text>
+        <text class="field-help" wx:else>先选处室，再选该处室的审批管理员。</text>
       </view>
       <view class="field" wx:if="{{form.personnelType !== 'bank'}}">
         <text class="field-label">工作代理人（非行员） <text class="required">*</text></text>
-        <picker range="{{people}}" range-key="name" value="{{selectedAgentIndex}}" bindchange="onAgentChange">
-          <view class="field-control field-picker">{{selectedAgentIndex >= 0 ? people[selectedAgentIndex].name : '请选择非行员代理人'}}<text class="picker-arrow">›</text></view>
+        <picker mode="multiSelector" range="{{agentMultiRange}}" range-key="name" value="{{agentMultiIndex}}" bindchange="onAgentMultiChange" bindcolumnchange="onAgentMultiColumnChange">
+          <view class="field-control field-picker">
+            <text class="{{selectedAgentIndex >= 0 || profile.agent ? '' : 'field-placeholder'}}">{{selectedAgentIndex >= 0 ? filteredPeople[selectedAgentIndex].name : (profile.agent ? profile.agent.name : '请选择非行员代理人')}}</text>
+            <text class="picker-arrow">›</text>
+          </view>
         </picker>
       </view>
       <view class="field">
         <text class="field-label">打卡地点</text>
-        <input class="field-control" value="{{form.attendanceLocation}}" data-field="attendanceLocation" bindinput="onInput" maxlength="160" placeholder="请输入常用打卡地点" />
+        <picker range="{{locations}}" range-key="name" value="{{locationIndex}}" bindchange="onLocationChange">
+          <view class="field-control field-picker {{locations[locationIndex] ? '' : 'field-placeholder'}}">{{locations[locationIndex] ? locations[locationIndex].name : '请选择打卡地点'}}<text class="picker-arrow">›</text></view>
+        </picker>
       </view>
       <view class="field">
         <text class="field-label">行内级别</text>
-        <input class="field-control" value="{{form.bankLevel}}" data-field="bankLevel" bindinput="onInput" maxlength="80" placeholder="请输入行内级别" />
+        <view class="field-control field-picker" bindtap="onBankLevelTap">
+          <text>{{form.bankLevel || '1级'}}</text>
+          <text class="picker-arrow">›</text>
+        </view>
+        <text class="field-help">行内级别默认 1 级，如需调整请联系管理员。</text>
       </view>
       <view class="field">
         <text class="field-label">ITL 开通情况</text>
@@ -128,7 +144,7 @@
       <view class="wxpusher-bound" wx:if="{{wxpusherBound}}">
         <view class="wxpusher-uid">已绑定 UID：{{wxpusherUid}}</view>
         <view class="wxpusher-actions">
-          <button class="secondary-button" bindtap="testPush">发送提醒消息</button>
+          <button class="text-button" bindtap="testPush">发送提醒消息</button>
           <button class="text-button-danger" bindtap="unbindPush">解绑</button>
         </view>
       </view>

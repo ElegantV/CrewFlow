@@ -17,6 +17,11 @@
         <text class="admin-action__title">节假日历</text>
         <text class="admin-action__desc">节假日查看与人工维护</text>
       </view>
+      <view class="admin-action card" hover-class="tap-active" hover-stay-time="80" bindtap="openDicts">
+        <view class="admin-action__icon admin-action__icon--dict"><image class="admin-action__img" src="/assets/icons/fa/list.png" mode="aspectFit" /></view>
+        <text class="admin-action__title">字段维护</text>
+        <text class="admin-action__desc">行内处室、打卡地点与行内项目</text>
+      </view>
     </view>
   </view>
 </scroll-view>

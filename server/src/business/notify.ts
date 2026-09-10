@@ -115,9 +115,8 @@ export async function notifyApplicantDecision(leaveRequestId: string, status: "a
 export async function notifyOvertimeCheckIn(
   userId: string,
   date: string,
+  offTime: string,
   hours: number,
-  startTime: string,
-  endTime: string,
 ) {
   if (!config.WXPUSHER_APP_TOKEN) return;
   try {
@@ -126,11 +125,16 @@ export async function notifyOvertimeCheckIn(
       console.warn(`wxpusher 加班打卡提醒跳过:用户「${userId}」未绑定微信推送`);
       return;
     }
+    // 打卡要求时刻 = 下班时间 + 加班时长,跨零点时按次日处理。
+    const total = minutesOf(offTime) + hours * 60;
+    const clock = total % 1440;
+    const endTime = `${String(Math.floor(clock / 60)).padStart(2, "0")}:${String(clock % 60).padStart(2, "0")}`;
     const content =
       `📋工作日加班打卡提醒\n\n` +
       `日期：${date}\n` +
-      `时段：${startTime}-${endTime}（${hours}小时）\n` +
-      `打卡要求：${endTime}:00之后打卡\n` +
+      `下班时间：${offTime}\n` +
+      `加班时长：${hours}小时（实际加班时间以此为准）\n` +
+      `打卡要求：${endTime}之后打卡\n` +
       `备注：加班无需审批，随时可提，请保证打卡时长大于申请时长！`;
     const sent = await sendWxPusherMessage(content, [uid], "工作日加班打卡提醒");
     if (sent.code !== 1000) {
@@ -139,4 +143,9 @@ export async function notifyOvertimeCheckIn(
   } catch (error) {
     console.error("wxpusher 加班打卡提醒发送异常", error);
   }
+}
+
+function minutesOf(time: string) {
+  const [hour = 0, minute = 0] = time.split(":").map(Number);
+  return hour * 60 + minute;
 }

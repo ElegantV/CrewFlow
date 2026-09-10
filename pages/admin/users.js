@@ -37,11 +37,26 @@ Page({
     this.setData({ loading: true, loadError: '' })
     try {
       const result = await admin.users()
-      const managers = [{ id: '', name: '不指定' }].concat(
-        result.users
-          .filter(user => user.status === 'active' && (user.role === 'admin' || user.role === 'super_admin'))
-          .map(user => ({ id: user.id, name: user.name || user.openid.slice(0, 8) }))
-      )
+      const managers = [{ id: '', name: '不指定' }]
+      const managerIds = new Set()
+      result.users
+        .filter(user => user.status === 'active' && (user.role === 'admin' || user.role === 'super_admin'))
+        .forEach(user => {
+          managers.push({ id: user.id, name: user.name || user.openid.slice(0, 8) })
+          managerIds.add(user.id)
+        })
+      // 现任审批人已被降权/停用/删除时不在可选列表里:仍追加展示并选中,
+      // 避免编辑弹层误显示"不指定",以及直接保存把审批管理员静默清空。
+      result.users.forEach(user => {
+        if (user.manager && !managerIds.has(user.manager.id)) {
+          managers.push({
+            id: user.manager.id,
+            name: `${user.manager.name || '未命名用户'}（已失效）`,
+            invalid: true
+          })
+          managerIds.add(user.manager.id)
+        }
+      })
       this.setData({
         loading: false,
         users: result.users.map(user => Object.assign({}, user, {
@@ -71,6 +86,7 @@ Page({
         id: user.id,
         name: user.name || '',
         employeeNo: user.employeeNo || '',
+        bankLevel: user.bankLevel || '1级',
         role: user.role,
         status: user.status,
         managerId: user.manager ? user.manager.id : null
@@ -85,6 +101,7 @@ Page({
   // 输入期间不 setData 回写受控组件，避免 Skyline 打断中文输入法的拼音组合态。
   onNameInput(event) { this.data.form.name = event.detail.value },
   onEmployeeNoInput(event) { this.data.form.employeeNo = event.detail.value },
+  onBankLevelInput(event) { this.data.form.bankLevel = event.detail.value },
   onRoleChange(event) {
     const index = Number(event.detail.value)
     this.setData({ roleIndex: index, 'form.role': roles[index].value })
@@ -103,11 +120,17 @@ Page({
       wx.showToast({ title: '请填写姓名', icon: 'none' })
       return
     }
+    const manager = this.data.managers[this.data.managerIndex]
+    if (manager && manager.invalid) {
+      wx.showToast({ title: '当前审批人已失效，请重新选择', icon: 'none' })
+      return
+    }
     this.setData({ saving: true })
     try {
       await admin.updateUser(this.data.form.id, {
         name: this.data.form.name,
         employeeNo: this.data.form.employeeNo || null,
+        bankLevel: (this.data.form.bankLevel || '').trim() || null,
         role: this.data.form.role,
         status: this.data.form.status,
         managerId: this.data.form.managerId

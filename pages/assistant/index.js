@@ -135,7 +135,12 @@ Page({
   onVoiceStart() {
     if (this.data.running || this.data.recording || !this.data.voiceMode) return
     if (!voiceReady) {
-      wx.showToast({ title: '语音输入未配置，请在公众平台添加「微信同声传译」插件', icon: 'none' })
+      wx.showModal({
+        title: '语音输入未配置',
+        content: '请在微信公众平台添加「微信同声传译」插件后重试。',
+        showCancel: false,
+        confirmText: '知道了'
+      })
       return
     }
     this.inputDraft = ''

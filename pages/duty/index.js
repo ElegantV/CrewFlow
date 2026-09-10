@@ -23,10 +23,7 @@ const statusLabels = {
   expired: '已到期'
 }
 
-function minutes(time) {
-  const [hour = 0, minute = 0] = String(time).split(':').map(Number)
-  return hour * 60 + minute
-}
+const HOURS_OPTIONS = [2, 3, 4, 5, 6]
 
 Page({
   data: {
@@ -39,12 +36,11 @@ Page({
     maxDate: '',
     minDate: '',
     loadError: '',
-    timeSummary: '',
-    timeSummaryDanger: false,
+    hoursOptions: HOURS_OPTIONS,
     form: {
       date: '',
-      startTime: '17:30',
-      endTime: '19:30',
+      offTime: '18:00',
+      hoursIndex: 0,
       content: ''
     }
   },
@@ -77,7 +73,6 @@ Page({
 
   openForm() {
     this.setData({ showForm: true })
-    this.updateTimeSummary()
   },
 
   closeForm() {
@@ -88,29 +83,12 @@ Page({
     this.setData({ 'form.date': event.detail.value })
   },
 
-  onStartTimeChange(event) {
-    this.setData({ 'form.startTime': event.detail.value }, () => this.updateTimeSummary())
+  onOffTimeChange(event) {
+    this.setData({ 'form.offTime': event.detail.value })
   },
 
-  onEndTimeChange(event) {
-    this.setData({ 'form.endTime': event.detail.value }, () => this.updateTimeSummary())
-  },
-
-  // 根据开始/结束时间实时预览可登记的小时数(向下取整为已满的整小时)。
-  updateTimeSummary() {
-    const form = this.data.form
-    const startMinutes = minutes(form.startTime)
-    const rawEnd = minutes(form.endTime)
-    const endMinutes = rawEnd <= startMinutes ? rawEnd + 1440 : rawEnd
-    const duration = endMinutes - startMinutes
-    const hours = Math.floor(duration / 60)
-    if (hours < 2) {
-      this.setData({ timeSummary: `本次时长约${Math.max(hours, 0)}小时，不足2小时，无法登记`, timeSummaryDanger: true })
-    } else if (hours > 6) {
-      this.setData({ timeSummary: '本次时长超过6小时，请缩短结束时间', timeSummaryDanger: true })
-    } else {
-      this.setData({ timeSummary: `本次将登记 ${hours} 小时`, timeSummaryDanger: false })
-    }
+  onHoursChange(event) {
+    this.setData({ 'form.hoursIndex': Number(event.detail.value) })
   },
 
   onContentInput(event) {
@@ -119,20 +97,7 @@ Page({
 
   async submit() {
     const form = this.data.form
-    const startMinutes = minutes(form.startTime)
-    const rawEnd = minutes(form.endTime)
-    // 结束早于开始时视为跨零点（次日结束）；时长按已满的整小时向下取整。
-    const endMinutes = rawEnd <= startMinutes ? rawEnd + 1440 : rawEnd
-    const duration = endMinutes - startMinutes
-    const hours = Math.floor(duration / 60)
-    if (hours < 2) {
-      wx.showToast({ title: `本次时长约${Math.max(hours, 0)}小时，不足2小时，无法登记`, icon: 'none' })
-      return
-    }
-    if (hours > 6) {
-      wx.showToast({ title: '本次时长超过6小时，无法登记', icon: 'none' })
-      return
-    }
+    const hours = this.data.hoursOptions[form.hoursIndex]
     if (!form.content.trim()) {
       wx.showToast({ title: '请填写加班工作内容', icon: 'none' })
       return
@@ -141,19 +106,18 @@ Page({
     try {
       await overtime.create({
         date: form.date,
-        startTime: form.startTime,
-        endTime: form.endTime,
+        offTime: form.offTime,
+        hours,
         content: form.content.trim()
       })
       this.setData({
         showForm: false,
         submitting: false,
-        'form.startTime': '17:30',
-        'form.endTime': '19:30',
+        'form.offTime': '18:00',
+        'form.hoursIndex': 0,
         'form.content': ''
       })
-      this.updateTimeSummary()
-      wx.showToast({ title: `加班已登记（${hours}小时）`, icon: 'success' })
+      wx.showToast({ title: `已登记${hours}小时`, icon: 'success' })
       await this.loadData()
     } catch (error) {
       this.setData({ submitting: false })

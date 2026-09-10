@@ -24,7 +24,7 @@ export const contactRoutes: FastifyPluginAsync = async (app) => {
       `SELECT id, name, account_name, personnel_type, bank_project, department, mobile
        FROM users
        WHERE status = 'active'
-       ORDER BY COALESCE(bank_project, department, '未配置系统'), name NULLS LAST, account_name NULLS LAST`,
+       ORDER BY COALESCE(bank_project, department, '未配置系统'), name NULLS LAST, account_name NULLS LAST, id`,
     );
     const contacts = result.rows.map(item => {
       const systemName = item.bank_project ?? item.department ?? "未配置系统";

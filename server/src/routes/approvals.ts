@@ -49,7 +49,7 @@ export const approvalRoutes: FastifyPluginAsync = async (app) => {
        WHERE a.status = 'pending'
          AND l.status = 'pending'
          AND ($1 = 'super_admin' OR a.approver_id = $2)
-       ORDER BY l.submitted_at`,
+       ORDER BY l.submitted_at, l.id`,
       [actor.role, actor.id],
     );
 
@@ -95,7 +95,7 @@ export const approvalRoutes: FastifyPluginAsync = async (app) => {
        WHERE approval.status = 'approved'
          AND leave.status = 'approved'
          AND ($1 = 'super_admin' OR approval.approver_id = $2)
-       ORDER BY approval.decided_at DESC
+       ORDER BY approval.decided_at DESC, approval.id
        LIMIT 50`,
       [actor.role, actor.id],
     );

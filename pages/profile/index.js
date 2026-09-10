@@ -24,10 +24,27 @@ function today() {
 
 const MOBILE_RE = /^1[3-9]\d{9}$/
 
+// 从人员列表提取"处室 → 一级选项"（含"全部处室"兜底）。
+function buildDeptOptions(people) {
+  const options = [{ value: '', label: '全部处室' }]
+  const seen = new Set()
+  people.forEach(person => {
+    const dept = (person.department || '').trim()
+    if (!dept || seen.has(dept)) return
+    seen.add(dept)
+    options.push({ value: dept, label: dept })
+  })
+  return options
+}
+
+function filterByDept(people, dept) {
+  return dept ? people.filter(person => person.department === dept) : people
+}
+
 // 参与"未保存修改"判定的字段(不含头像,头像单独即时保存)。
 const DIRTY_KEYS = [
   'name', 'accountName', 'oaAccount', 'idCardNo', 'personnelType', 'digitalEmployeeNo',
-  'department', 'bankProject', 'attendanceLocation', 'bankLevel', 'itlStatus',
+  'department', 'bankProject', 'attendanceLocation', 'itlStatus',
   'workStartDate', 'mobile', 'address', 'emergencyContactName', 'emergencyContactPhone'
 ]
 
@@ -44,8 +61,27 @@ Page({
     form: null,
     people: [],
     selectedAgentIndex: -1,
+    selectedAgentId: '',
     managers: [],
     selectedManagerIndex: -1,
+    selectedManagerId: '',
+    departments: [],
+    departmentIndex: 0,
+    projects: [],
+    projectOptions: [],
+    projectIndex: 0,
+    locations: [],
+    locationIndex: 0,
+    managerDepartments: [{ value: '', label: '全部处室' }],
+    selectedManagerDeptIndex: 0,
+    filteredManagers: [],
+    managerMultiRange: [[], []],
+    managerMultiIndex: [0, 0],
+    agentDepartments: [{ value: '', label: '全部处室' }],
+    selectedAgentDeptIndex: 0,
+    filteredPeople: [],
+    agentMultiRange: [[], []],
+    agentMultiIndex: [0, 0],
     personnelTypes: [
       { value: 'bank', label: '行员' },
       { value: 'digital', label: '数科' },
@@ -179,8 +215,40 @@ Page({
       const managers = managersResult.managers || []
       const personnelType = profile.personnelType || 'digital'
       const itlStatus = profile.itlStatus || 'no'
-      const selectedAgentIndex = profile.agent ? people.findIndex(person => person.id === profile.agent.id) : -1
-      const selectedManagerIndex = profile.manager ? managers.findIndex(manager => manager.id === profile.manager.id) : -1
+
+      // 行内字典(处室/项目/打卡地点):加载失败不影响页面其余功能,选择器留空兜底。
+      let departments = []
+      let projects = []
+      let locations = []
+      try {
+        const dicts = await me.dicts()
+        departments = dicts.departments || []
+        projects = dicts.bankProjects || []
+        locations = dicts.attendanceLocations || []
+      } catch (error) {
+        wx.showToast({ title: '行内字段字典加载失败，请重试', icon: 'none' })
+      }
+      const departmentIndex = Math.max(0, departments.findIndex(item => item.name === profile.department))
+      const projectOptions = departments[departmentIndex]
+        ? projects.filter(item => item.departmentId === departments[departmentIndex].id)
+        : []
+      const projectIndex = Math.max(0, projectOptions.findIndex(item => item.name === profile.bankProject))
+      const locationIndex = Math.max(0, locations.findIndex(item => item.name === profile.attendanceLocation))
+
+      // 审批人/代理人两级选择:先按处室过滤,再选具体人员。
+      const managerDepartments = buildDeptOptions(managers)
+      const agentDepartments = buildDeptOptions(people)
+      const selectedManagerId = profile.manager ? profile.manager.id : ''
+      const selectedManagerDeptIndex = profile.manager && profile.manager.department
+        ? Math.max(0, managerDepartments.findIndex(item => item.value === profile.manager.department))
+        : 0
+      const filteredManagers = filterByDept(managers, managerDepartments[selectedManagerDeptIndex].value)
+      const selectedAgentId = profile.agent ? profile.agent.id : ''
+      const selectedAgentDeptIndex = profile.agent && profile.agent.department
+        ? Math.max(0, agentDepartments.findIndex(item => item.value === profile.agent.department))
+        : 0
+      const filteredPeople = filterByDept(people, agentDepartments[selectedAgentDeptIndex].value)
+
       const form = {
         name: profile.name || '',
         accountName: profile.accountName || profile.employeeNo || '',
@@ -204,9 +272,34 @@ Page({
         profile,
         form,
         people,
-        selectedAgentIndex,
         managers,
-        selectedManagerIndex,
+        departments,
+        departmentIndex,
+        projects,
+        projectOptions,
+        projectIndex,
+        locations,
+        locationIndex,
+        managerDepartments,
+        selectedManagerDeptIndex,
+        filteredManagers,
+        managerMultiRange: [managerDepartments.map(item => ({ name: item.label, value: item.value })), filteredManagers],
+        managerMultiIndex: [
+          selectedManagerDeptIndex,
+          Math.max(0, filteredManagers.findIndex(item => item.id === selectedManagerId))
+        ],
+        selectedManagerId,
+        selectedManagerIndex: filteredManagers.findIndex(item => item.id === selectedManagerId),
+        agentDepartments,
+        selectedAgentDeptIndex,
+        filteredPeople,
+        agentMultiRange: [agentDepartments.map(item => ({ name: item.label, value: item.value })), filteredPeople],
+        agentMultiIndex: [
+          selectedAgentDeptIndex,
+          Math.max(0, filteredPeople.findIndex(item => item.id === selectedAgentId))
+        ],
+        selectedAgentId,
+        selectedAgentIndex: filteredPeople.findIndex(item => item.id === selectedAgentId),
         personnelTypeIndex: Math.max(0, this.data.personnelTypes.findIndex(item => item.value === personnelType)),
         itlIndex: Math.max(0, this.data.itlOptions.findIndex(item => item.value === itlStatus)),
         annualLeave: profile.annualLeave || calculateAnnualLeave(form.workStartDate),
@@ -236,8 +329,8 @@ Page({
   // 记录当前表单快照，作为"未保存修改"判定的基线。
   syncSnapshot() {
     this.savedForm = pickForm(this.data.form)
-    this.savedAgentIndex = this.data.selectedAgentIndex
-    this.savedManagerIndex = this.data.selectedManagerIndex
+    this.savedAgentId = this.data.selectedAgentId
+    this.savedManagerId = this.data.selectedManagerId
   },
 
   isDirty() {
@@ -245,7 +338,7 @@ Page({
     const current = pickForm(this.data.form)
     const changed = DIRTY_KEYS.some(key => String(current[key] || '') !== String(this.savedForm[key] || ''))
     if (changed) return true
-    return this.data.selectedAgentIndex !== this.savedAgentIndex || this.data.selectedManagerIndex !== this.savedManagerIndex
+    return this.data.selectedAgentId !== this.savedAgentId || this.data.selectedManagerId !== this.savedManagerId
   },
 
   // 自定义返回：有未保存修改时先确认，避免长表单误触返回丢失编辑。
@@ -276,6 +369,7 @@ Page({
     const updates = { personnelTypeIndex: index, 'form.personnelType': personnelType }
     if (personnelType === 'bank') {
       updates.selectedAgentIndex = -1
+      updates.selectedAgentId = ''
     }
     this.setData(updates)
   },
@@ -285,12 +379,101 @@ Page({
     this.setData({ itlIndex: index, 'form.itlStatus': this.data.itlOptions[index].value })
   },
 
-  onAgentChange(event) {
-    this.setData({ selectedAgentIndex: Number(event.detail.value) })
+  // 行内级别由管理员维护,用户不可修改,点击仅提示。
+  onBankLevelTap() {
+    wx.showToast({ title: '行内级别请联系管理员修改', icon: 'none' })
   },
 
-  onManagerChange(event) {
-    this.setData({ selectedManagerIndex: Number(event.detail.value) })
+  // 行内处室选择:联动刷新其下项目;已选项目不在新处室下时重置。
+  onDepartmentChange(event) {
+    const index = Number(event.detail.value)
+    const department = this.data.departments[index]
+    const projectOptions = department ? this.data.projects.filter(item => item.departmentId === department.id) : []
+    const keptIndex = projectOptions.findIndex(item => item.name === this.data.form.bankProject)
+    const projectIndex = keptIndex >= 0 ? keptIndex : 0
+    this.setData({
+      departmentIndex: index,
+      projectOptions,
+      projectIndex,
+      'form.department': department ? department.name : '',
+      'form.bankProject': projectOptions[projectIndex] ? projectOptions[projectIndex].name : ''
+    })
+  },
+
+  onProjectChange(event) {
+    const index = Number(event.detail.value)
+    const project = this.data.projectOptions[index]
+    this.setData({ projectIndex: index, 'form.bankProject': project ? project.name : '' })
+  },
+
+  onLocationChange(event) {
+    const index = Number(event.detail.value)
+    const location = this.data.locations[index]
+    this.setData({ locationIndex: index, 'form.attendanceLocation': location ? location.name : '' })
+  },
+
+  // 审批人分级选择:多列 picker,左列处室、右列该处室人员联动。
+  onManagerMultiColumnChange(event) {
+    const column = event.detail.column
+    if (column !== 0) return
+    const deptIndex = event.detail.value
+    const dept = this.data.managerDepartments[deptIndex].value
+    const filteredManagers = filterByDept(this.data.managers, dept)
+    const managerMultiIndex = [deptIndex, 0]
+    // 已选人员仍在当前处室时保留选中。
+    const kept = filteredManagers.findIndex(item => item.id === this.data.selectedManagerId)
+    if (kept >= 0) managerMultiIndex[1] = kept
+    this.setData({
+      managerMultiRange: [this.data.managerDepartments.map(item => ({ name: item.label, value: item.value })), filteredManagers],
+      managerMultiIndex
+    })
+  },
+
+  onManagerMultiChange(event) {
+    const [deptIndex, personIndex] = event.detail.value
+    const dept = this.data.managerDepartments[deptIndex].value
+    const filteredManagers = filterByDept(this.data.managers, dept)
+    const person = filteredManagers[personIndex]
+    this.setData({
+      selectedManagerDeptIndex: deptIndex,
+      filteredManagers,
+      selectedManagerIndex: person ? personIndex : -1,
+      selectedManagerId: person ? person.id : '',
+      managerMultiRange: [this.data.managerDepartments.map(item => ({ name: item.label, value: item.value })), filteredManagers],
+      managerMultiIndex: [deptIndex, personIndex]
+    })
+  },
+
+  // 代理人分级选择:多列 picker,左列处室、右列该处室人员联动。
+  onAgentMultiColumnChange(event) {
+    const column = event.detail.column
+    if (column !== 0) return
+    const deptIndex = event.detail.value
+    const dept = this.data.agentDepartments[deptIndex].value
+    const filteredPeople = filterByDept(this.data.people, dept)
+    const agentMultiIndex = [deptIndex, 0]
+    // 已选人员仍在当前处室时保留选中。
+    const kept = filteredPeople.findIndex(item => item.id === this.data.selectedAgentId)
+    if (kept >= 0) agentMultiIndex[1] = kept
+    this.setData({
+      agentMultiRange: [this.data.agentDepartments.map(item => ({ name: item.label, value: item.value })), filteredPeople],
+      agentMultiIndex
+    })
+  },
+
+  onAgentMultiChange(event) {
+    const [deptIndex, personIndex] = event.detail.value
+    const dept = this.data.agentDepartments[deptIndex].value
+    const filteredPeople = filterByDept(this.data.people, dept)
+    const person = filteredPeople[personIndex]
+    this.setData({
+      selectedAgentDeptIndex: deptIndex,
+      filteredPeople,
+      selectedAgentIndex: person ? personIndex : -1,
+      selectedAgentId: person ? person.id : '',
+      agentMultiRange: [this.data.agentDepartments.map(item => ({ name: item.label, value: item.value })), filteredPeople],
+      agentMultiIndex: [deptIndex, personIndex]
+    })
   },
 
   onWorkStartDateChange(event) {
@@ -354,7 +537,7 @@ Page({
       wx.showToast({ title: '紧急联系人手机号格式不正确', icon: 'none' })
       return
     }
-    const agent = this.data.people[this.data.selectedAgentIndex]
+    const agent = this.data.filteredPeople[this.data.selectedAgentIndex]
     if (form.personnelType !== 'bank' && !agent) {
       wx.showToast({ title: '非行员请选择工作代理人', icon: 'none' })
       return
@@ -372,7 +555,6 @@ Page({
         bankProject: form.bankProject || null,
         agentUserId: form.personnelType === 'bank' ? null : agent.id,
         attendanceLocation: form.attendanceLocation || null,
-        bankLevel: form.bankLevel || null,
         itlStatus: form.itlStatus,
         workStartDate: form.workStartDate || null,
         mobile: form.mobile || null,
@@ -380,7 +562,7 @@ Page({
         emergencyContactName: form.emergencyContactName || null,
         emergencyContactPhone: form.emergencyContactPhone || null
       })
-      const manager = this.data.managers[this.data.selectedManagerIndex]
+      const manager = this.data.filteredManagers[this.data.selectedManagerIndex]
       const currentManagerId = this.data.profile.manager && this.data.profile.manager.id
       if (manager && manager.id && manager.id !== currentManagerId) {
         await me.setManager(manager.id)
