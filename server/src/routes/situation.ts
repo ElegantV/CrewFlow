@@ -89,15 +89,16 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
         department: string | null;
         hours: string;
         content: string;
+        status: string;
       }>(
         `SELECT duty.id, duty.duty_date::text AS date, duty.user_id AS person_id, person.name,
                 person.bank_project AS system_name, person.department,
-                duty.hours::text, duty.content
+                duty.hours::text, duty.content, duty.status
          FROM duty_records duty
          JOIN users person ON person.id = duty.user_id
           WHERE duty.duty_date >= $1::date
             AND duty.duty_date < ($2::date + interval '1 month')
-            AND duty.status NOT IN ('revoked', 'pending', 'rejected')
+            AND duty.status NOT IN ('revoked', 'rejected')
           ORDER BY duty.duty_date, person.name NULLS LAST, duty.id`,
         [rangeStart, rangeEndMonth],
       ),
@@ -118,7 +119,7 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
            UNION
            SELECT user_id FROM duty_records
            WHERE duty_date >= $1::date AND duty_date < ($2::date + interval '1 month')
-             AND status NOT IN ('revoked', 'pending', 'rejected')
+             AND status NOT IN ('revoked', 'rejected')
          )`,
         [rangeStart, rangeEndMonth],
       ),
@@ -147,6 +148,7 @@ export const situationRoutes: FastifyPluginAsync = async (app) => {
       systemName: item.system_name ?? item.department ?? "未配置所属系统",
       hours: Number(item.hours),
       content: item.content,
+      status: item.status,
     }));
     const people = peopleResult.rows.map(item => ({
       id: item.id,

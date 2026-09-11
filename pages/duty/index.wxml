@@ -8,7 +8,7 @@
       <text class="summary-note" wx:else>暂无可用调休额度</text>
     </view>
 
-    <view class="rule-tip"><text class="rule-tag">规则</text><text class="rule-text">选择下班时间与加班时长（2 至 6 个整小时），实际加班时间以此为准；加班发生后三个月内可补录，额度自加班日起三个月有效。</text></view>
+    <view class="rule-tip"><text class="rule-tag">规则</text><text class="rule-text">选择下班时间与加班时长（2 至 6 个整小时），实际加班时间以此为准；加班发生后三个月内可补录，额度自加班日起三个月有效。所在处室开启加班审批时，提交后需审批通过才产生额度。</text></view>
 
     <view class="ledger-entry card" bindtap="openLedger">
       <view class="ledger-entry-icon">记</view>
@@ -32,6 +32,7 @@
         </view>
         <text class="record-content">{{item.content}}</text>
         <text class="record-meta">{{item.metaText}}</text>
+        <text class="record-reject" wx:if="{{item.status === 'rejected' && item.approvalComment}}">驳回原因：{{item.approvalComment}}</text>
         <text class="record-expiry" wx:if="{{item.status === 'active' || item.status === 'consumed' || item.status === 'expired'}}">有效期至 {{item.expiresAt}}</text>
         <button wx:if="{{item.canRevoke}}" class="text-button" data-id="{{item.id}}" bindtap="revoke">{{item.status === 'pending' ? '撤回' : '撤销'}}</button>
       </view>

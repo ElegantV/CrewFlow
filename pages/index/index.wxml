@@ -29,7 +29,7 @@
         <view class="reminder-icon">审</view>
         <view class="reminder-body">
           <text class="reminder-title">待审批申请</text>
-          <text class="reminder-text">你有 {{reminders.pendingApprovals}} 条请假申请待处理</text>
+          <text class="reminder-text">你有 {{reminders.pendingApprovals}} 条申请待处理</text>
         </view>
         <text class="reminder-arrow">›</text>
       </view>

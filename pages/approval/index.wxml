@@ -9,8 +9,7 @@
         </view>
         <block wx:if="{{item.bizType === 'overtime'}}">
           <text class="date">{{item.date}}</text>
-          <text class="meta">{{item.offTime ? item.offTime + ' 下班 · ' : ''}}{{item.hours}}小时</text>
-          <text class="reason">内容：{{item.content}}</text>
+          <text class="meta">加班 {{item.hours}} 小时</text>
         </block>
         <block wx:else>
           <text class="date">{{item.startDate}} 至 {{item.endDate}}</text>

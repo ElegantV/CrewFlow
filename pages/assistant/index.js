@@ -329,7 +329,10 @@ Page({
 
   async runCommand(intent, slots) {
     if (intent === 'overtime_create') {
-      const result = await overtime.create({ date: slots.date, hours: slots.hours, content: slots.content })
+      const result = await overtime.create({ date: slots.date, offTime: slots.offTime, hours: slots.hours, content: slots.content })
+      if (result.status === 'pending' || result.approvalRequired) {
+        return `办理成功：已提交 ${slots.date} 加班申请，当前状态为待审批，通过后才产生调休额度。`
+      }
       return `办理成功：已登记 ${slots.date} 加班 ${result.hours} 小时，调休额度有效期至 ${result.expiresAt}。`
     }
     if (intent === 'overtime_balance') {
@@ -358,13 +361,15 @@ Page({
     if (intent === 'overtime_list') {
       const result = await overtime.list()
       const records = result.records || []
-      return records.length ? `最近的加班记录：\n${records.slice(0, 8).map(item => `${item.date} · ${item.hours}小时 · ${item.content} · ${item.status}`).join('\n')}` : '你还没有加班记录。'
+      const labels = { active: '可用', pending: '待审批', rejected: '已驳回', consumed: '已用完', revoked: '已撤销', expired: '已到期' }
+      return records.length ? `最近的加班记录：\n${records.slice(0, 8).map(item => `${item.date} · ${item.hours}小时 · ${item.content} · ${labels[item.status] || item.status}`).join('\n')}` : '你还没有加班记录。'
     }
     if (intent === 'overtime_revoke') return this.revokeOvertime(slots)
     if (intent === 'leave_list') {
       const result = await leave.list()
       const records = result.requests || []
-      return records.length ? `最近的请假记录：\n${records.slice(0, 8).map(item => `${item.startDate}${item.endDate !== item.startDate ? ` 至 ${item.endDate}` : ''} · ${item.leaveTypeLabel} · ${item.requestedDays}天 · ${item.status}`).join('\n')}` : '你还没有请假记录。'
+      const labels = { pending: '待审批', approved: '已通过', rejected: '已驳回', cancelled: '已撤销' }
+      return records.length ? `最近的请假记录：\n${records.slice(0, 8).map(item => `${item.startDate}${item.endDate !== item.startDate ? ` 至 ${item.endDate}` : ''} · ${item.leaveTypeLabel} · ${item.requestedDays}天 · ${labels[item.status] || item.status}`).join('\n')}` : '你还没有请假记录。'
     }
     if (intent === 'leave_cancel') return this.cancelLeave(slots)
     if (intent === 'leave_result') return this.openLeaveResult()
@@ -422,7 +427,7 @@ Page({
     }
     if (slots.activity === 'leave') overtimeRecords = []
     if (slots.activity === 'overtime') leaves = []
-    if (!leaves.length && !overtimeRecords.length) return `${name || slots.date}在 ${slots.date} 没有查询到${slots.activity === 'overtime' ? '加班' : slots.activity === 'leave' ? '已批准请假' : '请假或加班'}记录。`
+    if (!leaves.length && !overtimeRecords.length) return `${name || slots.date}在 ${slots.date} 没有查询到${slots.activity === 'overtime' ? '加班' : slots.activity === 'leave' ? '请假' : '请假或加班'}记录。`
     const lines = []
     leaves.forEach(item => lines.push(`${item.name}：${item.leaveTypeLabel}（${item.periodLabel}）`))
     overtimeRecords.forEach(item => lines.push(`${item.name}：加班 ${item.hours} 小时，${item.content}`))
@@ -461,22 +466,25 @@ Page({
     if (!records.length) return slots.date ? `${slots.date} 没有可撤销的加班记录。` : '没有可撤销的加班记录。'
     if (records.length === 1) {
       const item = records[0]
+      const pending = item.status === 'pending'
       const confirmed = await new Promise(resolve => {
         wx.showModal({
-          title: '撤销加班',
-          content: `${item.date} · ${item.hours}小时${item.content ? ` · ${item.content}` : ''}\n撤销后将移除对应调休额度，是否继续？`,
-          confirmText: '确认撤销',
+          title: pending ? '撤回申请' : '撤销加班',
+          content: pending
+            ? `${item.date} · ${item.hours}小时${item.content ? ` · ${item.content}` : ''}\n确认撤回这条待审批的加班申请？`
+            : `${item.date} · ${item.hours}小时${item.content ? ` · ${item.content}` : ''}\n撤销后将移除对应调休额度，是否继续？`,
+          confirmText: pending ? '确认撤回' : '确认撤销',
           cancelText: '取消',
           success: res => resolve(!!res.confirm),
           fail: () => resolve(false)
         })
       })
       if (!confirmed) {
-        this.showFeedback('已取消撤销。', 'error')
+        this.showFeedback('已取消操作。', 'error')
         return ''
       }
       await overtime.revoke(item.id)
-      return '办理成功：加班记录已撤销。'
+      return `办理成功：加班记录已${pending ? '撤回' : '撤销'}。`
     }
     return this.selectRecord(records, 'overtime_revoke_select', '请选择要撤销的加班记录。', item => `${item.date} · ${item.hours}小时 · ${item.content}`)
   },

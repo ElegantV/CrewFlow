@@ -28,6 +28,17 @@
       <text class="field-help" wx:if="{{!form.workStartDate}}">用于计算年假天数，工作满一年后可休年假。</text>
       <text class="field-help" wx:else>工作已满 {{annualLeave.workYears}} 年，当前年假 {{annualLeave.annualLeaveDays}} 天。</text>
     </view>
+    <view class="field" wx:if="{{needManager}}">
+      <text class="field-label">审批人（管理员） <text class="required">*</text></text>
+      <picker mode="multiSelector" range="{{managerMultiRange}}" range-key="name" value="{{managerMultiIndex}}" bindchange="onManagerMultiChange" bindcolumnchange="onManagerMultiColumnChange">
+        <view class="field-input field-picker">
+          <text class="{{selectedManagerIndex >= 0 || profile.manager ? '' : 'field-placeholder'}}">{{selectedManagerIndex >= 0 ? filteredManagers[selectedManagerIndex].name : (profile.manager ? profile.manager.name : '请选择审批人')}}</text>
+          <text class="picker-arrow">›</text>
+        </view>
+      </picker>
+      <text class="field-help" wx:if="{{!managers.length}}">暂无可选审批人，请联系超级管理员先分配审批关系。</text>
+      <text class="field-help" wx:else>先按处室筛选，再选择具体审批管理员。</text>
+    </view>
     <view class="field" wx:if="{{form.personnelType !== 'bank'}}">
       <text class="field-label">工作代理人（非行员） <text class="required">*</text></text>
       <picker mode="multiSelector" range="{{agentMultiRange}}" range-key="name" value="{{agentMultiIndex}}" bindchange="onAgentMultiChange" bindcolumnchange="onAgentMultiColumnChange">
@@ -37,6 +48,7 @@
         </view>
       </picker>
       <text class="field-help" wx:if="{{!people.length}}">暂无可选代理人，请联系管理员先添加同事账号。</text>
+      <text class="field-help" wx:else>提交请假申请时，将由代理人代为处理你的工作。</text>
     </view>
     <button class="primary-button step-button" loading="{{saving}}" bindtap="saveBasic">保存并继续</button>
   </view>
@@ -76,8 +88,8 @@
     </view>
   </view>
 
-  <!-- 非行员且暂无可选代理人时服务端不允许保存资料，保留出口避免卡死在引导页。 -->
-  <text class="skip-link" wx:if="{{currentStep !== 'basic' || (form.personnelType !== 'bank' && !people.length)}}" bindtap="skipStep">暂不设置，稍后再说</text>
+  <!-- 非行员且暂无可选代理人/暂无审批人可选时服务端不允许保存资料，保留出口避免卡死在引导页。 -->
+  <text class="skip-link" wx:if="{{currentStep !== 'basic' || (form.personnelType !== 'bank' && !people.length) || (needManager && !managers.length)}}" bindtap="skipStep">暂不设置，稍后再说</text>
 </view>
 <view class="onboard-state" wx:if="{{loading}}">
   <text class="onboard-state-text">正在加载…</text>

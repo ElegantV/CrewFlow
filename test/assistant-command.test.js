@@ -8,7 +8,7 @@ test('解析完整的加班登记指令', () => {
   const result = command.parseCommand('今天登记加班2小时，内容：生产发布支持', { now })
   assert.equal(result.status, 'ready')
   assert.equal(result.intent, 'overtime_create')
-  assert.deepEqual(result.slots, { date: '2026-08-13', hours: 2, content: '生产发布支持' })
+  assert.deepEqual(result.slots, { date: '2026-08-13', offTime: '18:00', hours: 2, content: '生产发布支持' })
 })
 
 test('加班缺少工作内容时继续追问', () => {
@@ -131,6 +131,12 @@ test('“审批加班”进入选择流程而非直接通过', () => {
   const approved = command.parseCommand('通过张三的加班申请', { now })
   assert.equal(approved.slots.action, 'approve')
   assert.equal(approved.slots.name, '张三')
+})
+
+test('“处理加班申请”进入审批选择流程', () => {
+  const result = command.parseCommand('处理加班申请', { now })
+  assert.equal(result.intent, 'approval_decide')
+  assert.equal(result.slots.action, '')
 })
 
 test('支持专用页面和审批结果能力', () => {

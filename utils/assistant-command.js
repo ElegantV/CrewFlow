@@ -61,8 +61,11 @@ function parseOvertime(text, now) {
   if (date === 'invalid') return { status: 'invalid', message: '日期不存在，请检查后重试。' }
   const hoursMatch = text.match(/(\d)\s*(?:个)?小时/)
   const contentMatch = text.match(/(?:工作内容|内容|事项|事由)(?:是|为|[:：])?(.+)$/)
+  const offTimeMatch = text.match(/(?:下班|打卡)(?:时间)?(?:是|为|[:：])?(\d{1,2}[:：]\d{2})/)
   const slots = {
     date,
+    // 快捷办理不单独询问下班时间,与加班页表单默认值保持一致。
+    offTime: offTimeMatch ? offTimeMatch[1].replace('：', ':') : '18:00',
     hours: hoursMatch ? Number(hoursMatch[1]) : null,
     content: contentMatch ? contentMatch[1].trim() : ''
   }
@@ -114,7 +117,7 @@ function parseCommand(input, options = {}) {
     const nameMatch = text.match(/(?:通过|同意|批准|驳回|拒绝)([\u4e00-\u9fa5·]{2,20}?)(?:的)?(?:申请|请假|加班|值班|调休|年假|病假|事假|公出|产假|婚假|丧假|育儿假|陪产假|产检假|哺乳假)/) || text.match(/审批(?:一下)?([\u4e00-\u9fa5·]{2,20}?)(?:的)?(?:申请|请假|加班|值班)/)
     return { status: 'ready', intent: 'approval_decide', slots: { action: reject ? 'reject' : 'approve', name: nameMatch && nameMatch[1] || '', reason } }
   }
-  if (/^(?:我要|帮我|请)?审批(?:一下)?(?:[\u4e00-\u9fa5·]{2,20}的?)?(?:请假|申请|加班|值班)?$|处理(?:一下)?请假申请/.test(text)) {
+  if (/^(?:我要|帮我|请)?审批(?:一下)?(?:[\u4e00-\u9fa5·]{2,20}的?)?(?:请假|申请|加班|值班)?$|处理(?:一下)?(?:请假|加班|申请)/.test(text)) {
     const nameMatch = text.match(/审批(?:一下)?([\u4e00-\u9fa5·]{2,20}?)(?:的)?(?:请假|申请|加班|值班)$/)
     let name = nameMatch && nameMatch[1] || ''
     name = name.replace(/(?:今天|明天|后天|大后天|昨天|前天|今日)$/, '')

@@ -51,6 +51,8 @@ Page({
     steps: [],
     stepIndex: 0,
     currentStep: 'basic',
+    needManager: false,
+    needAgent: false,
     form: { name: '', personnelType: 'digital', workStartDate: '' },
     annualLeave: { workYears: 0, annualLeaveDays: 0 },
     maxWorkStartDate: today(),
@@ -95,21 +97,32 @@ Page({
         wx.reLaunch({ url: '/pages/index/index' })
         return
       }
-      // 姓名缺失时把代理人并入基本信息一步保存（整行更新要求非行员必须带代理人），
-      // 审批人与代理人合并在同一步一次填完。
+      // 基本信息与审批关系一步完成：姓名缺失时整行更新要求非行员必须带代理人，
+      // 故把审批人/代理人并入基本信息一步，避免与 relations 步重复配置；
+      // 仅当基本资料已完备时，才单独进入 relations 步。
+      const needManager = missing.includes('manager')
+      const needAgent = missing.includes('agent')
+      const needBasic = missing.includes('name') || missing.includes('workStartDate')
       const keys = []
-      if (missing.includes('name') || missing.includes('workStartDate')) keys.push('basic')
-      if (missing.includes('manager') || missing.includes('agent')) keys.push('relations')
+      if (needBasic || needManager || needAgent) keys.push(needBasic ? 'basic' : 'relations')
       if (missing.includes('signature')) keys.push('signature')
       const form = {
         name: profile.name || '',
         personnelType: profile.personnelType || 'digital',
         workStartDate: profile.workStartDate || ''
       }
+      const steps = keys.map(key => {
+        if (key === 'basic' && (needManager || needAgent)) {
+          return Object.assign({ key }, STEP_META.basic, { description: '填写基本信息，并选择审批人与工作代理人' })
+        }
+        return Object.assign({ key }, STEP_META[key])
+      })
       this.setData({
         loading: false,
         profile,
-        steps: keys.map(key => Object.assign({ key }, STEP_META[key])),
+        needManager,
+        needAgent,
+        steps,
         stepIndex: 0,
         currentStep: keys[0],
         form,
@@ -268,7 +281,7 @@ Page({
 
   // PUT /profile 是整行更新，这里带上已加载的资料一起提交，避免把其他字段清成空。
   async saveBasic() {
-    const { form, profile, filteredPeople, selectedAgentIndex, saving } = this.data
+    const { form, profile, filteredPeople, filteredManagers, selectedAgentIndex, selectedManagerIndex, needManager, saving } = this.data
     if (saving) return
     const name = (form.name || '').trim()
     if (!name) {
@@ -280,12 +293,18 @@ Page({
       wx.showToast({ title: '非行员请选择工作代理人', icon: 'none' })
       return
     }
+    const manager = filteredManagers[selectedManagerIndex]
+    if (needManager && !manager) {
+      wx.showToast({ title: '请选择审批人', icon: 'none' })
+      return
+    }
     if (!form.workStartDate) {
       wx.showToast({ title: '请选择工作开始时间', icon: 'none' })
       return
     }
     this.setData({ saving: true })
     try {
+      if (needManager) await me.setManager(manager.id)
       await me.saveProfile({
         name,
         accountName: profile.accountName || null,

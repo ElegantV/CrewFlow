@@ -3,7 +3,7 @@ import type { PoolClient } from "pg";
 import { z } from "zod";
 import { loadActiveActor } from "../authz.js";
 import { isValidDate } from "../business/leave-policy.js";
-import { notifyOvertimeApproverPending, notifyOvertimeCheckIn } from "../business/notify.js";
+import { notifyOvertimeApproverPending, notifyOvertimeApproverCancelled, notifyOvertimeCheckIn } from "../business/notify.js";
 import { db } from "../db.js";
 
 const createSchema = z.object({
@@ -52,12 +52,15 @@ export const overtimeRoutes: FastifyPluginAsync = async (app) => {
         content: string;
         expires_at: string;
         status: string;
+        approval_comment: string | null;
       }>(
-        `SELECT id, duty_date::text, off_time::text, hours::text,
-                remaining_hours::text, content, expires_at::text, status
-         FROM duty_records
-         WHERE user_id = $1
-         ORDER BY duty_date DESC, created_at DESC, id`,
+        `SELECT duty.id, duty.duty_date::text, duty.off_time::text, duty.hours::text,
+                duty.remaining_hours::text, duty.content, duty.expires_at::text, duty.status,
+                approval.comment AS approval_comment
+         FROM duty_records duty
+         LEFT JOIN approval_records approval ON approval.duty_record_id = duty.id AND approval.step_no = 1
+         WHERE duty.user_id = $1
+         ORDER BY duty.duty_date DESC, duty.created_at DESC, duty.id`,
         [actor.id],
       );
       await client.query("COMMIT");
@@ -72,6 +75,7 @@ export const overtimeRoutes: FastifyPluginAsync = async (app) => {
           content: record.content,
           expiresAt: record.expires_at,
           status: record.status,
+          approvalComment: record.approval_comment,
           canRevoke: record.status === "pending"
             || (record.status === "active" && Number(record.hours) === Number(record.remaining_hours)),
         })),
@@ -252,6 +256,8 @@ export const overtimeRoutes: FastifyPluginAsync = async (app) => {
           [record.id],
         );
         await client.query("COMMIT");
+        // 提交成功后异步提醒审批人无需再处理（wxpusher），不阻塞响应。
+        void notifyOvertimeApproverCancelled(record.id);
         return { success: true };
       }
       if (record.status !== "active" || Number(record.hours) !== Number(record.remaining_hours)) {

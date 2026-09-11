@@ -208,6 +208,52 @@ export async function notifyOvertimeApproverPending(dutyRecordId: string) {
   }
 }
 
+// 申请人撤回待审批加班后，提醒审批人无需再处理（wxpusher）。异常处理口径同上。
+export async function notifyOvertimeApproverCancelled(dutyRecordId: string) {
+  if (!config.WXPUSHER_APP_TOKEN) return;
+  try {
+    const result = await db.query<{
+      approver_id: string;
+      approver_name: string | null;
+      applicant_name: string | null;
+      duty_date: string;
+      hours: string;
+    }>(
+      `SELECT approval.approver_id, approver.name AS approver_name,
+              applicant.name AS applicant_name,
+              duty.duty_date::text, duty.hours::text
+       FROM duty_records duty
+       JOIN users applicant ON applicant.id = duty.user_id
+       JOIN approval_records approval ON approval.duty_record_id = duty.id AND approval.step_no = 1
+       JOIN users approver ON approver.id = approval.approver_id
+       WHERE duty.id = $1`,
+      [dutyRecordId],
+    );
+    const row = result.rows[0];
+    if (!row) return;
+
+    const uid = await findUid(row.approver_id);
+    if (!uid) {
+      console.warn(
+        `wxpusher 加班撤销提醒跳过:审批管理员「${row.approver_name ?? row.approver_id}」未绑定微信推送`,
+      );
+      return;
+    }
+
+    const hours = Number(row.hours);
+    const content =
+      `【撤销提醒】${row.applicant_name ?? "员工"}已撤回加班登记（${row.duty_date}，${hours}小时），` +
+      `无需再审批，可到简序日程小程序查看。`;
+    const summary = `${row.applicant_name ?? "员工"}撤回了加班登记`;
+    const sent = await sendWxPusherMessage(content, [uid], summary);
+    if (sent.code !== 1000) {
+      console.error("wxpusher 加班撤销提醒发送失败", sent.code, sent.msg);
+    }
+  } catch (error) {
+    console.error("wxpusher 加班撤销提醒发送异常", error);
+  }
+}
+
 // 加班审批通过/驳回后，给登记人推送结果消息（wxpusher）。异常处理口径同上。
 export async function notifyOvertimeApplicantDecision(dutyRecordId: string, status: "approved" | "rejected") {
   if (!config.WXPUSHER_APP_TOKEN) return;
