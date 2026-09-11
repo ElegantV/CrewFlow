@@ -7,7 +7,7 @@
           <text class="month-title">请假加班日历</text>
           <text class="scroll-hint">‹ › 切换月份 · 点击日期查看详情</text>
         </view>
-        <button class="today-button" bindtap="goToday">今天</button>
+        <view class="today-button" hover-class="today-button--hover" bindtap="goToday">今天</view>
       </view>
       <view class="month-nav">
         <view class="calendar-nav" bindtap="prevMonth">‹</view>

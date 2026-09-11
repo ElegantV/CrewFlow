@@ -67,10 +67,10 @@ Page({
     selectedManagerIndex: -1,
     selectedManagerId: '',
     departments: [],
-    departmentIndex: 0,
     projects: [],
-    projectOptions: [],
-    projectIndex: 0,
+    filteredProjects: [],
+    projectMultiRange: [[], []],
+    projectMultiIndex: [0, 0],
     locations: [],
     locationIndex: 0,
     managerDepartments: [{ value: '', label: '全部处室' }],
@@ -230,10 +230,10 @@ Page({
         wx.showToast({ title: '行内字段字典加载失败，请重试', icon: 'none' })
       }
       const departmentIndex = Math.max(0, departments.findIndex(item => item.name === profile.department))
-      const projectOptions = departments[departmentIndex]
+      const filteredProjects = departments[departmentIndex]
         ? projects.filter(item => item.departmentId === departments[departmentIndex].id)
         : []
-      const projectIndex = Math.max(0, projectOptions.findIndex(item => item.name === profile.bankProject))
+      const projectIndex = Math.max(0, filteredProjects.findIndex(item => item.name === profile.bankProject))
       const locationIndex = Math.max(0, locations.findIndex(item => item.name === profile.attendanceLocation))
 
       // 审批人/代理人两级选择:先按处室过滤,再选具体人员。
@@ -275,10 +275,10 @@ Page({
         people,
         managers,
         departments,
-        departmentIndex,
         projects,
-        projectOptions,
-        projectIndex,
+        filteredProjects,
+        projectMultiRange: [departments, filteredProjects],
+        projectMultiIndex: [departmentIndex, projectIndex],
         locations,
         locationIndex,
         managerDepartments,
@@ -385,26 +385,34 @@ Page({
     wx.showToast({ title: '行内级别请联系管理员修改', icon: 'none' })
   },
 
-  // 行内处室选择:联动刷新其下项目;已选项目不在新处室下时重置。
-  onDepartmentChange(event) {
-    const index = Number(event.detail.value)
-    const department = this.data.departments[index]
-    const projectOptions = department ? this.data.projects.filter(item => item.departmentId === department.id) : []
-    const keptIndex = projectOptions.findIndex(item => item.name === this.data.form.bankProject)
-    const projectIndex = keptIndex >= 0 ? keptIndex : 0
+  // 行内项目分级选择:左列处室、右列该处室项目联动。
+  onProjectMultiColumnChange(event) {
+    const column = event.detail.column
+    if (column !== 0) return
+    const deptIndex = event.detail.value
+    const department = this.data.departments[deptIndex]
+    const filteredProjects = department ? this.data.projects.filter(item => item.departmentId === department.id) : []
+    const projectMultiIndex = [deptIndex, 0]
+    // 已选项目仍在当前处室时保留选中。
+    const kept = filteredProjects.findIndex(item => item.name === this.data.form.bankProject)
+    if (kept >= 0) projectMultiIndex[1] = kept
     this.setData({
-      departmentIndex: index,
-      projectOptions,
-      projectIndex,
-      'form.department': department ? department.name : '',
-      'form.bankProject': projectOptions[projectIndex] ? projectOptions[projectIndex].name : ''
+      projectMultiRange: [this.data.departments, filteredProjects],
+      projectMultiIndex
     })
   },
 
-  onProjectChange(event) {
-    const index = Number(event.detail.value)
-    const project = this.data.projectOptions[index]
-    this.setData({ projectIndex: index, 'form.bankProject': project ? project.name : '' })
+  onProjectMultiChange(event) {
+    const [deptIndex, projectIndex] = event.detail.value
+    const department = this.data.departments[deptIndex]
+    const filteredProjects = department ? this.data.projects.filter(item => item.departmentId === department.id) : []
+    const project = filteredProjects[projectIndex]
+    this.setData({
+      projectMultiRange: [this.data.departments, filteredProjects],
+      projectMultiIndex: [deptIndex, projectIndex],
+      'form.department': department ? department.name : '',
+      'form.bankProject': project ? project.name : ''
+    })
   },
 
   onLocationChange(event) {

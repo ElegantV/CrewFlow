@@ -47,16 +47,11 @@
         <input class="field-control" value="{{form.digitalEmployeeNo}}" data-field="digitalEmployeeNo" bindinput="onInput" maxlength="64" placeholder="请输入数科员工号" />
       </view>
       <view class="field">
-        <text class="field-label">行内处室</text>
-        <picker range="{{departments}}" range-key="name" value="{{departmentIndex}}" bindchange="onDepartmentChange">
-          <view class="field-control field-picker {{departments[departmentIndex] ? '' : 'field-placeholder'}}">{{departments[departmentIndex] ? departments[departmentIndex].name : '请选择行内处室'}}<text class="picker-arrow">›</text></view>
+        <text class="field-label">行内处室与项目</text>
+        <picker mode="multiSelector" range="{{projectMultiRange}}" range-key="name" value="{{projectMultiIndex}}" bindchange="onProjectMultiChange" bindcolumnchange="onProjectMultiColumnChange" disabled="{{!departments.length}}">
+          <view class="field-control field-picker {{form.department && form.bankProject ? '' : 'field-placeholder'}}">{{form.department && form.bankProject ? form.department + ' · ' + form.bankProject : '请选择行内处室与项目'}}<text class="picker-arrow">›</text></view>
         </picker>
-      </view>
-      <view class="field">
-        <text class="field-label">对应行内项目</text>
-        <picker range="{{projectOptions}}" range-key="name" value="{{projectIndex}}" bindchange="onProjectChange" disabled="{{!projectOptions.length}}">
-          <view class="field-control field-picker {{projectOptions[projectIndex] ? '' : 'field-placeholder'}}">{{projectOptions[projectIndex] ? projectOptions[projectIndex].name : '请先选择行内处室'}}<text class="picker-arrow">›</text></view>
-        </picker>
+        <text class="field-help">先选处室，再选该处室下的项目。</text>
       </view>
       <view class="field">
         <text class="field-label">对应审批人（管理员）</text>

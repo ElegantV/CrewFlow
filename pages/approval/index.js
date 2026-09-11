@@ -11,6 +11,8 @@ Page({
   data: {
     loading: true,
     approvals: [],
+    overtimeApprovals: [],
+    leaveApprovals: [],
     history: [],
     decidingId: '',
     detail: null,
@@ -25,7 +27,14 @@ Page({
     this.setData({ loading: true, loadError: '' })
     try {
       const [pending, history] = await Promise.all([approval.pending(), approval.history()])
-      this.setData({ approvals: pending.approvals, history: history.approvals, loading: false })
+      const approvals = pending.approvals || []
+      this.setData({
+        approvals,
+        overtimeApprovals: approvals.filter(item => item.bizType === 'overtime'),
+        leaveApprovals: approvals.filter(item => item.bizType !== 'overtime'),
+        history: history.approvals,
+        loading: false
+      })
     } catch (error) {
       this.setData({ loading: false, loadError: error.message || '加载失败，请重试' })
     }

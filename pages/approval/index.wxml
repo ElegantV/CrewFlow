@@ -1,21 +1,31 @@
 <navigation-bar title="审批中心" color="#1F2329" background="#F7F8FA"></navigation-bar>
 <scroll-view class="scrollarea" scroll-y>
   <view class="page-shell">
-    <view class="approval-list" wx:if="{{approvals.length}}">
-      <view class="approval-card card" wx:for="{{approvals}}" wx:key="id" data-id="{{item.id}}" bindtap="openDetail">
+    <view class="approval-group" wx:if="{{overtimeApprovals.length}}">
+      <view class="group-title"><text class="group-dot group-dot--overtime"></text><text>加班申请</text><text class="group-count">{{overtimeApprovals.length}}</text></view>
+      <view class="approval-card card" wx:for="{{overtimeApprovals}}" wx:key="id" data-id="{{item.id}}" bindtap="openDetail">
         <view class="approval-head">
           <text class="applicant">{{item.applicant.name || '未命名用户'}}</text>
-          <text class="type">{{item.bizType === 'overtime' ? '加班' : item.leaveTypeLabel}}</text>
+          <text class="type type--overtime">加班</text>
         </view>
-        <block wx:if="{{item.bizType === 'overtime'}}">
-          <text class="date">{{item.date}}</text>
-          <text class="meta">加班 {{item.hours}} 小时</text>
-        </block>
-        <block wx:else>
-          <text class="date">{{item.startDate}} 至 {{item.endDate}}</text>
-          <text class="meta">{{item.requestedDays}}天 / {{item.requestedHours}}小时 · 代理人 {{item.agentName || '—'}}</text>
-          <text class="reason" wx:if="{{item.reason}}">事由：{{item.reason}}</text>
-        </block>
+        <text class="date">{{item.date}}</text>
+        <text class="meta">加班 {{item.hours}} 小时</text>
+        <view class="actions">
+          <button class="reject-button" data-id="{{item.id}}" disabled="{{decidingId}}" loading="{{decidingId === item.id}}" catchtap="reject">驳回</button>
+          <button class="approve-button" data-id="{{item.id}}" disabled="{{decidingId}}" loading="{{decidingId === item.id}}" catchtap="approve">通过</button>
+        </view>
+      </view>
+    </view>
+    <view class="approval-group" wx:if="{{leaveApprovals.length}}">
+      <view class="group-title"><text class="group-dot group-dot--leave"></text><text>请假申请</text><text class="group-count">{{leaveApprovals.length}}</text></view>
+      <view class="approval-card card" wx:for="{{leaveApprovals}}" wx:key="id" data-id="{{item.id}}" bindtap="openDetail">
+        <view class="approval-head">
+          <text class="applicant">{{item.applicant.name || '未命名用户'}}</text>
+          <text class="type">{{item.leaveTypeLabel}}</text>
+        </view>
+        <text class="date">{{item.startDate}} 至 {{item.endDate}}</text>
+        <text class="meta">{{item.requestedDays}}天 / {{item.requestedHours}}小时 · 代理人 {{item.agentName || '—'}}</text>
+        <text class="reason" wx:if="{{item.reason}}">事由：{{item.reason}}</text>
         <view class="actions">
           <button class="reject-button" data-id="{{item.id}}" disabled="{{decidingId}}" loading="{{decidingId === item.id}}" catchtap="reject">驳回</button>
           <button class="approve-button" data-id="{{item.id}}" disabled="{{decidingId}}" loading="{{decidingId === item.id}}" catchtap="approve">通过</button>
