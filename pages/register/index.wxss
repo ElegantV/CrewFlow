@@ -13,13 +13,10 @@ page {
 .tab--active { color: #fff; background: var(--brand); font-weight: 600; }
 
 .form { padding: 36rpx 32rpx 40rpx; }
-.field { margin-top: 26rpx; }
 .field:first-child { margin-top: 0; }
-.field-label { display: block; margin-bottom: 14rpx; color: #455267; font-size: 25rpx; font-weight: 500; }
-.field-input { width: 100%; min-height: 82rpx; padding: 20rpx 22rpx; border: 1rpx solid #dce3ec; border-radius: var(--r-md); color: #172033; background: var(--c-bg-subtle); font-size: 28rpx; box-sizing: border-box; }
 .submit-button { width: 100%; height: 88rpx; margin: 44rpx 0 0; }
-.form-tip { display: block; margin-top: 24rpx; color: #8a9099; font-size: 22rpx; line-height: 1.7; text-align: center; }
+.form-tip { display: block; margin-top: 24rpx; color: var(--c-text-muted); font-size: 20rpx; line-height: 1.7; text-align: center; }
 
 .result { display: flex; flex-direction: column; align-items: center; padding: 64rpx 36rpx; text-align: center; }
-.result-title { font-size: 34rpx; font-weight: 700; }
-.result-text { margin-top: 20rpx; color: var(--c-text-muted); font-size: 25rpx; line-height: 1.8; }
+.result-title { font-size: 32rpx; font-weight: 700; }
+.result-text { margin-top: 20rpx; color: var(--c-text-muted); font-size: 24rpx; line-height: 1.8; }

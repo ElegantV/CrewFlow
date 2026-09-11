@@ -7,33 +7,33 @@ page { height: 100vh; display: flex; flex-direction: column; background: var(--c
 .system-item--active .system-indicator { background: var(--brand); }
 .contact-panel { display: flex; flex: 1; min-width: 0; flex-direction: column; padding: 18rpx 16rpx calc(18rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 .panel-head { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; padding: 6rpx 4rpx 20rpx; }
-.panel-title { color: #172033; font-size: 30rpx; font-weight: 700; }
-.panel-subtitle { margin-left: 12rpx; color: #8a96a6; font-size: 21rpx; }
-.panel-tip { color: #9aa5b3; font-size: 20rpx; }
+.panel-title { color: var(--c-text-strong); font-size: 28rpx; font-weight: 700; }
+.panel-subtitle { margin-left: 12rpx; color: var(--c-text-muted); font-size: 20rpx; }
+.panel-tip { color: var(--c-text-muted); font-size: 20rpx; }
 .contact-list { flex: 1; width: 100%; height: 0; }
-.contact-card { position: relative; width: 100%; min-height: 144rpx; margin-bottom: 14rpx; padding: 22rpx 154rpx 22rpx 20rpx; border: 1rpx solid #e8edf3; border-radius: var(--r-md); background: #fff; box-shadow: 0 5rpx 16rpx rgba(31, 35, 41, .035); box-sizing: border-box; transition: transform .12s ease, box-shadow .2s ease; }
+.contact-card { position: relative; width: 100%; min-height: 144rpx; margin-bottom: 14rpx; padding: 22rpx 154rpx 22rpx 20rpx; border: 1rpx solid var(--c-border); border-radius: var(--r-md); background: #fff; box-shadow: 0 5rpx 16rpx rgba(31, 35, 41, .035); box-sizing: border-box; transition: transform .12s ease, box-shadow .2s ease; }
 
 .contact-card:active {
   transform: scale(.99);
 }
 .contact-main { display: flex; width: 100%; min-width: 0; flex-direction: column; }
 .contact-name-row { display: flex; align-items: center; }
-.contact-name { overflow: hidden; color: #172033; font-size: 27rpx; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.contact-name { overflow: hidden; color: var(--c-text-strong); font-size: 28rpx; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .type-tag { flex-shrink: 0; margin-left: 9rpx; padding: 4rpx 9rpx; border-radius: var(--r-xs); color: var(--c-text-on-neutral); background: var(--c-neutral-bg); font-size: 20rpx; }
 .type-tag--bank { color: var(--c-info); background: var(--c-info-bg-strong); }
 .type-tag--digital { color: var(--c-success); background: var(--c-success-bg-strong); }
 .type-tag--vendor { color: var(--c-warning); background: var(--c-warning-bg-strong); }
-.contact-system, .contact-mobile { overflow: hidden; margin-top: 8rpx; color: #748196; font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; }
+.contact-system, .contact-mobile { overflow: hidden; margin-top: 8rpx; color: var(--c-text-muted); font-size: 20rpx; text-overflow: ellipsis; white-space: nowrap; }
 .contact-mobile { color: #526173; }
 .contact-actions { position: absolute; top: 50%; right: 10rpx; display: flex; width: 136rpx; transform: translateY(-50%); }
 .icon-button { display: flex; width: 66rpx; height: 88rpx; flex-direction: column; align-items: center; justify-content: center; margin: 0; padding: 0; color: var(--brand); background: transparent; font-size: 20rpx; line-height: 1.2; }
 .icon-button + .icon-button { margin-left: 4rpx; }
 .icon-button::after { border: 0; }
-.icon-button--disabled { color: #b7c0cc; opacity: .45; }
+.icon-button--disabled { color: var(--c-text-faint); opacity: .45; }
 .icon-shell { display: flex; width: 50rpx; height: 50rpx; align-items: center; justify-content: center; margin-bottom: 7rpx; border-radius: 50%; background: var(--c-info-bg); }
 .action-icon { width: 31rpx; height: 31rpx; }
-.empty { padding: 100rpx 20rpx; color: #8a96a6; text-align: center; }
+.empty { padding: 100rpx 20rpx; color: var(--c-text-muted); text-align: center; }
 .page-state { display: flex; flex: 1; align-items: center; justify-content: center; color: var(--c-text-muted); font-size: 24rpx; }
 .page-state--error { flex-direction: column; color: var(--c-danger); }
-.page-state button { margin-top: 20rpx; color: var(--brand); background: var(--c-info-bg); font-size: 23rpx; }
+.page-state button { margin-top: 20rpx; color: var(--brand); background: var(--c-info-bg); font-size: 24rpx; }
 .page-state button::after { border: 0; }
