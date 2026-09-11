@@ -548,8 +548,8 @@ export const leaveRoutes: FastifyPluginAsync = async (app) => {
         [actor.id, id.data],
       );
       await client.query("COMMIT");
-      // 事务提交后异步提醒审批人：申请人已撤销该申请。免审批申请无审批人，不通知。
-      if (approverResult.rows[0]?.approver_id) void notifyApproverCancelled(id.data);
+      // 事务提交后异步提醒审批人：仅已审批通过的请假撤销时通知，待审批撤销无需打扰。
+      if (leave.status === "approved" && approverResult.rows[0]?.approver_id) void notifyApproverCancelled(id.data);
       return { success: true };
     } catch (error) {
       await client.query("ROLLBACK");
