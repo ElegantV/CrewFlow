@@ -65,6 +65,29 @@ docker compose up -d                                      # 最后切流量
 - 年假提交校验剩余额度（`leaves.ts` 事务内 `ANNUAL_LEAVE_INSUFFICIENT`），额度按 `work_start_date`
   当年工龄计算（满一年可休，<5 年 5 天，之后逐年 +1 上限 15）
 
+## 小程序按钮约定（重要，2026-09-11 踩坑）
+
+- **原生 `<button>` 不尊重 CSS 的 width 指令**：对小尺寸按钮，改 `width`/`display`/`padding` 都无效，
+  蓝色背景宽度由微信原生层决定（文字 + 系统默认内边距，最小宽度压不下去）。
+  此前「员工情况页『今天』按钮太宽」「个人信息『清空重写』文字上移」连续多轮 CSS 修复全部落空，根因即此。
+- **自定义外观/宽度的按钮一律用 `<view>` 实现**（配合 `hover-class` 补回按下反馈），原生 `<button>`
+  只留给需要 `loading`/`open-type`/`form-type` 等原生能力的场景。已按此改造：`pages/situation/index.wxml`
+  的「今天」按钮（`view + today-button--hover`）。
+- 排查按钮样式问题时先确认元素是 `button` 还是 `view`，不要重复在原生 button 上调 CSS 尺寸。
+
+## 小程序设计约定（2026-09-11 收敛）
+
+- **字号 6 档**（2026-09-11 从 18 档收敛，改动字号时先归类再取值）：
+  - `20rpx` 辅助：tag/徽标/帮助文字/弱提示
+  - `24rpx` 正文：表单标签、按钮文字、常规文本、日期
+  - `28rpx` 小标题：区块/卡片标题、姓名、输入值、主按钮
+  - `32rpx` 标题：页面/弹层/表单标题、导航符号
+  - `40rpx` 大标题：引导页主标题、头像首字
+  - `48rpx` 展示：首页 hero 标题
+  - 特例保留：`68rpx` 仅用于加班页「可用调休额度」余额大数字
+- 弹层骨架类（`.modal-mask`/`.sheet-handle`/`.sheet-close`/`.field` 系列/`.secondary-button`/`.text-button`/
+  `.scrollarea`）已收敛到 `app.wxss` 全局公共类，页面只留差异覆盖；新增页面优先复用全局类。
+
 ## 本地开发 / 测试
 
 - 服务端：`server/README.md`；API 集成测试 `npm run test:api`（Playwright）与 `npm test`
