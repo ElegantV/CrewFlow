@@ -120,6 +120,65 @@ test("超管可新增/编辑/删除处室、打卡地点与项目,普通用户�
   assert.equal(deleteLocation.statusCode, 200, deleteLocation.body);
 });
 
+test("项目重名校验按处室维度:同处室同名 409,不同处室同名允许", async () => {
+  const depA = await app.inject({
+    method: "POST", url: "/api/v1/admin/dicts/departments",
+    headers: auth(superAdmin), payload: { name: "重名测试处室A" },
+  });
+  assert.equal(depA.statusCode, 200, depA.body);
+  const depAId = depA.json().item.id;
+  const depB = await app.inject({
+    method: "POST", url: "/api/v1/admin/dicts/departments",
+    headers: auth(superAdmin), payload: { name: "重名测试处室B" },
+  });
+  assert.equal(depB.statusCode, 200, depB.body);
+  const depBId = depB.json().item.id;
+
+  const createA = await app.inject({
+    method: "POST", url: "/api/v1/admin/dicts/bank-projects",
+    headers: auth(superAdmin), payload: { name: "同名项目", departmentId: depAId },
+  });
+  assert.equal(createA.statusCode, 200, createA.body);
+  const projectAId = createA.json().item.id;
+
+  // 同处室下创建同名项目 → 409
+  const duplicateInA = await app.inject({
+    method: "POST", url: "/api/v1/admin/dicts/bank-projects",
+    headers: auth(superAdmin), payload: { name: "同名项目", departmentId: depAId },
+  });
+  assert.equal(duplicateInA.statusCode, 409, duplicateInA.body);
+
+  // 不同处室下同名项目 → 允许
+  const createB = await app.inject({
+    method: "POST", url: "/api/v1/admin/dicts/bank-projects",
+    headers: auth(superAdmin), payload: { name: "同名项目", departmentId: depBId },
+  });
+  assert.equal(createB.statusCode, 200, createB.body);
+
+  // 把 B 处室的同名项目改到 A 处室 → 409,且不是 500
+  const moveToA = await app.inject({
+    method: "PUT", url: `/api/v1/admin/dicts/bank-projects/${createB.json().item.id}`,
+    headers: auth(superAdmin), payload: { name: "同名项目", departmentId: depAId },
+  });
+  assert.equal(moveToA.statusCode, 409, moveToA.body);
+
+  // 改名后可移入 A 处室
+  const renameMove = await app.inject({
+    method: "PUT", url: `/api/v1/admin/dicts/bank-projects/${createB.json().item.id}`,
+    headers: auth(superAdmin), payload: { name: "同名项目二", departmentId: depAId },
+  });
+  assert.equal(renameMove.statusCode, 200, renameMove.body);
+
+  await app.inject({
+    method: "DELETE", url: `/api/v1/admin/dicts/bank-projects/${projectAId}`, headers: auth(superAdmin),
+  });
+  await app.inject({
+    method: "DELETE", url: `/api/v1/admin/dicts/bank-projects/${createB.json().item.id}`, headers: auth(superAdmin),
+  });
+  await app.inject({ method: "DELETE", url: `/api/v1/admin/dicts/departments/${depAId}`, headers: auth(superAdmin) });
+  await app.inject({ method: "DELETE", url: `/api/v1/admin/dicts/departments/${depBId}`, headers: auth(superAdmin) });
+});
+
 test("people/managers 接口返回 department 字段", async () => {
   const people = await app.inject({ method: "GET", url: "/api/v1/me/people", headers: auth(normalUser) });
   assert.equal(people.statusCode, 200, people.body);

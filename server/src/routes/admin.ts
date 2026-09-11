@@ -105,12 +105,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ code: "MANAGER_REQUIRED", message: "启用普通用户前必须指定审批管理员" });
     }
 
-    await db.query(
-      `UPDATE users
-       SET name = $1, employee_no = $2, role = $3, status = $4, manager_id = $5, bank_level = $6, updated_at = now()
-       WHERE id = $7`,
-      [next.name, next.employeeNo, next.role, next.status, next.managerId, next.bankLevel, id.data],
-    );
+    try {
+      await db.query(
+        `UPDATE users
+         SET name = $1, employee_no = $2, role = $3, status = $4, manager_id = $5, bank_level = $6, updated_at = now()
+         WHERE id = $7`,
+        [next.name, next.employeeNo, next.role, next.status, next.managerId, next.bankLevel, id.data],
+      );
+    } catch (error) {
+      // 工号唯一约束兜底:重复工号返回 409 而不是 500。
+      if (typeof error === "object" && error && "code" in error && error.code === "23505") {
+        return reply.code(409).send({ code: "EMPLOYEE_NO_TAKEN", message: "该工号已被其他用户使用" });
+      }
+      throw error;
+    }
     return { success: true };
   });
 
@@ -349,10 +357,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   const dictNameSchema = z.object({ name: z.string().trim().min(1).max(160) });
 
-  async function dictNameTaken(table: string, name: string, excludeId?: string) {
+  async function dictNameTaken(table: string, name: string, excludeId?: string, departmentId?: string) {
+    const conditions = ["name = $1"];
+    const params: string[] = [name];
+    if (departmentId) {
+      params.push(departmentId);
+      conditions.push(`department_id = $${params.length}`);
+    }
+    if (excludeId) {
+      params.push(excludeId);
+      conditions.push(`id <> $${params.length}`);
+    }
     const result = await db.query(
-      `SELECT 1 FROM ${table} WHERE name = $1 ${excludeId ? "AND id <> $2" : ""} LIMIT 1`,
-      excludeId ? [name, excludeId] : [name],
+      `SELECT 1 FROM ${table} WHERE ${conditions.join(" AND ")} LIMIT 1`,
+      params,
     );
     return Boolean(result.rowCount);
   }
@@ -381,14 +399,25 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   }
 
   function registerDictCrud(path: string, table: string, userColumn: string, label: string) {
+    // 并发下唯一约束兜底:与预检查 dictNameTaken 同口径返回 409。
+    function dictDuplicate(error: unknown) {
+      return typeof error === "object" && error && "code" in error && error.code === "23505";
+    }
+    const duplicateError = { code: "DICT_DUPLICATE", message: "该名称已存在" };
+
     app.post(`/dicts/${path}`, superAdminHooks, async (request, reply) => {
       const parsed = dictNameSchema.safeParse(request.body);
       if (!parsed.success) return reply.code(400).send({ code: "INVALID_DICT", message: "名称无效" });
       if (await dictNameTaken(table, parsed.data.name)) {
-        return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该名称已存在" });
+        return reply.code(409).send(duplicateError);
       }
-      const result = await db.query(`INSERT INTO ${table} (name) VALUES ($1) RETURNING id, name`, [parsed.data.name]);
-      return { item: result.rows[0] };
+      try {
+        const result = await db.query(`INSERT INTO ${table} (name) VALUES ($1) RETURNING id, name`, [parsed.data.name]);
+        return { item: result.rows[0] };
+      } catch (error) {
+        if (dictDuplicate(error)) return reply.code(409).send(duplicateError);
+        throw error;
+      }
     });
 
     app.put(`/dicts/${path}/:id`, superAdminHooks, async (request, reply) => {
@@ -396,14 +425,19 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       const parsed = dictNameSchema.safeParse(request.body);
       if (!id.success || !parsed.success) return reply.code(400).send({ code: "INVALID_DICT", message: "名称无效" });
       if (await dictNameTaken(table, parsed.data.name, id.data)) {
-        return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该名称已存在" });
+        return reply.code(409).send(duplicateError);
       }
-      const result = await db.query(
-        `UPDATE ${table} SET name = $1, updated_at = now() WHERE id = $2 RETURNING id, name`,
-        [parsed.data.name, id.data],
-      );
-      if (!result.rowCount) return reply.code(404).send({ code: "DICT_NOT_FOUND", message: "字典项不存在" });
-      return { item: result.rows[0] };
+      try {
+        const result = await db.query(
+          `UPDATE ${table} SET name = $1, updated_at = now() WHERE id = $2 RETURNING id, name`,
+          [parsed.data.name, id.data],
+        );
+        if (!result.rowCount) return reply.code(404).send({ code: "DICT_NOT_FOUND", message: "字典项不存在" });
+        return { item: result.rows[0] };
+      } catch (error) {
+        if (dictDuplicate(error)) return reply.code(409).send(duplicateError);
+        throw error;
+      }
     });
 
     registerDictDelete(path, table, userColumn, label);
@@ -438,13 +472,21 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (await dictNameTaken("departments", parsed.data.name)) {
       return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该名称已存在" });
     }
-    const result = await db.query<DepartmentRow>(
-      `INSERT INTO departments (name, leave_approval_required, overtime_approval_required)
-       VALUES ($1, $2, $3)
-       RETURNING id, name, leave_approval_required, overtime_approval_required`,
-      [parsed.data.name, parsed.data.leaveApprovalRequired ?? true, parsed.data.overtimeApprovalRequired ?? false],
-    );
-    return { item: departmentItem(result.rows[0]!) };
+    try {
+      const result = await db.query<DepartmentRow>(
+        `INSERT INTO departments (name, leave_approval_required, overtime_approval_required)
+         VALUES ($1, $2, $3)
+         RETURNING id, name, leave_approval_required, overtime_approval_required`,
+        [parsed.data.name, parsed.data.leaveApprovalRequired ?? true, parsed.data.overtimeApprovalRequired ?? false],
+      );
+      return { item: departmentItem(result.rows[0]!) };
+    } catch (error) {
+      // 并发下唯一约束兜底,与预检查同口径返回 409。
+      if (typeof error === "object" && error && "code" in error && error.code === "23505") {
+        return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该名称已存在" });
+      }
+      throw error;
+    }
   });
 
   app.put("/dicts/departments/:id", superAdminHooks, async (request, reply) => {
@@ -454,17 +496,25 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (await dictNameTaken("departments", parsed.data.name, id.data)) {
       return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该名称已存在" });
     }
-    const result = await db.query<DepartmentRow>(
-      `UPDATE departments
-       SET name = $1, updated_at = now(),
-           leave_approval_required = COALESCE($2, leave_approval_required),
-           overtime_approval_required = COALESCE($3, overtime_approval_required)
-       WHERE id = $4
-       RETURNING id, name, leave_approval_required, overtime_approval_required`,
-      [parsed.data.name, parsed.data.leaveApprovalRequired ?? null, parsed.data.overtimeApprovalRequired ?? null, id.data],
-    );
-    if (!result.rowCount) return reply.code(404).send({ code: "DICT_NOT_FOUND", message: "字典项不存在" });
-    return { item: departmentItem(result.rows[0]!) };
+    try {
+      const result = await db.query<DepartmentRow>(
+        `UPDATE departments
+         SET name = $1, updated_at = now(),
+             leave_approval_required = COALESCE($2, leave_approval_required),
+             overtime_approval_required = COALESCE($3, overtime_approval_required)
+         WHERE id = $4
+         RETURNING id, name, leave_approval_required, overtime_approval_required`,
+        [parsed.data.name, parsed.data.leaveApprovalRequired ?? null, parsed.data.overtimeApprovalRequired ?? null, id.data],
+      );
+      if (!result.rowCount) return reply.code(404).send({ code: "DICT_NOT_FOUND", message: "字典项不存在" });
+      return { item: departmentItem(result.rows[0]!) };
+    } catch (error) {
+      // 并发下唯一约束兜底,与预检查同口径返回 409。
+      if (typeof error === "object" && error && "code" in error && error.code === "23505") {
+        return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该名称已存在" });
+      }
+      throw error;
+    }
   });
 
   registerDictDelete("departments", "departments", "department", "行内处室");
@@ -481,15 +531,23 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!parsed.success) return reply.code(400).send({ code: "INVALID_DICT", message: "项目或处室无效" });
     const dep = await db.query("SELECT 1 FROM departments WHERE id = $1", [parsed.data.departmentId]);
     if (!dep.rowCount) return reply.code(404).send({ code: "DEPARTMENT_NOT_FOUND", message: "所属处室不存在" });
-    if (await dictNameTaken("bank_projects", parsed.data.name)) {
-      return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该名称已存在" });
+    if (await dictNameTaken("bank_projects", parsed.data.name, undefined, parsed.data.departmentId)) {
+      return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该处室下已存在同名项目" });
     }
-    const result = await db.query(
-      `INSERT INTO bank_projects (department_id, name) VALUES ($1, $2)
-       RETURNING id, department_id, name`,
-      [parsed.data.departmentId, parsed.data.name],
-    );
-    return { item: result.rows[0] };
+    try {
+      const result = await db.query(
+        `INSERT INTO bank_projects (department_id, name) VALUES ($1, $2)
+         RETURNING id, department_id, name`,
+        [parsed.data.departmentId, parsed.data.name],
+      );
+      return { item: result.rows[0] };
+    } catch (error: unknown) {
+      // 并发下唯一约束兜底,与预检查同口径返回 409。
+      if (typeof error === "object" && error && "code" in error && error.code === "23505") {
+        return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该处室下已存在同名项目" });
+      }
+      throw error;
+    }
   });
 
   app.put("/dicts/bank-projects/:id", superAdminHooks, async (request, reply) => {
@@ -498,13 +556,24 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!id.success || !parsed.success) return reply.code(400).send({ code: "INVALID_DICT", message: "项目或处室无效" });
     const dep = await db.query("SELECT 1 FROM departments WHERE id = $1", [parsed.data.departmentId]);
     if (!dep.rowCount) return reply.code(404).send({ code: "DEPARTMENT_NOT_FOUND", message: "所属处室不存在" });
-    const result = await db.query(
-      `UPDATE bank_projects SET name = $1, department_id = $2, updated_at = now()
-       WHERE id = $3 RETURNING id, department_id, name`,
-      [parsed.data.name, parsed.data.departmentId, id.data],
-    );
-    if (!result.rowCount) return reply.code(404).send({ code: "DICT_NOT_FOUND", message: "字典项不存在" });
-    return { item: result.rows[0] };
+    if (await dictNameTaken("bank_projects", parsed.data.name, id.data, parsed.data.departmentId)) {
+      return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该处室下已存在同名项目" });
+    }
+    try {
+      const result = await db.query(
+        `UPDATE bank_projects SET name = $1, department_id = $2, updated_at = now()
+         WHERE id = $3 RETURNING id, department_id, name`,
+        [parsed.data.name, parsed.data.departmentId, id.data],
+      );
+      if (!result.rowCount) return reply.code(404).send({ code: "DICT_NOT_FOUND", message: "字典项不存在" });
+      return { item: result.rows[0] };
+    } catch (error: unknown) {
+      // 并发下唯一约束兜底,与预检查同口径返回 409。
+      if (typeof error === "object" && error && "code" in error && error.code === "23505") {
+        return reply.code(409).send({ code: "DICT_DUPLICATE", message: "该处室下已存在同名项目" });
+      }
+      throw error;
+    }
   });
 
   app.delete("/dicts/bank-projects/:id", superAdminHooks, async (request, reply) => {
